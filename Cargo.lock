@@ -28,7 +28,7 @@ dependencies = [
 
 [[package]]
 name = "alibabacloud-oss-sdk-rust-v2"
-version = "0.1.0"
+version = "0.1.0-delta.1"
 dependencies = [
  "alibabacloud-oss-sdk-rust-v2-api-model",
  "async-trait",
@@ -67,9 +67,8 @@ dependencies = [
 
 [[package]]
 name = "alibabacloud-oss-sdk-rust-v2-api-model"
-version = "0.1.0"
+version = "0.1.0-delta.1"
 dependencies = [
- "alibabacloud-oss-sdk-rust-v2",
  "http 1.1.0",
  "quote",
  "serde",

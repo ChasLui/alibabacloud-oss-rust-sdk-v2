@@ -1,16 +1,23 @@
 [package]
 name = "alibabacloud-oss-sdk-rust-v2"
 description = "Rust SDK of Alibaba Cloud OSS Service V2"
-version = "0.1.0"
+version = "0.1.0-delta.1"
 edition = "2021"
 rust-version = "1.69.0"
 build = "build.rs"
+license = "Apache-2.0"
+repository = "https://github.com/aliyun/alibabacloud-oss-rust-sdk-v2"
+homepage = "https://github.com/aliyun/alibabacloud-oss-rust-sdk-v2"
+authors = ["Alibaba Cloud SDK <sdk@alibabacloud.com>"]
+keywords = ["alibabacloud", "oss", "aliyun", "object-storage"]
+categories = ["api-bindings"]
+readme = "../README.md"
 
 [package.metadata.cargo-udeps.ignore]
 development = ["tokio-test"] # used only in doc-tests
 
 [dependencies]
-alibabacloud-oss-sdk-rust-v2-api-model = { path = "../api_model" }
+alibabacloud-oss-sdk-rust-v2-api-model = { version = "0.1.0-delta.1", path = "../api_model" }
 async-trait = "0.1.80"
 base64 = "0.22.1"
 bitflags = "2.6.0"

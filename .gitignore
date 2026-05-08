@@ -1,0 +1,15 @@
+# cache
+/target
+
+# config
+/.vscode/
+
+# output
+lcov.info
+
+# misc
+.DS_Store
+
+.idea/
+
+test_config.json
