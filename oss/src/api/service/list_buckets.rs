@@ -12,7 +12,7 @@ use crate::{OperationInput, OperationOutput, DEFAULT_CONTENT_TYPE, HTTP_HEADER_C
 use crate::client::BodyDataReader;
 
 
-#[derive(Debug, Default, OssRequestModel)]
+#[derive(Debug, Default, Clone, OssRequestModel)]
 pub struct ListBucketsRequest {
     /// The name of the bucket from which the list operation begins.
     #[field(type = "query")]
@@ -42,31 +42,31 @@ pub struct ListBucketsRequest {
 #[derive(Debug, Deserialize, OssResultModel)]
 pub struct ListBucketsResult {
     /// The prefix contained in the names of the returned bucket.
-    #[serde(rename = "Prefix")]
+    #[serde(rename = "Prefix", skip_serializing_if = "Option::is_none")]
     pub prefix: Option<String>,
 
     /// The name of the bucket after which the ListBuckets operation starts.
-    #[serde(rename = "Marker")]
+    #[serde(rename = "Marker", skip_serializing_if = "Option::is_none")]
     pub marker: Option<String>,
     /// The marker filter.
 
     /// The maximum number of buckets that can be returned for the request.
-    #[serde(rename = "MaxKeys")]
+    #[serde(rename = "MaxKeys", skip_serializing_if = "Option::is_none")]
     pub max_keys: Option<i32>,
 
     /// Indicates whether all results are returned.
     /// true: Only part of the results are returned for the request.
     /// false: All results are returned for the request.
-    #[serde(rename = "IsTruncated")]
+    #[serde(rename = "IsTruncated", skip_serializing_if = "Option::is_none")]
     pub is_truncated: Option<bool>,
 
     /// The marker for the next ListBuckets request, which can be used to return
     /// the remaining results.
-    #[serde(rename = "NextMarker")]
+    #[serde(rename = "NextMarker", skip_serializing_if = "Option::is_none")]
     pub next_marker: Option<String>,
 
     /// The container that stores information about the bucket owner.
-    #[serde(rename = "Owner")]
+    #[serde(rename = "Owner", skip_serializing_if = "Option::is_none")]
     pub owner: Option<Owner>,
 
     /// The container that stores information about buckets.

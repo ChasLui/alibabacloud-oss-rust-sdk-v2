@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::Serialize;
 
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default, Serialize, Clone)]
 /// Allow for headers and parameters override, case-insensitive
 pub struct RequestCommon {
     pub headers: HashMap<String, String>,

@@ -1,4 +1,3 @@
-use std::any::{Any, TypeId};
 use std::rc::Rc;
 use std::time::SystemTime;
 
@@ -96,8 +95,6 @@ impl Client {
     ) -> Result<OperationOutput, Box<dyn std::error::Error + Send + Sync>> {
         let logger = self.inner_options.logger.as_ref().expect("Logger not set");
 
-        let client = reqwest::Client::new();
-
         // 提前获取需要在后面使用的值，避免在移动input后访问
         let input_op_name = input.op_name.clone();
         let input_bucket = input.bucket.clone();
@@ -106,8 +103,75 @@ impl Client {
 
         logger.info(format!("sendRequest Start:\ninput: {:#?}", &input).as_str());  // 使用引用
 
-        // Validate client options and input parameters to catch client errors early
+        let signing_context = self.build_signing_context(input, options).await?;
+
+
+        // Send request
+        let response = self
+            .send_http_request(signing_context, options)
+            .await?;
+
+        logger.info(
+            format!(
+                "sendRequest End:\ninput_op_name: {}\ninput_bucket: {:#?}\ninput_key: {:#?}\nresponse: {:#?}",
+                input_op_name,  // 使用之前保存的值
+                input_bucket,   // 使用之前保存的值
+                input_key,      // 使用之前保存的值
+                &response
+            )
+            .as_str(),
+        );
+
+        let status = response.status();
         
+        // Clone headers before consuming the response for error handling
+        let headers = header_map_to_hash_map(response.headers());
+        // let request_clone = request.try_clone().expect("Unable to clone request");
+        
+        if status.is_success() {
+            let body = Some(Box::pin(response.bytes_stream()) as BodyStream);
+            Ok(OperationOutput {
+                input: Some(Rc::new(input_clone)),  // 使用之前克隆的完整input
+                status,
+                headers,
+                body,
+                // http_request: Some(Rc::new(request_clone)),
+                op_metadata: OperationMetadata::default(),
+                // body_data: None, // 添加这一行
+            })
+        } else {
+            //will not go to here
+            Err("It will not go to here! All err status should return corresponding ServiceErr。Status must be success at this point。".into())
+        }
+    }
+
+    /// Builds the signing context for an operation input: validates client
+    /// options and input parameters, builds the request URL, applies headers
+    /// and body, and constructs the [SigningContext].
+    ///
+    /// This neither signs the request nor sends it, so it can be reused by
+    /// both the normal send path and the presign path.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - The [OperationInput] object containing the input parameters
+    ///   for the operation. Ownership is consumed (the body is moved into the
+    ///   built request).
+    /// * `options` - An optional reference to [ClientOptions] which contains
+    ///   additional options for the client.
+    pub(super) async fn build_signing_context(
+        &self,
+        input: OperationInput,
+        options: Option<&ClientOptions>,
+    ) -> Result<SigningContext, Box<dyn std::error::Error + Send + Sync>> {
+        let client = reqwest::Client::new();
+
+        // 提前获取需要在后面使用的值，避免在移动input后访问
+        let input_bucket = input.bucket.clone();
+        let input_key = input.key.clone();
+
+        // Validate client options and input parameters to catch client errors early
+
         // Check for invalid retry_max_attempts
         if let Some(max_attempts) = options.and_then(|o| o.retry_max_attempts) {
             if max_attempts <= 0 {
@@ -121,7 +185,7 @@ impl Client {
         }
 
         // Validate input parameters early to catch client errors
-        if let Some(ref bucket) = input.bucket {
+        if let Some(bucket) = &input.bucket {
             if bucket.is_empty() {
                 let client_error = ClientError {
                     code: "InvalidParameter".to_string(),
@@ -131,8 +195,8 @@ impl Client {
                 return Err(Box::new(client_error));
             }
         }
-        
-        if let Some(ref key) = input.key {
+
+        if let Some(key) = &input.key {
             if key.is_empty() {
                 let client_error = ClientError {
                     code: "InvalidParameter".to_string(),
@@ -153,7 +217,7 @@ impl Client {
             };
             return Err(Box::new(client_error));
         }
-        
+
         let endpoint = endpoint_option.unwrap();
         if !is_valid_endpoint(endpoint.as_str()) {
             let client_error = ClientError {
@@ -166,25 +230,19 @@ impl Client {
 
         // Region validation - only required for V4 signature version
         let region = &options.as_ref().expect("Options not set").region;
-        
+
         // Determine if we're using V4 signature which requires region by checking the signer type
         let current_signer = options
             .and_then(|opt| opt.signer.as_ref())
             .or(self.options.signer.as_ref());
-        
-        // Check if the current signer is a V4 signer by comparing TypeIds
+
+        // Check if the current signer is a V4 signer
         let is_v4_signer = current_signer.map_or(false, |signer| {
-            // Import the concrete signer types to compare
-            use crate::signer::v4::SignerV4;
-            
-            // Get the TypeId of the concrete signers
-            let v4_signer_type = TypeId::of::<SignerV4>();
-            let current_signer_type = signer.as_ref().type_id();
-            
-            // Compare the types to determine if it's a V4 signer
-            current_signer_type == v4_signer_type
+            // `type_id()` on `&dyn Signer` returns the trait object's own TypeId
+            // (std blanket impl), so it can never match SignerV4; use as_any() instead.
+            signer.as_ref().as_any().is::<crate::signer::v4::SignerV4>()
         });
-        
+
         // Only validate region if we're using V4 signature
         if is_v4_signer && region.is_empty() {
             let client_error = ClientError {
@@ -229,13 +287,6 @@ impl Client {
             request_builder.header(HTTP_HEADER_USER_AGENT, &self.inner_options.user_agent);
 
         // Body
-        // Body is handled asynchronously, so we need a different approach
-        // For now, we'll skip setting the body here and handle it separately
-        // if let Some(body) = &input.body {
-        //     // Since body.into_reqwest_body() is async, we need special handling
-        //     // This would need to be refactored to work with async context
-        // }
-        let input_has_body = input.body.is_some(); // 记录是否有body，后续用于判断
         let body_content = input.body;  // 移动 body_content
 
         if let Some(content) = body_content {  // 移动 content
@@ -253,23 +304,6 @@ impl Client {
 
         let clock_offset = self.inner_options.clock_offset;
         let request = request_builder.build().expect("Unable to build request");
-        // let singn_time=Option::
-        // if let Some(date_str) = request
-        //     .try_clone()
-        //     .expect("Unable to clone request")
-        //     .headers()
-        //     .get(HEADER_OSS_DATE)
-        //     .map(|v| v.to_str().expect("Invalid header value"))
-        // {
-        //     let datetime: DateTime<Utc> = date_str.parse().expect("Invalid date string");
-        //     signing_context.time = Some(datetime.into());
-        // } else if let Some(sign_time) = input.op_metadata.get(SIGN_TIME) {
-        //     signing_context.time = Some(
-        //         *sign_time
-        //             .downcast_ref::<SystemTime>()
-        //             .expect("Invalid sign time"),
-        //     );
-        // }
 
         let sign_time = if let Some(date_str) = request
             .headers()
@@ -307,44 +341,7 @@ impl Client {
 
         signing_context.time = sign_time;
 
-
-        // Send request
-        let response = self
-            .send_http_request(signing_context, options)
-            .await?;
-
-        logger.info(
-            format!(
-                "sendRequest End:\ninput_op_name: {}\ninput_bucket: {:#?}\ninput_key: {:#?}\nresponse: {:#?}",
-                input_op_name,  // 使用之前保存的值
-                input_bucket,   // 使用之前保存的值
-                input_key,      // 使用之前保存的值
-                &response
-            )
-            .as_str(),
-        );
-
-        let status = response.status();
-        
-        // Clone headers before consuming the response for error handling
-        let headers = header_map_to_hash_map(response.headers());
-        // let request_clone = request.try_clone().expect("Unable to clone request");
-        
-        if status.is_success() {
-            let body = Some(Box::pin(response.bytes_stream()) as BodyStream);
-            Ok(OperationOutput {
-                input: Some(Rc::new(input_clone)),  // 使用之前克隆的完整input
-                status,
-                headers,
-                body,
-                // http_request: Some(Rc::new(request_clone)),
-                op_metadata: OperationMetadata::default(),
-                // body_data: None, // 添加这一行
-            })
-        } else {
-            //will not go to here
-            Err("It will not go to here! All err status should return corresponding ServiceErr。Status must be success at this point。".into())
-        }
+        Ok(signing_context)
     }
 
     /// Asynchronously sends an HTTP request to the specified endpoint.
@@ -427,25 +424,7 @@ impl Client {
             .as_str(),
         );
 
-        // Check credential provider
-        if let Some(credentials_provider) = &opts.credentials_provider {
-            if credentials_provider.type_id() != TypeId::of::<AnonymousCredentialsProvider>() {
-                let cred = credentials_provider.get_credentials().await?;
-                signing_ctx.credentials = Some(cred);
-
-                opts.signer
-                    .as_ref()
-                    .expect("Signer not set")
-                    .sign(&mut signing_ctx)?;
-                logger.debug(
-                    format!(
-                        "send_http_request_once::sign:\nsigning_ctx: {:#?}",
-                        signing_ctx
-                    )
-                    .as_str(),
-                );
-            }
-        }
+        self.sign_request(&mut signing_ctx, options).await?;
 
         // Log HTTP request
         // logger.debug(
@@ -514,6 +493,49 @@ impl Client {
 
             panic!("it will not go to here! All err status should return corresponding ServiceErr")
         }
+    }
+
+    /// Signs the request in the given signing context using the configured
+    /// credentials provider and signer.
+    ///
+    /// Anonymous credentials skip signing entirely. Extracted from
+    /// `send_http_request_once` so the presign path can sign without sending.
+    ///
+    /// # Arguments
+    ///
+    /// * `signing_ctx` - A mutable reference to the [SigningContext] to sign.
+    /// * `options` - An optional reference to [ClientOptions] which contains
+    ///   the credentials provider and signer.
+    pub(super) async fn sign_request(
+        &self,
+        signing_ctx: &mut SigningContext,
+        options: Option<&ClientOptions>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let logger = self.inner_options.logger.as_ref().expect("Logger not set");
+
+        let opts = options.unwrap_or(&self.options);
+
+        // Check credential provider
+        if let Some(credentials_provider) = &opts.credentials_provider {
+            if !credentials_provider.as_any().is::<AnonymousCredentialsProvider>() {
+                let cred = credentials_provider.get_credentials().await?;
+                signing_ctx.credentials = Some(cred);
+
+                opts.signer
+                    .as_ref()
+                    .expect("Signer not set")
+                    .sign(signing_ctx)?;
+                logger.debug(
+                    format!(
+                        "sign_request::sign:\nsigning_ctx: {:#?}",
+                        signing_ctx
+                    )
+                    .as_str(),
+                );
+            }
+        }
+
+        Ok(())
     }
 
     #[allow(unused_variables)]
@@ -602,5 +624,62 @@ mod tests {
         } else {
             panic!("Invoke operation failed");
         }
+    }
+
+    #[tokio::test]
+    async fn test_build_signing_context_v4_requires_region() {
+        // Regression: is_v4_signer used to compare TypeIds obtained from
+        // `&dyn Signer`, which is the trait object's own TypeId — the check
+        // never fired. Now a V4 signer with an empty region must be rejected
+        // before any request is built.
+        let client = Client::new(
+            &Config::default()
+                .with_endpoint("https://oss-cn-hangzhou.aliyuncs.com")
+                .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
+                    "test-ak",
+                    "test-sk",
+                    &[],
+                )))
+                .with_signature_version(SignatureVersionType::V4),
+        );
+        assert!(client.options.region.is_empty());
+
+        let input = OperationInput {
+            op_name: "GetBucketInfo".to_string(),
+            method: http::Method::GET,
+            bucket: Some("my-bucket".to_string()),
+            ..Default::default()
+        };
+
+        let err = client
+            .build_signing_context(input, Some(&client.options))
+            .await
+            .expect_err("V4 signer without region must fail");
+        assert!(
+            err.to_string().contains("region is not set"),
+            "unexpected error: {}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn test_sign_request_skips_anonymous_provider() {
+        // Regression: anonymous detection used `Rc<dyn CredentialsProvider>::type_id()`,
+        // which is the trait object's TypeId — anonymous requests were still signed
+        // and failed with "Credentials is null or empty" under V4.
+        let client = Client::new(
+            &Config::default()
+                .with_region("cn-hangzhou")
+                .with_credentials_provider(Rc::new(AnonymousCredentialsProvider::new()))
+                .with_signature_version(SignatureVersionType::V4),
+        );
+
+        let mut ctx = SigningContext::default();
+        client
+            .sign_request(&mut ctx, None)
+            .await
+            .expect("anonymous provider must skip signing");
+        assert!(ctx.credentials.is_none());
+        assert!(ctx.signed_headers.is_empty());
     }
 }

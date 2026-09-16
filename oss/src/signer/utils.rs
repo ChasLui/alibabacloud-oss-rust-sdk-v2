@@ -10,6 +10,10 @@ pub fn get_decoded_query_from_str(query: &str) -> HashMap<String, String> {
     for pair in query.split('&') {
         let mut iter = pair.split('=');
         if let Some(key) = iter.next() {
+            // Skip empty pairs (e.g. from an empty query string or "a=1&&b=2")
+            if key.is_empty() {
+                continue;
+            }
             let decoded_key = urlencoding::decode(key).unwrap_or_else(|_| key.to_string().into());
             let decoded_value = if let Some(value) = iter.next() {
                 urlencoding::decode(value)
@@ -29,6 +33,10 @@ pub fn get_encoded_query_from_str(query: &str) -> HashMap<String, String> {
     for pair in query.split('&') {
         let mut iter = pair.split('=');
         if let Some(key) = iter.next() {
+            // Skip empty pairs (e.g. from an empty query string or "a=1&&b=2")
+            if key.is_empty() {
+                continue;
+            }
             let encoded_key = urlencoding::encode(key);
             let encoded_value = if let Some(value) = iter.next() {
                 urlencoding::encode(value).into_owned()

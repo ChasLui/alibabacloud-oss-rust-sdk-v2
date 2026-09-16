@@ -10,7 +10,7 @@ use crate::{OperationInput, OperationOutput};
 use crate::client::BodyDataReader;
 
 
-#[derive(Debug, Default, OssRequestModel)]
+#[derive(Debug, Default, Clone, OssRequestModel)]
 pub struct ListPartsRequest {
     /// The name of the bucket.
     pub bucket: String,
@@ -48,35 +48,35 @@ pub struct ListPartsRequest {
 #[serde(rename = "ListPartsResult")]
 pub struct ListPartsResult {
     /// The bucket name.
-    #[serde(rename = "Bucket")]
+    #[serde(rename = "Bucket", skip_serializing_if = "Option::is_none")]
     pub bucket: Option<String>,
 
     /// The encoding type of the returned content.
-    #[serde(rename = "EncodingType")]
+    #[serde(rename = "EncodingType", skip_serializing_if = "Option::is_none")]
     pub encoding_type: Option<String>,
 
     /// The object key.
-    #[serde(rename = "Key")]
+    #[serde(rename = "Key", skip_serializing_if = "Option::is_none")]
     pub key: Option<String>,
 
     /// The upload ID.
-    #[serde(rename = "UploadId")]
+    #[serde(rename = "UploadId", skip_serializing_if = "Option::is_none")]
     pub upload_id: Option<String>,
 
     /// The part number marker for the list.
-    #[serde(rename = "PartNumberMarker")]
+    #[serde(rename = "PartNumberMarker", skip_serializing_if = "Option::is_none")]
     pub part_number_marker: Option<i32>,
 
     /// The next part number marker if the results are truncated.
-    #[serde(rename = "NextPartNumberMarker")]
+    #[serde(rename = "NextPartNumberMarker", skip_serializing_if = "Option::is_none")]
     pub next_part_number_marker: Option<i32>,
 
     /// The maximum number of parts returned.
-    #[serde(rename = "MaxParts")]
+    #[serde(rename = "MaxParts", skip_serializing_if = "Option::is_none")]
     pub max_parts: Option<i32>,
 
     /// Whether the results are truncated.
-    #[serde(rename = "IsTruncated")]
+    #[serde(rename = "IsTruncated", skip_serializing_if = "Option::is_none")]
     pub is_truncated: Option<bool>,
 
     /// The list of parts.
@@ -95,7 +95,7 @@ pub struct Part {
     pub part_number: i32,
 
     /// The last modified time of the part.
-    #[serde(rename = "LastModified")]
+    #[serde(rename = "LastModified", skip_serializing_if = "Option::is_none")]
     pub last_modified: Option<String>,  // Using String instead of DateTime to avoid deserialization issues
 
     /// The ETag of the part.

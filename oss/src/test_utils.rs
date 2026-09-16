@@ -1,5 +1,4 @@
 use std::fs;
-use std::path::Path;
 
 #[derive(serde::Deserialize, Debug)]
 pub struct TestConfig {
@@ -23,13 +22,20 @@ pub fn load_test_config() -> Option<TestConfig> {
     ];
 
     for path in &config_paths {
-        if Path::new(path).exists() {
-            match fs::read_to_string(path) {
-                Ok(content) => match serde_json::from_str::<TestConfig>(&content) {
-                    Ok(config) => return Some(config),
-                    Err(_) => continue,
-                },
-                Err(_) => continue,
+        if let Ok(content) = fs::read_to_string(path) {
+            if let Ok(config) = serde_json::from_str::<TestConfig>(&content) {
+                // Skip configs that still contain the exact placeholder values
+                // shipped with the repo. Exact match only: substring matching
+                // would silently reject legitimate values containing "xxxx".
+                const PLACEHOLDERS: [&str; 3] = ["xxxxx", "xxxxxxxxxxxx", "xxxxxxxx"];
+                let is_placeholder = |v: &str| PLACEHOLDERS.contains(&v);
+                if is_placeholder(&config.access_key_id)
+                    || is_placeholder(&config.access_key_secret)
+                    || is_placeholder(&config.bucket)
+                {
+                    return None;
+                }
+                return Some(config);
             }
         }
     }

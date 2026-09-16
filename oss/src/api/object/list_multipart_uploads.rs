@@ -10,7 +10,7 @@ use crate::{OperationInput, OperationOutput};
 use crate::client::BodyDataReader;
 
 
-#[derive(Debug, Default, OssRequestModel)]
+#[derive(Debug, Default, Clone, OssRequestModel)]
 pub struct ListMultipartUploadsRequest {
     /// The name of the bucket.
     pub bucket: String,
@@ -52,43 +52,43 @@ pub struct ListMultipartUploadsRequest {
 #[serde(rename = "ListMultipartUploadsResult")]
 pub struct ListMultipartUploadsResult {
     /// The bucket name.
-    #[serde(rename = "Bucket")]
+    #[serde(rename = "Bucket", skip_serializing_if = "Option::is_none")]
     pub bucket: Option<String>,
 
     /// The encoding type of the returned content.
-    #[serde(rename = "EncodingType")]
+    #[serde(rename = "EncodingType", skip_serializing_if = "Option::is_none")]
     pub encoding_type: Option<String>,
 
     /// The starting object key position of the list.
-    #[serde(rename = "KeyMarker")]
+    #[serde(rename = "KeyMarker", skip_serializing_if = "Option::is_none")]
     pub key_marker: Option<String>,
 
     /// The starting upload ID position of the list.
-    #[serde(rename = "UploadIdMarker")]
+    #[serde(rename = "UploadIdMarker", skip_serializing_if = "Option::is_none")]
     pub upload_id_marker: Option<String>,
 
     /// The next key marker if the results are truncated.
-    #[serde(rename = "NextKeyMarker")]
+    #[serde(rename = "NextKeyMarker", skip_serializing_if = "Option::is_none")]
     pub next_key_marker: Option<String>,
 
     /// The next upload ID marker if the results are truncated.
-    #[serde(rename = "NextUploadMarker")]
-    pub next_upload_marker: Option<String>,
+    #[serde(rename = "NextUploadIdMarker", skip_serializing_if = "Option::is_none")]
+    pub next_upload_id_marker: Option<String>,
 
     /// The maximum number of uploads returned.
-    #[serde(rename = "MaxUploads")]
+    #[serde(rename = "MaxUploads", skip_serializing_if = "Option::is_none")]
     pub max_uploads: Option<i32>,
 
     /// Whether the results are truncated.
-    #[serde(rename = "IsTruncated")]
+    #[serde(rename = "IsTruncated", skip_serializing_if = "Option::is_none")]
     pub is_truncated: Option<bool>,
 
     /// The delimiter used for grouping object names.
-    #[serde(rename = "Delimiter")]
+    #[serde(rename = "Delimiter", skip_serializing_if = "Option::is_none")]
     pub delimiter: Option<String>,
 
     /// The prefix used to limit object keys.
-    #[serde(rename = "Prefix")]
+    #[serde(rename = "Prefix", skip_serializing_if = "Option::is_none")]
     pub prefix: Option<String>,
 
     /// The list of multipart uploads.
@@ -111,7 +111,7 @@ pub struct MultipartUpload {
     pub upload_id: String,
 
     /// The time when the multipart upload was initiated.
-    #[serde(rename = "Initiated")]
+    #[serde(rename = "Initiated", skip_serializing_if = "Option::is_none")]
     pub initiated: Option<String>,  // Changed from DateTime<Utc> to String for now
 }
 

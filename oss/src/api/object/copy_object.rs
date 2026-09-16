@@ -86,10 +86,10 @@ pub struct CopyObjectRequest {
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 struct CopyObjectResponseBody {
-    #[serde(rename = "ETag")]
+    #[serde(rename = "ETag", skip_serializing_if = "Option::is_none")]
     pub etag: Option<String>,
     
-    #[serde(rename = "LastModified")]
+    #[serde(rename = "LastModified", skip_serializing_if = "Option::is_none")]
     pub last_modified: Option<String>,
 }
 
@@ -209,10 +209,10 @@ impl Client {
 #[derive(Debug, Deserialize, Default)]
 #[serde(rename = "CopyObjectResult")]
 pub struct CopyObjectResultBody {
-    #[serde(rename = "ETag")]
+    #[serde(rename = "ETag", skip_serializing_if = "Option::is_none")]
     pub etag: Option<String>,
     
-    #[serde(rename = "LastModified")]
+    #[serde(rename = "LastModified", skip_serializing_if = "Option::is_none")]
     pub last_modified: Option<String>,
 }
 

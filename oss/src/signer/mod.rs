@@ -15,7 +15,7 @@ pub const SUB_RESOURCE: &str = "SubResource";
 pub const SIGN_TIME: &str = "SignTime";
 
 // Common
-const DEFAULT_EXPIRES_DURATION: Duration = Duration::from_secs(15 * 60);
+pub(crate) const DEFAULT_EXPIRES_DURATION: Duration = Duration::from_secs(15 * 60);
 
 // v1
 const SECURITY_TOKEN_QUERY: &str = "security-token";
@@ -58,6 +58,13 @@ pub trait Signer {
         &self,
         ctx: &mut SigningContext,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+
+    /// Checks whether `header` participates in the signature, i.e. it is a
+    /// default signed header or listed in `additional_headers`.
+    fn is_signed_header(&self, additional_headers: &[String], header: &str) -> bool;
+
+    /// Returns the signer as [`std::any::Any`] for concrete type checks.
+    fn as_any(&self) -> &dyn std::any::Any;
 }
 
 /// A no-op signer implementation.
@@ -69,6 +76,14 @@ impl Signer for NopSigner {
         _ctx: &mut SigningContext,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         Ok(())
+    }
+
+    fn is_signed_header(&self, _additional_headers: &[String], _header: &str) -> bool {
+        false
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 

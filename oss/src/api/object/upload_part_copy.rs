@@ -74,11 +74,11 @@ pub struct UploadPartCopyRequest {
 #[serde(rename = "CopyPartResult")]
 pub struct UploadPartCopyResult {
     /// The time when the part was last modified.
-    #[serde(rename = "LastModified")]
+    #[serde(rename = "LastModified", skip_serializing_if = "Option::is_none")]
     pub last_modified: Option<String>,  // Using String to avoid deserialization issues
 
     /// The ETag of the uploaded part.
-    #[serde(rename = "ETag")]
+    #[serde(rename = "ETag", skip_serializing_if = "Option::is_none")]
     pub etag: Option<String>,
 
     /// The version ID of the source object that was copied.

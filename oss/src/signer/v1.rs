@@ -353,34 +353,6 @@ impl SignerV1 {
         Ok(())
     }
 
-    /// Checks if a given header is a signed header.
-    ///
-    /// # Arguments
-    ///
-    /// * `header` - The header to check.
-    ///
-    /// # Returns
-    ///
-    /// Returns true if the header is a signed header, false otherwise.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// let header = "x-oss-meta-custom-header";
-    /// let is_signed = signer_v1.is_signed_header(header);
-    /// ```
-    ///
-    /// # Note
-    ///
-    /// This method checks if the header starts with the HEADER_OSS_PREFIX or if
-    /// it is one of the predefined headers.
-    pub fn is_signed_header(&self, header: &str) -> bool {
-        let lowercase_header = header.to_lowercase();
-        lowercase_header.starts_with(HEADER_OSS_PREFIX.to_lowercase().as_str())
-            || lowercase_header == HTTP_HEADER_DATE.to_lowercase()
-            || lowercase_header == HTTP_HEADER_CONTENT_TYPE.to_lowercase()
-            || lowercase_header == HTTP_HEADER_CONTENT_MD5.to_lowercase()
-    }
 }
 
 impl Signer for SignerV1 {
@@ -428,6 +400,21 @@ impl Signer for SignerV1 {
         } else {
             self.auth_header(ctx)
         }
+    }
+
+    fn is_signed_header(&self, additional_headers: &[String], header: &str) -> bool {
+        let lowercase_header = header.to_lowercase();
+        lowercase_header.starts_with(HEADER_OSS_PREFIX.to_lowercase().as_str())
+            || lowercase_header == HTTP_HEADER_DATE.to_lowercase()
+            || lowercase_header == HTTP_HEADER_CONTENT_TYPE.to_lowercase()
+            || lowercase_header == HTTP_HEADER_CONTENT_MD5.to_lowercase()
+            || additional_headers
+                .iter()
+                .any(|h| h.eq_ignore_ascii_case(header))
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 

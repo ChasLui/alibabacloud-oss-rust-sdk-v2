@@ -3,6 +3,11 @@ mod error_handler;
 mod invoker;
 mod options;
 mod resolver;
+mod paginators;
+mod presign;
+
+pub use self::paginators::*;
+pub use self::presign::*;
 
 use std::rc::Rc;
 use std::pin::Pin;

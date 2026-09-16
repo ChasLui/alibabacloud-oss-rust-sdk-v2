@@ -39,7 +39,7 @@ pub struct GetObjectAclResult {
     pub acl: Option<String>,
 
     /// The container that stores information about the bucket owner.
-    #[serde(rename = "Owner")]
+    #[serde(rename = "Owner", skip_serializing_if = "Option::is_none")]
     pub owner: Option<Owner>,
 
     /// Version of the object.

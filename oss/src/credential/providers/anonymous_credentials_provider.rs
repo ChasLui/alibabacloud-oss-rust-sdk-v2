@@ -12,6 +12,9 @@ impl AnonymousCredentialsProvider {
 
 #[async_trait::async_trait]
 impl CredentialsProvider for AnonymousCredentialsProvider {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
     /// Retrieves the credentials.
     ///
     /// # Examples

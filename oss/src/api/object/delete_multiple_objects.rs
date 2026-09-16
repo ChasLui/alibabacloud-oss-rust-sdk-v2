@@ -28,7 +28,7 @@ pub struct DeleteMultipleObjectsRequest {
     pub content_length: Option<u64>,
 
     /// The container that stores information about you want to delete objects.
-    #[serde(rename = "Object")]
+    #[serde(rename = "Object", default)]
     pub objects: Vec<DeleteObject>,
 
     /// Specifies whether to enable the Quiet return mode.
@@ -50,13 +50,13 @@ pub struct DeleteMultipleObjectsRequest {
 #[derive(Debug, Deserialize, OssResultModel)]
 pub struct DeleteMultipleObjectsResult {
     /// The container that stores information about the deleted objects.
-    #[serde(rename = "Deleted")]
+    #[serde(rename = "Deleted", default)]
     pub deleted_objects: Vec<DeleteInfo>,
 
     /// The encoding type of the name of the deleted object in the response.
     /// If encoding-type is specified in the request, the object name is encoded
     /// in the returned result.
-    #[serde(rename = "EncodingType")]
+    #[serde(rename = "EncodingType", skip_serializing_if = "Option::is_none")]
     pub encoding_type: Option<String>,
 
     #[serde(skip)]
@@ -81,15 +81,15 @@ pub struct DeleteInfo {
     pub key: String,
 
     /// The version ID of the source object.
-    #[serde(rename = "VersionId")]
+    #[serde(rename = "VersionId", skip_serializing_if = "Option::is_none")]
     pub version_id: Option<String>,
 
     /// Indicates whether the deleted version is a delete marker.
-    #[serde(rename = "DeleteMarker")]
+    #[serde(rename = "DeleteMarker", skip_serializing_if = "Option::is_none")]
     pub delete_marker: Option<bool>,
 
     /// The version ID of the delete marker.
-    #[serde(rename = "DeleteMarkerVersionId")]
+    #[serde(rename = "DeleteMarkerVersionId", skip_serializing_if = "Option::is_none")]
     pub delete_marker_version_id: Option<String>,
 }
 

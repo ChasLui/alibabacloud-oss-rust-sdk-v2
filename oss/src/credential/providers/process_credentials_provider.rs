@@ -87,6 +87,9 @@ impl ProcessCredentialsProvider {
 
 #[async_trait::async_trait]
 impl CredentialsProvider for ProcessCredentialsProvider {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
     /// Asynchronously fetches the credentials by calling the
     /// `fetch_credentials` method. It returns a `Result` containing the
     /// parsed `Credentials` struct or an error.

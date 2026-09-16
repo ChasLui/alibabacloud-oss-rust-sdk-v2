@@ -16,6 +16,9 @@ impl EnvironmentVariableCredentialsProvider {
 
 #[async_trait::async_trait]
 impl CredentialsProvider for EnvironmentVariableCredentialsProvider {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
     /// Retrieves the credentials from environment variables.
     async fn get_credentials(
         &self,

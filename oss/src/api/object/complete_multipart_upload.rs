@@ -65,7 +65,7 @@ pub struct CompleteMultipartUploadRequest {
     pub object_acl: Option<String>,
 
     /// The container that stores information about uploaded parts.
-    #[serde(rename = "Part")]
+    #[serde(rename = "Part", default)]
     pub parts: Vec<CompleteMultipartUploadPart>,
 
     /// To indicate that the requester is aware that the request and data
@@ -82,23 +82,23 @@ pub struct CompleteMultipartUploadRequest {
 #[serde(rename = "CompleteMultipartUploadResult")]
 pub struct CompleteMultipartUploadResult {
     /// The encoding type of the returned result.
-    #[serde(rename = "EncodingType")]
+    #[serde(rename = "EncodingType", skip_serializing_if = "Option::is_none")]
     pub encoding_type: Option<String>,
 
     /// The URL of the created object.
-    #[serde(rename = "Location")]
+    #[serde(rename = "Location", skip_serializing_if = "Option::is_none")]
     pub location: Option<String>,
 
     /// The name of the bucket.
-    #[serde(rename = "Bucket")]
+    #[serde(rename = "Bucket", skip_serializing_if = "Option::is_none")]
     pub bucket: Option<String>,
 
     /// The name of the created object.
-    #[serde(rename = "Key")]
+    #[serde(rename = "Key", skip_serializing_if = "Option::is_none")]
     pub key: Option<String>,
 
     /// The ETag of the created object.
-    #[serde(rename = "ETag")]
+    #[serde(rename = "ETag", skip_serializing_if = "Option::is_none")]
     pub etag: Option<String>,
 
     /// Version of the object.

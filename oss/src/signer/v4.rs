@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use std::fmt::Write;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use chrono::{DateTime, Utc};
 use hmac::{Hmac, Mac};
@@ -280,7 +280,7 @@ impl SignerV4 {
                 .time
                 .unwrap()
                 .duration_since(datetime_now.into())
-                .unwrap()
+                .unwrap_or(Duration::ZERO)
         }
         .as_secs();
 
@@ -298,7 +298,7 @@ impl SignerV4 {
             get_common_additional_headers(request.headers(), &additional_headers);
 
         // Credentials information
-        let mut query = get_decoded_query_from_str(request.url().query().unwrap());
+        let mut query = get_decoded_query_from_str(request.url().query().unwrap_or_default());
         if !cred.security_token.is_empty() {
             query.insert(
                 HEADER_OSS_SECURITY_TOKEN.to_lowercase(),
@@ -367,10 +367,6 @@ impl SignerV4 {
 
         Ok(())
     }
-
-    pub fn is_signed_header(&self, header: &str) -> bool {
-        is_default_signed_header(header)
-    }
 }
 
 impl Signer for SignerV4 {
@@ -395,6 +391,17 @@ impl Signer for SignerV4 {
         } else {
             self.auth_header(signing_ctx)
         }
+    }
+
+    fn is_signed_header(&self, additional_headers: &[String], header: &str) -> bool {
+        is_default_signed_header(&header.to_lowercase())
+            || additional_headers
+                .iter()
+                .any(|h| h.eq_ignore_ascii_case(header))
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 

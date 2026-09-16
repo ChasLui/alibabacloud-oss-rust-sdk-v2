@@ -11,7 +11,7 @@ use crate::{OperationInput, OperationOutput, DEFAULT_CONTENT_TYPE, HTTP_HEADER_C
 use crate::client::BodyDataReader;
 
 
-#[derive(Debug, Default, OssRequestModel)]
+#[derive(Debug, Default, Clone, OssRequestModel)]
 pub struct ListObjectsV2Request {
     /// The name of the bucket containing the objects.
     pub bucket: String,
@@ -73,16 +73,16 @@ pub struct ListObjectsV2Request {
 #[derive(Debug, Deserialize, OssResultModel)]
 pub struct ListObjectsV2Result {
     /// The name of the bucket.
-    #[serde(rename = "Name")]
+    #[serde(rename = "Name", skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
 
     /// The prefix contained in the returned object names.
-    #[serde(rename = "Prefix")]
+    #[serde(rename = "Prefix", skip_serializing_if = "Option::is_none")]
     pub prefix: Option<String>,
 
     /// If the StartAfter parameter is specified in the request, the response
     /// contains the StartAfter parameter.
-    #[serde(rename = "StartAfter")]
+    #[serde(rename = "StartAfter", skip_serializing_if = "Option::is_none")]
     pub start_after: Option<String>,
 
     /// The maximum number of returned objects in the response.
@@ -90,7 +90,7 @@ pub struct ListObjectsV2Result {
     pub max_keys: i32,
 
     /// The character that is used to group objects by name.
-    #[serde(rename = "Delimiter")]
+    #[serde(rename = "Delimiter", skip_serializing_if = "Option::is_none")]
     pub delimiter: Option<String>,
 
     /// Indicates whether the returned results are truncated.
@@ -101,17 +101,17 @@ pub struct ListObjectsV2Result {
 
     /// If the ContinuationToken parameter is specified in the request, the
     /// response contains the ContinuationToken parameter.
-    #[serde(rename = "ContinuationToken")]
+    #[serde(rename = "ContinuationToken", skip_serializing_if = "Option::is_none")]
     pub continuation_token: Option<String>,
 
     /// The name of the object from which the next ListObjectsV2 (GetBucketV2)
     /// operation starts. The NextContinuationToken value is used as the
     /// ContinuationToken value to query subsequent results.
-    #[serde(rename = "NextContinuationToken")]
+    #[serde(rename = "NextContinuationToken", skip_serializing_if = "Option::is_none")]
     pub next_continuation_token: Option<String>,
 
     /// The encoding type of the content in the response.
-    #[serde(rename = "EncodingType")]
+    #[serde(rename = "EncodingType", skip_serializing_if = "Option::is_none")]
     pub encoding_type: Option<String>,
 
     /// The container that stores the metadata of the returned objects.
@@ -125,11 +125,52 @@ pub struct ListObjectsV2Result {
 
     /// The number of objects returned for this request. If Delimiter is
     /// specified, KeyCount is the sum of the values of Key and CommonPrefixes.
-    #[serde(rename = "KeyCount")]
+    #[serde(rename = "KeyCount", skip_serializing_if = "Option::is_none")]
     pub key_count: Option<i32>,
 
     #[serde(skip)]
     pub common: ResultCommon,
+}
+
+/// Decodes the URL-encoded fields of the result when EncodingType is url.
+/// Mirrors Go `unmarshalEncodeType` for ListObjectsV2Result.
+fn decode_result(result: &mut ListObjectsV2Result) {
+    let is_url_encoding = result
+        .encoding_type
+        .as_deref()
+        .map(|v| v.eq_ignore_ascii_case("url"))
+        .unwrap_or(false);
+    if !is_url_encoding {
+        return;
+    }
+
+    for field in [
+        &mut result.prefix,
+        &mut result.start_after,
+        &mut result.delimiter,
+        &mut result.continuation_token,
+        &mut result.next_continuation_token,
+    ] {
+        if let Some(value) = field {
+            *value = urlencoding::decode(value)
+                .unwrap_or_else(|_| std::borrow::Cow::Borrowed(value.as_str()))
+                .into_owned();
+        }
+    }
+
+    for obj in &mut result.contents {
+        if let Some(key) = &mut obj.key {
+            *key = urlencoding::decode(key)
+                .unwrap_or_else(|_| std::borrow::Cow::Borrowed(key.as_str()))
+                .into_owned();
+        }
+    }
+
+    for prefix in &mut result.common_prefixes {
+        prefix.prefix = urlencoding::decode(&prefix.prefix)
+            .unwrap_or_else(|_| std::borrow::Cow::Borrowed(prefix.prefix.as_str()))
+            .into_owned();
+    }
 }
 
 impl Client {
@@ -203,20 +244,7 @@ impl Client {
 
         result.update_result(&output);
         
-        // Decode object keys and prefixes after XML deserialization
-        for obj in &mut result.contents {
-            if let Some(ref mut key) = obj.key {
-                *key = urlencoding::decode(key)
-                    .unwrap_or_else(|_| std::borrow::Cow::Borrowed(key))
-                    .to_string();
-            }
-        }
-        
-        for prefix in &mut result.common_prefixes {
-            prefix.prefix = urlencoding::decode(&prefix.prefix)
-                .unwrap_or_else(|_| std::borrow::Cow::Borrowed(&prefix.prefix))
-                .to_string();
-        }
+        decode_result(&mut result);
         
         Ok(result)
     }
@@ -260,6 +288,7 @@ mod tests {
 
         // Generate unique object names for this test to avoid conflicts
         let directory_name = generate_unique_object_name("test-dir");
+
         let object_name_1 = format!("{}/obj1.txt", directory_name);
         let object_name_2 = format!("{}/obj2.txt", directory_name);
         let object_name_3 = generate_unique_object_name("standalone-obj"); // Not in directory
@@ -439,6 +468,62 @@ mod tests {
         cleanup_test_objects(&client, &config.bucket, &uploaded_objects).await;
         
         println!("Test completed successfully with all resources cleaned up.");
+    }
+    #[test]
+    fn test_list_objects_v2_result_url_decoding() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult>
+  <Name>my-bucket</Name>
+  <Prefix>dir%2Bname%2F</Prefix>
+  <StartAfter>start%2Bkey</StartAfter>
+  <MaxKeys>100</MaxKeys>
+  <Delimiter>%2F</Delimiter>
+  <IsTruncated>true</IsTruncated>
+  <ContinuationToken>token%2B1</ContinuationToken>
+  <NextContinuationToken>token%2B2</NextContinuationToken>
+  <KeyCount>1</KeyCount>
+  <EncodingType>url</EncodingType>
+  <Contents>
+    <Key>dir%2Bname%2Fobj%201.txt</Key>
+    <Size>10</Size>
+    <LastModified>2024-01-01T00:00:00.000Z</LastModified>
+  </Contents>
+  <CommonPrefixes>
+    <Prefix>dir%2Bname%2Fsub%2F</Prefix>
+  </CommonPrefixes>
+</ListBucketResult>"#;
+
+        let mut result: ListObjectsV2Result = quick_xml::de::from_str(xml).unwrap();
+        decode_result(&mut result);
+
+        assert_eq!(result.prefix.as_deref(), Some("dir+name/"));
+        assert_eq!(result.start_after.as_deref(), Some("start+key"));
+        assert_eq!(result.delimiter.as_deref(), Some("/"));
+        assert_eq!(result.continuation_token.as_deref(), Some("token+1"));
+        assert_eq!(result.next_continuation_token.as_deref(), Some("token+2"));
+        assert_eq!(
+            result.contents[0].key.as_deref(),
+            Some("dir+name/obj 1.txt")
+        );
+        assert_eq!(result.common_prefixes[0].prefix, "dir+name/sub/");
+    }
+
+    #[test]
+    fn test_list_objects_v2_result_no_decoding_without_url_encoding() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult>
+  <Name>my-bucket</Name>
+  <Prefix>dir%2Bname</Prefix>
+  <MaxKeys>100</MaxKeys>
+  <IsTruncated>false</IsTruncated>
+  <NextContinuationToken>token%2B2</NextContinuationToken>
+</ListBucketResult>"#;
+
+        let mut result: ListObjectsV2Result = quick_xml::de::from_str(xml).unwrap();
+        decode_result(&mut result);
+
+        assert_eq!(result.prefix.as_deref(), Some("dir%2Bname"));
+        assert_eq!(result.next_continuation_token.as_deref(), Some("token%2B2"));
     }
 
     // Helper function to clean up test objects

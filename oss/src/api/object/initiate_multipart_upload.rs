@@ -114,23 +114,23 @@ pub struct InitiateMultipartUploadRequest {
 #[serde(default)]
 pub struct InitiateMultipartUploadResult {
     /// The container that stores the result of the Initiate Multipart Upload request.
-    #[serde(rename = "InitiateMultipartUploadResult")]
-    pub result: Option<InitiateMultipartUploadResultInner>,
+    #[serde(rename = "InitiateMultipartUploadResult", skip_serializing_if = "Option::is_none")]
+    pub initiate_multipart_upload_result: Option<InitiateMultipartUploadResultInner>,
 
     /// The bucket name of the multipart upload.
-    #[serde(rename = "Bucket")]
+    #[serde(rename = "Bucket", skip_serializing_if = "Option::is_none")]
     pub bucket: Option<String>,
 
     /// The key of the object for multipart upload.
-    #[serde(rename = "Key")]
+    #[serde(rename = "Key", skip_serializing_if = "Option::is_none")]
     pub key: Option<String>,
 
     /// The unique ID of the multipart upload event.
-    #[serde(rename = "UploadId")]
+    #[serde(rename = "UploadId", skip_serializing_if = "Option::is_none")]
     pub upload_id: Option<String>,
 
     /// The encoding type of the returned result.
-    #[serde(rename = "EncodingType")]
+    #[serde(rename = "EncodingType", skip_serializing_if = "Option::is_none")]
     pub encoding_type: Option<String>,
 
     /// Common result fields
@@ -142,19 +142,19 @@ pub struct InitiateMultipartUploadResult {
 #[serde(default)]
 pub struct InitiateMultipartUploadResultInner {
     /// The bucket name of the multipart upload.
-    #[serde(rename = "Bucket")]
+    #[serde(rename = "Bucket", skip_serializing_if = "Option::is_none")]
     pub bucket: Option<String>,
 
     /// The key of the object for multipart upload.
-    #[serde(rename = "Key")]
+    #[serde(rename = "Key", skip_serializing_if = "Option::is_none")]
     pub key: Option<String>,
 
     /// The unique ID of the multipart upload event.
-    #[serde(rename = "UploadId")]
+    #[serde(rename = "UploadId", skip_serializing_if = "Option::is_none")]
     pub upload_id: Option<String>,
 
     /// The encoding type of the returned result.
-    #[serde(rename = "EncodingType")]
+    #[serde(rename = "EncodingType", skip_serializing_if = "Option::is_none")]
     pub encoding_type: Option<String>,
 }
 

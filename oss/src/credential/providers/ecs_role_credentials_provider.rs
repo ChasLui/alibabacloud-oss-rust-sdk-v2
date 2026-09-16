@@ -72,6 +72,9 @@ impl Default for EcsRoleCredentialsProviderOptions {
 
 #[async_trait::async_trait]
 impl CredentialsProvider for EcsRoleCredentialsProvider {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
     /// Retrieves the ECS role credentials.
     ///
     /// This method is used to retrieve the credentials for an ECS role. It

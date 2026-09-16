@@ -40,6 +40,9 @@ impl StaticCredentialsProvider {
 
 #[async_trait::async_trait]
 impl CredentialsProvider for StaticCredentialsProvider {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
     /// Asynchronously retrieves the credentials.
     ///
     /// # Returns

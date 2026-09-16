@@ -14,6 +14,23 @@ mod abort_multipart_upload;
 mod list_multipart_uploads;
 mod list_parts;
 mod upload_part_copy;
+mod append_object;
+mod seal_append_object;
+mod restore_object;
+mod clean_restored_object;
+mod put_symlink;
+mod get_symlink;
+mod put_object_tagging;
+mod get_object_tagging;
+mod delete_object_tagging;
+mod process_object;
+mod async_process_object;
+mod put_object_retention;
+mod get_object_retention;
+mod put_object_legal_hold;
+mod get_object_legal_hold;
+mod select_object;
+mod create_select_object_meta;
 
 use std::time::SystemTime;
 
@@ -35,17 +52,34 @@ pub use self::abort_multipart_upload::*;
 pub use self::list_multipart_uploads::*;
 pub use self::list_parts::*;
 pub use self::upload_part_copy::*;
+pub use self::append_object::*;
+pub use self::seal_append_object::*;
+pub use self::restore_object::*;
+pub use self::clean_restored_object::*;
+pub use self::put_symlink::*;
+pub use self::get_symlink::*;
+pub use self::put_object_tagging::*;
+pub use self::get_object_tagging::*;
+pub use self::delete_object_tagging::*;
+pub use self::process_object::*;
+pub use self::async_process_object::*;
+pub use self::put_object_retention::*;
+pub use self::get_object_retention::*;
+pub use self::put_object_legal_hold::*;
+pub use self::get_object_legal_hold::*;
+pub use self::select_object::*;
+pub use self::create_select_object_meta::*;
 use crate::api::bucket::Owner;
 use crate::utils::option_time_rfc3339_serde;
 
 #[derive(Debug, Default, Deserialize)]
 pub struct ObjectProperties {
     /// The name of the object.
-    #[serde(rename = "Key")]
+    #[serde(rename = "Key", skip_serializing_if = "Option::is_none")]
     pub key: Option<String>,
 
     /// The type of the object. Valid values: Normal, Multipart and Appendable.
-    #[serde(rename = "Type")]
+    #[serde(rename = "Type", skip_serializing_if = "Option::is_none")]
     pub obj_type: Option<String>,
 
     /// The size of the returned object. Unit: bytes.
@@ -54,7 +88,7 @@ pub struct ObjectProperties {
 
     /// The entity tag (ETag). An ETag is created when an object is created to
     /// identify the content of the object.
-    #[serde(rename = "ETag")]
+    #[serde(rename = "ETag", skip_serializing_if = "Option::is_none")]
     pub etag: Option<String>,
 
     /// The time when the returned objects were last modified.
@@ -62,15 +96,15 @@ pub struct ObjectProperties {
     pub last_modified: Option<SystemTime>,
 
     /// The storage class of the object.
-    #[serde(rename = "StorageClass")]
+    #[serde(rename = "StorageClass", skip_serializing_if = "Option::is_none")]
     pub storage_class: Option<String>,
 
     /// The container that stores information about the bucket owner.
-    #[serde(rename = "Owner")]
+    #[serde(rename = "Owner", skip_serializing_if = "Option::is_none")]
     pub owner: Option<Owner>,
 
     /// The restoration status of the object.
-    #[serde(rename = "RestoreInfo")]
+    #[serde(rename = "RestoreInfo", skip_serializing_if = "Option::is_none")]
     pub restore_info: Option<String>,
 }
 

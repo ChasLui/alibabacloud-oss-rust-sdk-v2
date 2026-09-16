@@ -212,6 +212,9 @@ impl CredentialsFetcherProvider {
 
 #[async_trait::async_trait]
 impl CredentialsProvider for CredentialsFetcherProvider {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
     /// Returns the credentials from the cache if they are valid, otherwise
     /// fetches new credentials and updates the cache.
     ///
