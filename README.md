@@ -10,6 +10,9 @@ Rust SDK for [Alibaba Cloud Object Storage Service (OSS)](https://www.alibabaclo
 - [Configuration](#configuration)
 - [Examples](#examples)
 - [API Reference](#api-reference)
+  - [Presigning](#presigning)
+  - [Paginators](#paginators)
+
 - [Architecture](#architecture)
 - [Testing](#testing)
 - [Development](#development)
@@ -19,16 +22,21 @@ Rust SDK for [Alibaba Cloud Object Storage Service (OSS)](https://www.alibabaclo
 
 ## Overview
 
-This SDK provides a comprehensive set of APIs for interacting with Alibaba Cloud Object Storage Service (OSS) in Rust. The APIs are organized into three main categories:
+This SDK provides a comprehensive set of APIs for interacting with Alibaba Cloud Object Storage Service (OSS) in Rust. The APIs are organized into five main categories:
 
-- **Bucket APIs**: Operations related to bucket management
-- **Object APIs**: Operations related to object management
-- **Service APIs**: Operations related to service-level management
+- **Service APIs**: Operations related to service-level management (list buckets, public access block, meta query pipeline actions)
+- **Bucket APIs**: Full bucket configuration coverage — ACL, CORS, lifecycle, logging, encryption, replication, WORM, inventory, policies, and more (100+ operations)
+- **Object APIs**: Object data, metadata, tagging, retention, symlinks, append uploads, and SelectObject (frame-parsed streaming responses)
+- **Region APIs**: `describe_regions` for listing OSS endpoints by region
+- **Access Point APIs**: Access point lifecycle and policy management
 
 ### Key Features
 
 - **Type-Safe API Design**: Strongly-typed request and response structures
 - **Automatic Serialization**: Header/query parameter handling via macros
+- **Full API Coverage**: 150+ operations aligned with the Go SDK v2 — objects, buckets, service, regions, and access points
+- **Pre-signed URLs**: `Client::presign` with V4/V1 signing for upload, download, and multipart workflows
+- **Paginators**: Ergonomic page-by-page iteration for all six list operations, with URL-decoded keys
 - **Comprehensive Testing**: Extensive integration tests with automatic resource cleanup
 - **Flexible Configuration**: Support for various authentication methods
 - **Robust Error Handling**: Custom error types and retry mechanisms
@@ -221,69 +229,219 @@ cargo run --example 04_error_handling
 
 ## API Reference
 
-### Bucket APIs
+All operations take a request struct and return a result struct. Most configuration-style operations borrow the request (`&Request`), while data-plane operations take it by value — check the signature in rustdoc. Every request type implements `Default`, so `..Default::default()` works everywhere.
 
-- `create_bucket` - Create a new bucket
-- `delete_bucket` - Delete an existing bucket
-- `get_bucket_acl` - Get bucket access control list
-- `get_bucket_info` - Get detailed bucket information
-- `list_objects_v2` - List objects in a bucket (V2 API)
-- `put_bucket_acl` - Set bucket access control list
+### Bucket APIs (103 operations)
 
-### Object APIs
+#### Basic
+
+- `create_bucket` / `delete_bucket` - Create and delete buckets
+- `get_bucket_info` / `get_bucket_stat` / `get_bucket_location` - Bucket metadata
+- `get_bucket_acl` / `put_bucket_acl` - Bucket ACL
+- `list_objects` / `list_objects_v2` / `list_object_versions` - Object listing
+
+#### Bucket Configuration
+
+- CORS: `get_bucket_cors` / `put_bucket_cors` / `delete_bucket_cors`
+- Lifecycle: `get_bucket_lifecycle` / `put_bucket_lifecycle` / `delete_bucket_lifecycle`
+- Logging: `get_bucket_logging` / `put_bucket_logging` / `delete_bucket_logging`
+- Encryption: `get_bucket_encryption` / `put_bucket_encryption` / `delete_bucket_encryption`
+- Policy: `get_bucket_policy` / `put_bucket_policy` / `delete_bucket_policy` / `get_bucket_policy_status`
+- Tags: `get_bucket_tags` / `put_bucket_tags` / `delete_bucket_tags`
+- Website: `get_bucket_website` / `put_bucket_website` / `delete_bucket_website`
+- Referer: `get_bucket_referer` / `put_bucket_referer`
+- Replication: `get_bucket_replication` / `put_bucket_replication` / `delete_bucket_replication` / `get_bucket_replication_location` / `get_bucket_replication_progress`
+- Versioning: `get_bucket_versioning` / `put_bucket_versioning`
+- Request payment: `get_bucket_request_payment` / `put_bucket_request_payment`
+- Transfer acceleration: `get_bucket_transfer_acceleration` / `put_bucket_transfer_acceleration`
+- Resource group: `get_bucket_resource_group` / `put_bucket_resource_group`
+- Access monitor: `get_bucket_access_monitor` / `put_bucket_access_monitor`
+- HTTPS config: `get_bucket_https_config` / `put_bucket_https_config`
+- Archive direct read: `get_bucket_archive_direct_read` / `put_bucket_archive_direct_read`
+- Overwrite config: `get_bucket_overwrite_config` / `put_bucket_overwrite_config` / `delete_bucket_overwrite_config`
+- Public access block: `get_bucket_public_access_block` / `put_bucket_public_access_block` / `delete_bucket_public_access_block`
+- RTC: `put_bucket_rtc`
+
+#### WORM (retention)
+
+- `initiate_bucket_worm` / `abort_bucket_worm` / `complete_bucket_worm` / `extend_bucket_worm` / `get_bucket_worm`
+- `get_bucket_object_worm_configuration` / `put_bucket_object_worm_configuration`
+
+#### Inventory & redundancy
+
+- `list_bucket_inventory` / `get_bucket_inventory` / `put_bucket_inventory` / `delete_bucket_inventory`
+- `create_bucket_data_redundancy_transition` / `get_bucket_data_redundancy_transition` / `delete_bucket_data_redundancy_transition` / `list_bucket_data_redundancy_transition` / `list_user_data_redundancy_transition`
+
+#### Meta query
+
+- `open_meta_query` / `get_meta_query_status` / `do_meta_query` / `close_meta_query`
+- `option_object` - Object-level meta query options
+
+#### Custom domains (CNAME) & styles
+
+- `create_cname_token` / `get_cname_token` / `put_cname` / `list_cname` / `delete_cname`
+- `put_style` / `get_style` / `list_style` / `delete_style`
+
+#### User-defined log fields
+
+- `get_user_defined_log_fields_config` / `put_user_defined_log_fields_config` / `delete_user_defined_log_fields_config`
+
+#### Object process access points
+
+- `create_access_point_for_object_process` / `get_access_point_for_object_process` / `delete_access_point_for_object_process` / `list_access_point_for_object_process`
+- `get_access_point_config_for_object_process` / `put_access_point_config_for_object_process`
+- `get_access_point_policy_for_object_process` / `put_access_point_policy_for_object_process` / `delete_access_point_policy_for_object_process`
+
+#### SelectObject write-back
+
+- `write_get_object_response` - Upload the result of a SelectObject request (sent to the `oss-cn-*.oss-object-process.aliyuncs.com` host)
+
+### Object APIs (33 operations)
 
 #### Basic Operations
-- `get_object` - Retrieve an object
-- `put_object` - Upload an object
-- `delete_object` - Delete an object
-- `copy_object` - Copy an object
-- `head_object` - Get object metadata without content
 
-#### Access Control
-- `get_object_acl` - Get object access control list
-- `put_object_acl` - Set object access control list
-- `get_object_meta` - Get object metadata
+- `get_object` / `put_object` / `delete_object` / `copy_object` / `head_object` - Core object operations
+- `append_object` / `seal_append_object` - Appendable object upload and sealing
+- `delete_multiple_objects` - Batch delete
 
-#### Batch Operations
-- `delete_multiple_objects` - Delete multiple objects in one request
+#### Access Control & Metadata
+
+- `get_object_acl` / `put_object_acl` - Object ACL
+- `get_object_meta` - Object metadata
+- `get_object_tagging` / `put_object_tagging` / `delete_object_tagging` - Object tagging
+- `get_object_retention` / `put_object_retention` - Object retention
+- `get_object_legal_hold` / `put_object_legal_hold` - Object legal hold
+
+#### Symlinks
+
+- `put_symlink` / `get_symlink` - Create and resolve symbolic links
 
 #### Multipart Upload
-- `initiate_multipart_upload` - Start multipart upload
-- `upload_part` - Upload a part
-- `complete_multipart_upload` - Complete multipart upload
-- `abort_multipart_upload` - Abort multipart upload
-- `list_multipart_uploads` - List active multipart uploads
-- `list_parts` - List uploaded parts
-- `upload_part_copy` - Copy part from another object
 
-### Service APIs
+- `initiate_multipart_upload` / `upload_part` / `complete_multipart_upload` / `abort_multipart_upload`
+- `upload_part_copy` - Copy a part from another object
+- `list_multipart_uploads` / `list_parts`
+
+#### Restore & tiering
+
+- `restore_object` / `clean_restored_object` - Archive restore and cleanup
+
+#### Data processing
+
+- `async_process_object` / `process_object` - Asynchronous and synchronous object processing
+- `select_object` - SelectObject with full frame parsing: `SelectObjectResult::body` is a `SelectObjectBodyReader` (an `AsyncRead` body reader) that decodes the framing protocol — Data (8388609), Continuous (8388612), End (8388613), MetaEndCSV (8388614), MetaEndJSON (8388615) — including per-frame CRC validation; an `End`/`MetaEnd` frame carrying an error surfaces as a read error
+- `create_select_object_meta` - SelectObject metadata indexing
+
+### Service APIs (7 operations)
 
 - `list_buckets` - List all buckets owned by the account
+- `get_public_access_block` / `put_public_access_block` / `delete_public_access_block` - Account-level public access block
+- `do_meta_query_action` - Meta query pipeline actions
+- `do_data_pipe_line_action` - Data pipeline actions
+- `list_cloud_boxes` - List CloudBoxes
+
+### Region APIs (1 operation)
+
+- `describe_regions` - List regions and their endpoints (`pub regions: Option<String>` field per the Go SDK)
+
+### Access Point APIs (10 operations)
+
+- `create_access_point` / `get_access_point` / `delete_access_point` / `list_access_points`
+- `get_access_point_policy` / `put_access_point_policy` / `delete_access_point_policy`
+- `get_access_point_public_access_block` / `put_access_point_public_access_block` / `delete_access_point_public_access_block`
+
+### Presigning
+
+Generate pre-signed URLs without sending a request:
+
+```rust
+use alibabacloud_oss_sdk_rust_v2::api::object::{GetObjectRequest, PutObjectRequest};
+use alibabacloud_oss_sdk_rust_v2::client::PresignOptions;
+
+// Default expiration (900s)
+let result = client
+    .presign(
+        &GetObjectRequest {
+            bucket: "my-bucket".to_string(),
+            key: "my-object".to_string(),
+            ..Default::default()
+        },
+        None,
+    )
+    .await?;
+println!("url: {}", result.url);          // signed URL
+println!("headers: {:?}", result.signed_headers); // send these unchanged
+
+// Custom expiration (must be <= 7 days for the V4 signer)
+let options = PresignOptions {
+    expires: Some(std::time::Duration::from_secs(3600)),
+    ..Default::default()
+};
+let put_request = PutObjectRequest {
+    bucket: "my-bucket".to_string(),
+    key: "upload-target.bin".to_string(),
+    ..Default::default()
+};
+let result = client.presign(&put_request, Some(&options)).await?;
+```
+
+`PresignRequest` is implemented for `GetObjectRequest`, `PutObjectRequest`, `HeadObjectRequest`, `InitiateMultipartUploadRequest`, `UploadPartRequest`, `CompleteMultipartUploadRequest`, and `AbortMultipartUploadRequest` — the same set as the Go SDK v2. Signed headers (e.g. `Content-Type`, `x-oss-*`) are returned in `PresignResult::signed_headers` and must be sent unchanged with the URL.
+
+### Paginators
+
+All six list operations have paginators that handle markers, continuation tokens, and URL decoding:
+
+```rust
+let mut paginator = client.list_objects_v2_paginator(ListObjectsV2Request {
+    bucket: "my-bucket".to_string(),
+    ..Default::default()
+});
+
+while let Some(page) = paginator.next_page().await? {   // None when exhausted
+    for object in &page.contents {                       // keys are already URL-decoded
+        println!("{} ({} bytes)", object.key.as_deref().unwrap_or(""), object.size);
+    }
+}
+// paginator.limit = Some(100);  // optional page-size override
+```
+
+Available: `list_objects_paginator`, `list_objects_v2_paginator`, `list_object_versions_paginator`, `list_buckets_paginator`, `list_parts_paginator`, `list_multipart_uploads_paginator`.
+
+Notes:
+
+- `has_next()` returns `true` until a non-truncated page arrives — the stop signal is the service's `IsTruncated`, not an empty page.
+- Listing paginators set `encoding_type=url` on every request; object keys and markers are URL-decoded in the results.
+- `limit` (public field) overrides the request's max page size (`max_keys` / `max_parts` / `max_uploads`) on every page when set.
 
 ## Architecture
 
 ### Project Structure
 
-```
+```text
 aliyun-oss-sdk-rust-v2/
 ├── oss/                          # Main SDK implementation
 │   ├── src/
 │   │   ├── api/                  # API definitions
-│   │   │   ├── bucket/          # Bucket operations
-│   │   │   ├── object/          # Object operations
-│   │   │   ├── service/         # Service operations
+│   │   │   ├── accesspoint/     # Access point operations
+│   │   │   ├── bucket/          # Bucket operations (103)
+│   │   │   ├── object/          # Object operations (33)
+│   │   │   ├── region/          # Region operations
+│   │   │   ├── service/         # Service operations (7)
 │   │   │   └── mod.rs
 │   │   ├── client/              # Client implementation
+│   │   │   ├── invoker.rs       # Request invoking, signing context assembly
+│   │   │   ├── paginators.rs    # Page-by-page list iterators
+│   │   │   └── presign.rs       # Pre-signed URL generation
 │   │   ├── credential/          # Authentication providers
 │   │   ├── retry/               # Retry mechanisms
-│   │   ├── signer/              # Request signing
+│   │   ├── signer/              # Request signing (V1/V4)
 │   │   ├── transport/           # HTTP transport
 │   │   ├── types/               # Type definitions
 │   │   ├── utils/               # Utility functions
 │   │   └── lib.rs
 │   └── examples/                # Code examples
 ├── api_model/                   # API model macros
-└── samples/                     # Additional samples
+└── test_config.json             # Local integration test credentials (gitignored)
 ```
 
 ### Core Components
@@ -319,12 +477,19 @@ pub struct GetObjectResult {
 #### Logging System
 
 ```rust
-use alibabacloud_oss_sdk_rust_v2::log::{Logger, LogLevel, LogOutput};
+use std::rc::Rc;
+use alibabacloud_oss_sdk_rust_v2::log::{LogLevel, LogOutput, StandardLogPrinter, StandardLogger};
 
-// Configure logging
-let logger = Logger::new()
-    .with_level(LogLevel::Debug)
-    .with_output(LogOutput::Stdout);
+let logger = StandardLogger::new(
+    Rc::new(StandardLogPrinter::new(LogOutput::Stdout)),
+    LogLevel::Debug,
+);
+```
+
+In most cases you configure logging through `Config` instead:
+
+```rust
+let config = Config::default().with_log_level(LogLevel::Debug);
 ```
 
 ## Testing
@@ -341,6 +506,8 @@ cargo test -- --nocapture
 # Run specific test module
 cargo test --lib client
 ```
+
+All unit tests run offline and deterministically — the suite is fully green (493 tests) without network access or credentials. Tests that require a live OSS service skip themselves automatically when no real configuration is present (see below).
 
 ### Generate Coverage Report
 
@@ -376,11 +543,16 @@ cargo llvm-cov --lcov --output-path lcov.info
 }
 ```
 
-4. Run tests:
+1. Run tests:
 
 ```bash
 cargo test
 ```
+
+Live tests are skipped in two cases, both reported on stderr:
+
+- No `test_config.json` found (any of the standard search paths)
+- The config still contains the shipped placeholder values (`xxxxx`, `xxxxxxxxxxxx`, `xxxxxxxx`) — so the committed template never triggers accidental live runs
 
 ## Development
 
@@ -396,18 +568,18 @@ pre-commit install
 ### Build from Source
 
 ```bash
-git clone https://github.com/aliyun/aliyun-oss-rust-sdk.git
-cd aliyun-oss-rust-sdk
+git clone https://github.com/aliyun/alibabacloud-oss-rust-sdk-v2.git
+cd alibabacloud-oss-rust-sdk-v2
 cargo build --release
 ```
 
 ### Adding a New API
 
-1. Create `{api_name}.rs` in `oss/src/api/{service|bucket|object}/`
+1. Create `{api_name}.rs` in `oss/src/api/{accesspoint|bucket|object|region|service}/`
 2. Define `ApiNameRequest` and `ApiNameResult` structs
 3. Implement `api_name()` method for `Client`
-4. Update corresponding `mod.rs`
-5. Add tests in `oss/tests/`
+4. Export it from the category's `mod.rs` (`pub use self::api_name::*;`)
+5. Add unit tests in the same file (`#[cfg(test)] mod tests`) — offline tests only; live tests must skip when no real `test_config.json` is present
 
 Example:
 
@@ -469,48 +641,73 @@ Look for issues labeled "good first issue" or "help wanted" to get started.
 
 #### Authentication Failed
 
-```
+```text
 Error: InvalidAccessKeyId
 ```
 
 **Solution**:
+
 - Verify `ACCESS_KEY_ID` and `ACCESS_KEY_SECRET` are correct
 - Ensure the AccessKey is active in RAM console
 - Check for extra spaces in environment variables
 
 #### Bucket Not Found
 
-```
+```text
 Error: NoSuchBucket
 ```
 
 **Solution**:
+
 - Verify the bucket exists in the specified region
 - Check `OSS_BUCKET` environment variable
 - Ensure region matches bucket location
 
 #### Permission Denied
 
-```
+```text
 Error: AccessDenied
 ```
 
 **Solution**:
+
 - Verify RAM user has necessary OSS permissions
 - Check bucket ACL and policy settings
 - Use `AliyunOSSFullAccess` policy for testing
 
 #### Network Errors
 
-```
+```text
 Error: Connection timeout
 ```
 
 **Solution**:
+
 - Check network connection
 - Verify region endpoint is accessible
 - Implement retry logic (see error handling example)
 - Adjust timeout settings in configuration
+
+#### "region is not set (required for V4 signature)"
+
+```text
+Error: InvalidConfiguration: region is not set (required for V4 signature)
+```
+
+**Solution**:
+
+- The V4 signer requires a region even when a custom endpoint is set — add `.with_region("cn-hangzhou")` (or your region) to the config
+- With the V1 signer the region is optional
+
+#### Presigned URL Rejected After a While
+
+**Symptom**: A pre-signed URL returns `AccessDenied` or `RequestTimeTooSkewed` after some time.
+
+**Solution**:
+
+- Pre-signed URLs expire; the default is 900 seconds. Set `PresignOptions::expires` for a longer window
+- The V4 signer caps expiration at **7 days** — expiry values beyond that are rejected at signing time
+- If the client uses a clock different from OSS, the signature can appear expired early; keep the client clock in sync (NTP)
 
 ### Getting Help
 
