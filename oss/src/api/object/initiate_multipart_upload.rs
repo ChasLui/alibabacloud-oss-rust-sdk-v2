@@ -100,6 +100,11 @@ pub struct InitiateMultipartUploadRequest {
     #[field(type = "header", rename = "x-oss-tagging")]
     pub tagging: Option<String>,
 
+    /// The MIME type of the object to upload, such as image/jpeg.
+    #[serde(skip)]
+    #[field(type = "header", rename = "Content-Type")]
+    pub content_type: Option<String>,
+
     /// To indicate that the requester is aware that the request and data
     /// download will incur costs
     #[serde(skip)]

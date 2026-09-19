@@ -10,6 +10,11 @@ pub struct DeleteBucketTagsRequest {
     /// The name of the bucket.
     pub bucket: String,
 
+    /// The tag key to delete. If you do not specify this parameter, all tags
+    /// of the bucket are deleted.
+    #[field(type = "query", rename = "tagging")]
+    pub tagging: Option<String>,
+
     pub common: RequestCommon,
 }
 

@@ -7,13 +7,14 @@ pub(crate) fn build_url(input: &OperationInput, opts: &ClientOptions) -> (String
         return ("".to_string(), "".to_string());
     }
 
-    let endpoint_string = opts
-        .endpoint
-        .as_ref()
-        .expect("Endpoint not set")
-        .host_str()
-        .expect("Endpoint host not set")
-        .to_string();
+    let endpoint = opts.endpoint.as_ref().expect("Endpoint not set");
+    let endpoint_host = endpoint.host_str().expect("Endpoint host not set");
+    // `host_str()` drops the port, which breaks non-default endpoints such as
+    // local mocks (`http://127.0.0.1:9000`); match Go, which keeps it.
+    let endpoint_string = match endpoint.port() {
+        Some(port) => format!("{}:{}", endpoint_host, port),
+        None => endpoint_host.to_string(),
+    };
 
     let mut paths = vec![];
 

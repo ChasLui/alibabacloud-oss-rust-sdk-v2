@@ -1,5 +1,4 @@
 use std::process::Command;
-use std::path::Path;
 
 fn main() {
     if let Ok(output) = Command::new("rustc").arg("--version").output() {

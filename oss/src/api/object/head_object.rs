@@ -8,11 +8,9 @@ use crate::{OperationInput, OperationOutput};
 #[derive(Debug, Default, OssRequestModel)]
 pub struct HeadObjectRequest {
     /// The name of the bucket.
-    #[field(type = "header", rename = "Bucket")]
     pub bucket: String,
 
     /// The name of the object.
-    #[field(type = "header", rename = "Key")]
     pub key: String,
 
     /// If the ETag specified in the request matches the ETag value of the

@@ -11,11 +11,9 @@ use futures_util::StreamExt;
 #[derive(Default, OssRequestModel)]
 pub struct GetObjectRequest {
     /// The name of the bucket.
-    #[field(type = "header", rename = "Bucket")]
     pub bucket: String,
 
     /// The name of the object.
-    #[field(type = "header", rename = "Key")]
     pub key: String,
 
     /// If the ETag specified in the request matches the ETag value of the

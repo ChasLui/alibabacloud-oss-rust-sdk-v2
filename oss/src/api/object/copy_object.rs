@@ -73,6 +73,35 @@ pub struct CopyObjectRequest {
     #[field(type = "header", rename = "x-oss-tagging-directive")]
     pub tagging_directive: Option<String>,
 
+    /// The ID of the customer master key (CMK) for data encryption.
+    #[field(type = "header", rename = "x-oss-server-side-data-encryption")]
+    pub server_side_data_encryption: Option<String>,
+
+    /// The caching behavior of the web browser when the object is downloaded.
+    #[field(type = "header", rename = "Cache-Control")]
+    pub cache_control: Option<String>,
+
+    /// The name of the object that the user downloads.
+    #[field(type = "header", rename = "Content-Disposition")]
+    pub content_disposition: Option<String>,
+
+    /// The content encoding of the object.
+    #[field(type = "header", rename = "Content-Encoding")]
+    pub content_encoding: Option<String>,
+
+    /// The content type of the object.
+    #[field(type = "header", rename = "Content-Type")]
+    pub content_type: Option<String>,
+
+    /// The expiration time in UTC. Example: `Fri, 13 Nov 2015 14:47:53 GMT`.
+    #[field(type = "header", rename = "Expires")]
+    pub expires: Option<String>,
+
+    /// The speed limit value. The speed limit value ranges from 245760 to
+    /// 838860800, in bit/s.
+    #[field(type = "header", rename = "x-oss-traffic-limit")]
+    pub traffic_limit: Option<u64>,
+
     /// To indicate that the requester is aware that the request and data
     /// download will incur costs
     #[field(type = "header", rename = "x-oss-request-payer")]
@@ -227,6 +256,33 @@ mod tests {
     use std::rc::Rc;
     use std::sync::{Arc, Mutex};
     use crate::test_utils::{load_test_config, TestConfig, generate_unique_object_name};
+
+    /// The extended request headers added for Go SDK v2 parity must reach the
+    /// wire map under their protocol names.
+    #[test]
+    fn test_copy_object_extended_headers_are_mapped() {
+        let request = CopyObjectRequest {
+            bucket: "b".to_string(),
+            key: "k".to_string(),
+            copy_source: "/src-bucket/src-key".to_string(),
+            cache_control: Some("no-cache".to_string()),
+            content_disposition: Some("attachment".to_string()),
+            content_encoding: Some("gzip".to_string()),
+            content_type: Some("text/plain".to_string()),
+            expires: Some("Fri, 13 Nov 2015 14:47:53 GMT".to_string()),
+            server_side_data_encryption: Some("AES256".to_string()),
+            traffic_limit: Some(245760),
+            ..Default::default()
+        };
+        let headers = request.header_map();
+        assert_eq!(headers.get("Cache-Control").map(String::as_str), Some("no-cache"));
+        assert_eq!(headers.get("Content-Disposition").map(String::as_str), Some("attachment"));
+        assert_eq!(headers.get("Content-Encoding").map(String::as_str), Some("gzip"));
+        assert_eq!(headers.get("Content-Type").map(String::as_str), Some("text/plain"));
+        assert_eq!(headers.get("Expires").map(String::as_str), Some("Fri, 13 Nov 2015 14:47:53 GMT"));
+        assert_eq!(headers.get("x-oss-server-side-data-encryption").map(String::as_str), Some("AES256"));
+        assert_eq!(headers.get("x-oss-traffic-limit").map(String::as_str), Some("245760"));
+    }
 
     // Configuration structure to hold test credentials
     // Using shared TestConfig from test_utils

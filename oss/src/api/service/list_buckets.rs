@@ -36,6 +36,22 @@ pub struct ListBucketsRequest {
     #[field(type = "header", rename = "x-oss-resource-group-id")]
     pub resource_group_id: Option<String>,
 
+    /// A tag key of target buckets. The listing results will only include
+    /// buckets that have been tagged with this key.
+    #[field(type = "query", rename = "tag-key")]
+    pub tag_key: Option<String>,
+
+    /// A tag value for the target buckets. If this parameter is specified, the
+    /// `tag_key` must also be specified.
+    #[field(type = "query", rename = "tag-value")]
+    pub tag_value: Option<String>,
+
+    /// Tag list of target buckets. Only buckets that match all the key-value
+    /// pairs in the list are added to the listing results. Cannot be used with
+    /// `tag_key` and `tag_value`.
+    #[field(type = "query", rename = "tagging")]
+    pub tagging: Option<String>,
+
     pub common: RequestCommon,
 }
 
@@ -169,6 +185,26 @@ mod tests {
     use crate::log::LogLevel;
     use crate::SignatureVersionType;
     use crate::test_utils::{load_test_config, TestConfig};
+
+    /// Tag filters added for Go SDK v2 parity must map to their query names.
+    #[test]
+    fn test_list_buckets_tag_filters_are_mapped() {
+        let request = ListBucketsRequest {
+            tag_key: Some("owner".to_string()),
+            tag_value: Some("alice".to_string()),
+            ..Default::default()
+        };
+        let queries = request.query_map();
+        assert_eq!(queries.get("tag-key").map(String::as_str), Some("owner"));
+        assert_eq!(queries.get("tag-value").map(String::as_str), Some("alice"));
+
+        let request = ListBucketsRequest {
+            tagging: Some("k1=v1&k2=v2".to_string()),
+            ..Default::default()
+        };
+        let queries = request.query_map();
+        assert_eq!(queries.get("tagging").map(String::as_str), Some("k1=v1&k2=v2"));
+    }
 
     #[tokio::test]
     #[serial_test::serial]

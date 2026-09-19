@@ -74,6 +74,17 @@ pub struct CompleteMultipartUploadRequest {
     #[field(type = "header", rename = "x-oss-request-payer")]
     pub request_payer: Option<String>,
 
+    /// A callback parameter is a Base64-encoded string that contains multiple
+    /// fields in the JSON format.
+    #[serde(skip)]
+    #[field(type = "header", rename = "x-oss-callback")]
+    pub callback: Option<String>,
+
+    /// Configure custom parameters by using the callback-var parameter.
+    #[serde(skip)]
+    #[field(type = "header", rename = "x-oss-callback-var")]
+    pub callback_var: Option<String>,
+
     #[serde(skip)]
     pub common: RequestCommon,
 }

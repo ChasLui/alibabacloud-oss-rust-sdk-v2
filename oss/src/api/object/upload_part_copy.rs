@@ -66,6 +66,11 @@ pub struct UploadPartCopyRequest {
     #[field(type = "header", rename = "x-oss-request-payer")]
     pub request_payer: Option<String>,
 
+    /// The speed limit value. The speed limit value ranges from 245760 to
+    /// 838860800, in bit/s.
+    #[field(type = "header", rename = "x-oss-traffic-limit")]
+    pub traffic_limit: Option<u64>,
+
     #[serde(skip)]
     pub common: RequestCommon,
 }
