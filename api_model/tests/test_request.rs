@@ -85,3 +85,38 @@ fn test_request_macro() {
         request.query_map()
     );
 }
+
+/// Non-`Option` fields are skipped when empty/zero, mirroring Go's
+/// `isEmptyValue` check in `marshalInput`. Prior behavior inserted `""`/`0`.
+#[test]
+fn test_request_macro_skips_empty_non_option_values() {
+    let request = Request::default();
+    let headers = request.header_map();
+    let queries = request.query_map();
+
+    assert_eq!(
+        headers.get("x-header1").map(String::as_str),
+        None,
+        "zero i32 must not be sent"
+    );
+    assert_eq!(
+        queries.get("param1").map(String::as_str),
+        None,
+        "empty String must not be sent"
+    );
+
+    // ...but a real value still goes through.
+    let request = Request {
+        header1: 7,
+        param1: "x".to_string(),
+        ..Default::default()
+    };
+    assert_eq!(
+        request.header_map().get("x-header1").map(String::as_str),
+        Some("7")
+    );
+    assert_eq!(
+        request.query_map().get("param1").map(String::as_str),
+        Some("x")
+    );
+}

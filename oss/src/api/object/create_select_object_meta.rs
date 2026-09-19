@@ -6,7 +6,7 @@ use crate::api::{RequestCommon, ResultCommon};
 use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_length, update_content_md5};
 
-use crate::{BodyContent, OperationInput, OperationOutput, DEFAULT_CONTENT_TYPE, HTTP_HEADER_CONTENT_TYPE};
+use crate::{BodyContent, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 const DATA_FRAME_TYPE: i32 = 8388609;
 const CONTINUOUS_FRAME_TYPE: i32 = 8388612;
 const END_FRAME_TYPE: i32 = 8388613;
@@ -295,7 +295,7 @@ impl Client {
                 .iter()
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect(),
-            headers: [(HTTP_HEADER_CONTENT_TYPE, DEFAULT_CONTENT_TYPE)]
+            headers: [(HTTP_HEADER_CONTENT_TYPE, "application/xml")]
                 .iter()
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect(),

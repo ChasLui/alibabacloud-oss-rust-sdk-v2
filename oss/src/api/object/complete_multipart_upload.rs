@@ -6,12 +6,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
-use crate::utils::{modify_request, update_content_length, xml_escape_str_ser};
+use crate::utils::{modify_request, update_content_length, update_content_md5, xml_escape_str_ser};
 use crate::{OperationInput, OperationOutput, DEFAULT_CONTENT_TYPE, HTTP_HEADER_CONTENT_TYPE};
 use crate::client::BodyDataReader;
 
 
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default, Serialize, Clone)]
 pub struct CompleteMultipartUploadPart {
     /// The part number of the uploaded part.
     #[serde(rename = "PartNumber")]
@@ -20,6 +20,24 @@ pub struct CompleteMultipartUploadPart {
     /// The ETag returned when the part was uploaded.
     #[serde(rename = "ETag", with = "xml_escape_str_ser")]
     pub etag: String,
+}
+
+/// The `CompleteMultipartUpload` request body: a `Part` list in ascending order.
+#[derive(Serialize)]
+struct CompleteMultipartUploadBody<'a> {
+    #[serde(rename = "Part")]
+    parts: &'a [CompleteMultipartUploadPart],
+}
+
+/// Serializes the `CompleteMultipartUpload` body with parts sorted by number.
+/// OSS requires ascending part numbers; the Go SDK sorts before sending.
+fn serialize_complete_body(
+    parts: &[CompleteMultipartUploadPart],
+) -> Result<String, quick_xml::DeError> {
+    let mut sorted = parts.to_vec();
+    sorted.sort_by_key(|part| part.part_number);
+    let body = CompleteMultipartUploadBody { parts: &sorted };
+    quick_xml::se::to_string_with_root("CompleteMultipartUpload", &body)
 }
 
 #[derive(Debug, Default, Serialize, OssRequestModel)]
@@ -200,9 +218,8 @@ impl Client {
             ..Default::default()
         };
 
-        // Serialize the parts as XML body
-        let xml_body = quick_xml::se::to_string_with_root("CompleteMultipartUpload", request)?;
-        // xml_body = xml_body.replace("&amp;#34;", "\"");
+        // Serialize the parts as XML body (sorted ascending, like the Go SDK).
+        let xml_body = serialize_complete_body(&request.parts)?;
 
         input.body = Some(BodyContent::from_text(xml_body, None));
 
@@ -210,7 +227,7 @@ impl Client {
             &mut input,
             request.header_map(),
             request.query_map(),
-            vec![update_content_length],
+            vec![update_content_md5, update_content_length],
         )?;
 
         let mut output = self.invoke_operation(input, vec![]).await?;
@@ -242,6 +259,36 @@ mod tests {
     use crate::test_utils::{load_test_config, TestConfig, generate_unique_object_name};
     use crate::client::BodyDataReader;
 
+    /// Out-of-order parts must be serialized in ascending part-number order;
+    /// OSS rejects a body where `PartNumber` does not increase.
+    #[test]
+    fn test_complete_body_sorts_parts_ascending() {
+        let parts = vec![
+            CompleteMultipartUploadPart {
+                part_number: 3,
+                etag: "etag-3".to_string(),
+            },
+            CompleteMultipartUploadPart {
+                part_number: 1,
+                etag: "etag-1".to_string(),
+            },
+            CompleteMultipartUploadPart {
+                part_number: 2,
+                etag: "etag-2".to_string(),
+            },
+        ];
+        let xml = serialize_complete_body(&parts).unwrap();
+        let first = xml.find("<PartNumber>1</PartNumber>").expect("part 1 present");
+        let second = xml.find("<PartNumber>2</PartNumber>").expect("part 2 present");
+        let third = xml.find("<PartNumber>3</PartNumber>").expect("part 3 present");
+        assert!(
+            first < second && second < third,
+            "parts must ascend, got: {}",
+            xml
+        );
+        // The caller's slice must not be reordered.
+        assert_eq!(parts[0].part_number, 3);
+    }
 
     #[tokio::test]
     #[serial_test::serial]

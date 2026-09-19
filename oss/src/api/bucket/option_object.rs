@@ -1,3 +1,4 @@
+use crate::HTTP_HEADER_CONTENT_TYPE;
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 
 use crate::api::{RequestCommon, ResultCommon};
@@ -105,6 +106,10 @@ impl Client {
             method: http::Method::OPTIONS,
             bucket: Some(request.bucket.clone()),
             key: Some(request.key.clone()),
+            headers: [(HTTP_HEADER_CONTENT_TYPE, "application/xml")]
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
             ..Default::default()
         };
 

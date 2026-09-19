@@ -9,7 +9,7 @@ use crate::client::BodyDataReader;
 use crate::client::Client;
 use crate::signer::SUB_RESOURCE;
 use crate::utils::{modify_request, update_content_length};
-use crate::{OperationOutput, OperationInput, DEFAULT_CONTENT_TYPE, HTTP_HEADER_CONTENT_TYPE};
+use crate::{OperationOutput, OperationInput, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct ListBucketInventoryRequest {
@@ -97,7 +97,7 @@ impl Client {
                 .iter()
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect(),
-            headers: [(HTTP_HEADER_CONTENT_TYPE, DEFAULT_CONTENT_TYPE)]
+            headers: [(HTTP_HEADER_CONTENT_TYPE, "application/xml")]
                 .iter()
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect(),

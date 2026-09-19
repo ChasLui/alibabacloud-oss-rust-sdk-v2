@@ -1,3 +1,4 @@
+use crate::HTTP_HEADER_CONTENT_TYPE;
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 
 use crate::api::{RequestCommon, ResultCommon};
@@ -73,6 +74,10 @@ impl Client {
             op_name: "DeleteBucket".to_string(),
             method: http::Method::DELETE,
             bucket: Some(request.bucket.clone()),
+            headers: [(HTTP_HEADER_CONTENT_TYPE, "application/octet-stream")]
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
             ..Default::default()
         };
 

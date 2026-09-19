@@ -11,8 +11,7 @@ use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
 use crate::utils::{modify_request, update_content_length, update_content_md5};
 use crate::{
-    BodyContent, BodyStream, OperationInput, OperationOutput, DEFAULT_CONTENT_TYPE,
-    HTTP_HEADER_CONTENT_TYPE,
+    BodyContent, BodyStream, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE,
 };
 
 // Frame types of the select object response framing protocol.
@@ -884,7 +883,7 @@ impl Client {
                 .iter()
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect(),
-            headers: [(HTTP_HEADER_CONTENT_TYPE, DEFAULT_CONTENT_TYPE)]
+            headers: [(HTTP_HEADER_CONTENT_TYPE, "application/xml")]
                 .iter()
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect(),

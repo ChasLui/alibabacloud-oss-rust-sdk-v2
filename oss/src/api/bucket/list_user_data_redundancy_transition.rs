@@ -1,3 +1,4 @@
+use crate::HTTP_HEADER_CONTENT_TYPE;
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::Deserialize;
 
@@ -88,6 +89,10 @@ impl Client {
             op_name: "ListUserDataRedundancyTransition".to_string(),
             method: http::Method::GET,
             parameters: [("redundancyTransition", "")]
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+            headers: [(HTTP_HEADER_CONTENT_TYPE, "application/xml")]
                 .iter()
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect(),

@@ -55,6 +55,23 @@ fn usermeta_prefix(field: &Field) -> Option<String> {
     None
 }
 
+/// Last path segment of a field type (e.g. `String` for `std::string::String`).
+fn type_name(field: &Field) -> Option<String> {
+    if let Type::Path(type_path) = &field.ty {
+        return type_path.path.segments.last().map(|s| s.ident.to_string());
+    }
+    None
+}
+
+/// Whether `name` is a primitive numeric type.
+fn is_numeric_type(name: &str) -> bool {
+    matches!(
+        name,
+        "i8" | "i16" | "i32" | "i64" | "i128" | "isize" | "u8" | "u16" | "u32" | "u64" | "u128"
+            | "usize" | "f32" | "f64"
+    )
+}
+
 #[proc_macro_derive(OssRequestModel, attributes(field))]
 pub fn request_model_derive(input: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(input as DeriveInput);
@@ -144,11 +161,26 @@ pub fn request_model_derive(input: TokenStream) -> TokenStream {
                                                     }
                                                 }
                                             } else {
+                                                // Mirror Go's `isEmptyValue`: skip empty strings,
+                                                // zero numerics, and `false` so defaults do not
+                                                // leak empty headers/params onto the wire.
+                                                let guard = match type_name(field).as_deref() {
+                                                    Some("String") => {
+                                                        quote! { !self.#field_ident.is_empty() }
+                                                    }
+                                                    Some("bool") => quote! { self.#field_ident },
+                                                    Some(name) if is_numeric_type(name) => {
+                                                        quote! { self.#field_ident != 0 }
+                                                    }
+                                                    _ => quote! { true },
+                                                };
                                                 quote! {
-                                                    map.insert(
-                                                        stringify!(#field_ident).to_string(),
-                                                        self.#field_ident.to_string()
-                                                    );
+                                                    if #guard {
+                                                        map.insert(
+                                                            stringify!(#field_ident).to_string(),
+                                                            self.#field_ident.to_string()
+                                                        );
+                                                    }
                                                 }
                                             },
                                         );

@@ -1,9 +1,24 @@
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
+use serde::{Deserialize, Serialize};
 
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
-use crate::utils::{modify_request, update_content_length};
-use crate::{BodyContent, OperationInput, OperationOutput};
+use crate::utils::{modify_request, update_content_length, update_content_md5};
+use crate::{
+    BodyContent, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE,
+};
+
+/// The container of the bucket configuration sent as the request body.
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct CreateBucketConfiguration {
+    /// The storage class of the bucket.
+    #[serde(rename = "StorageClass", skip_serializing_if = "Option::is_none")]
+    pub storage_class: Option<String>,
+
+    /// The redundancy type of the bucket.
+    #[serde(rename = "DataRedundancyType", skip_serializing_if = "Option::is_none")]
+    pub data_redundancy_type: Option<String>,
+}
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct CreateBucketRequest {
@@ -14,9 +29,17 @@ pub struct CreateBucketRequest {
     #[field(type = "header", rename = "x-oss-acl")]
     pub acl: Option<String>,
 
-    /// The storage class for the bucket.
-    #[field(type = "header", rename = "x-oss-storage-class")]
-    pub storage_class: String,
+    /// The container of the bucket configuration sent as the request body.
+    /// `None` sends no body, matching the Go SDK's nil `CreateBucketConfiguration`.
+    pub create_bucket_configuration: Option<CreateBucketConfiguration>,
+
+    /// The ID of the resource group.
+    #[field(type = "header", rename = "x-oss-resource-group-id")]
+    pub resource_group_id: Option<String>,
+
+    /// The agentic bucket name.
+    #[field(type = "header", rename = "x-oss-agentic-bucket")]
+    pub agentic_bucket: Option<String>,
 
     /// To indicate that the requester is aware that the request and data
     /// download will incur costs
@@ -81,15 +104,24 @@ impl Client {
             op_name: "CreateBucket".to_string(),
             method: http::Method::PUT,
             bucket: Some(request.bucket.clone()),
-            body: Some(BodyContent::from_text("<CreateBucketConfiguration></CreateBucketConfiguration>".to_string(),None)),
+            headers: [(HTTP_HEADER_CONTENT_TYPE, "application/xml")]
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
             ..Default::default()
         };
+
+        if let Some(config) = &request.create_bucket_configuration {
+            let xml_body =
+                quick_xml::se::to_string_with_root("CreateBucketConfiguration", config)?;
+            input.body = Some(BodyContent::from_text(xml_body, None));
+        }
 
         modify_request(
             &mut input,
             request.header_map(),
             request.query_map(),
-            vec![update_content_length],
+            vec![update_content_md5, update_content_length],
         )?;
 
         let output = self.invoke_operation(input, vec![]).await?;
