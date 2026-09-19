@@ -199,11 +199,19 @@ impl Client {
         // Update the common fields from the response
         result.update_result(&output);
         
-        // Decode object keys after XML deserialization
-        if let Some(ref mut key) = result.key {
-            *key = urlencoding::decode(key)
-                .unwrap_or_else(|_| std::borrow::Cow::Borrowed(key))
-                .to_string();
+        // Decode the object key when the response is URL-encoded. Mirrors Go
+        // `unmarshalEncodeType` for ListPartsResult.
+        let is_url_encoding = result
+            .encoding_type
+            .as_deref()
+            .map(|v| v.eq_ignore_ascii_case("url"))
+            .unwrap_or(false);
+        if is_url_encoding {
+            if let Some(key) = &mut result.key {
+                *key = urlencoding::decode(key)
+                    .unwrap_or_else(|_| std::borrow::Cow::Borrowed(key.as_str()))
+                    .into_owned();
+            }
         }
         
         Ok(result)

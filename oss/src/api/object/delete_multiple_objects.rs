@@ -183,11 +183,19 @@ impl Client {
 
         result.update_result(&output);
 
-        // Decode object keys in the result after XML deserialization
-        for deleted_obj in &mut result.deleted_objects {
-            deleted_obj.key = urlencoding::decode(&deleted_obj.key)
-                .unwrap_or_else(|_| std::borrow::Cow::Borrowed(&deleted_obj.key))
-                .to_string();
+        // Decode object keys when the response is URL-encoded. Mirrors Go
+        // `unmarshalEncodeType` for DeleteMultipleObjectsResult.
+        let is_url_encoding = result
+            .encoding_type
+            .as_deref()
+            .map(|v| v.eq_ignore_ascii_case("url"))
+            .unwrap_or(false);
+        if is_url_encoding {
+            for deleted_obj in &mut result.deleted_objects {
+                deleted_obj.key = urlencoding::decode(&deleted_obj.key)
+                    .unwrap_or_else(|_| std::borrow::Cow::Borrowed(&deleted_obj.key))
+                    .to_string();
+            }
         }
 
         Ok(result)

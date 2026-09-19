@@ -195,11 +195,33 @@ impl Client {
         // Update the common fields from the response
         result.update_result(&output);
         
-        // Decode object keys after XML deserialization
-        for upload in &mut result.uploads {
-            upload.key = urlencoding::decode(&upload.key)
-                .unwrap_or_else(|_| std::borrow::Cow::Borrowed(&upload.key))
-                .to_string();
+        // Decode URL-encoded response fields. Mirrors Go `unmarshalEncodeType`
+        // for ListMultipartUploadsResult: key marker, next key marker, prefix,
+        // delimiter, and each upload key.
+        let is_url_encoding = result
+            .encoding_type
+            .as_deref()
+            .map(|v| v.eq_ignore_ascii_case("url"))
+            .unwrap_or(false);
+        if is_url_encoding {
+            for field in [
+                &mut result.key_marker,
+                &mut result.next_key_marker,
+                &mut result.prefix,
+                &mut result.delimiter,
+            ] {
+                if let Some(value) = field {
+                    *value = urlencoding::decode(value)
+                        .unwrap_or_else(|_| std::borrow::Cow::Borrowed(value.as_str()))
+                        .into_owned();
+                }
+            }
+
+            for upload in &mut result.uploads {
+                upload.key = urlencoding::decode(&upload.key)
+                    .unwrap_or_else(|_| std::borrow::Cow::Borrowed(&upload.key))
+                    .to_string();
+            }
         }
         
         Ok(result)

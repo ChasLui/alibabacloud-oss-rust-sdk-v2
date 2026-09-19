@@ -163,15 +163,23 @@ impl Client {
             quick_xml::de::from_str(&body_data)?;
 
         result.update_result(&output);
-
-        // Decode prefix after XML deserialization
-        if let Some(ref mut prefix) = result.prefix {
-            *prefix = urlencoding::decode(prefix)
-                .unwrap_or_else(|_| std::borrow::Cow::Borrowed(prefix))
-                .to_string();
-        }
+        decode_result(&mut result);
 
         Ok(result)
+    }
+}
+
+/// Decodes the URL-encoded response fields. The request always asks for
+/// `encoding-type=url`, so `Prefix`, `Marker`, and `NextMarker` come back
+/// encoded; decoding `next_marker` matters for pagination, which feeds it
+/// back as the next request's `marker`.
+fn decode_result(result: &mut ListBucketsResult) {
+    for field in [&mut result.prefix, &mut result.marker, &mut result.next_marker] {
+        if let Some(value) = field {
+            *value = urlencoding::decode(value)
+                .unwrap_or_else(|_| std::borrow::Cow::Borrowed(value.as_str()))
+                .into_owned();
+        }
     }
 }
 
@@ -185,6 +193,26 @@ mod tests {
     use crate::log::LogLevel;
     use crate::SignatureVersionType;
     use crate::test_utils::{load_test_config, TestConfig};
+
+    /// `next_marker`/`prefix`/`marker` must be decoded so that pagination
+    /// feeds a decoded marker back into the next request.
+    #[test]
+    fn test_decode_result_decodes_pagination_fields() {
+        let mut result = ListBucketsResult {
+            prefix: Some("a%20b/".to_string()),
+            marker: Some("x%2B1".to_string()),
+            next_marker: Some("next%20page".to_string()),
+            max_keys: None,
+            is_truncated: None,
+            owner: None,
+            buckets: Vec::new(),
+            common: Default::default(),
+        };
+        decode_result(&mut result);
+        assert_eq!(result.prefix.as_deref(), Some("a b/"));
+        assert_eq!(result.marker.as_deref(), Some("x+1"));
+        assert_eq!(result.next_marker.as_deref(), Some("next page"));
+    }
 
     /// Tag filters added for Go SDK v2 parity must map to their query names.
     #[test]

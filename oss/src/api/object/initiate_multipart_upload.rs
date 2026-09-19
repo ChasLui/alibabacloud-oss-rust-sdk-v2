@@ -6,6 +6,7 @@ use crate::client::Client;
 use crate::utils::modify_request;
 use crate::{OperationInput, OperationOutput};
 use crate::client::BodyDataReader;
+use urlencoding;
 
 
 #[derive(Debug, Default, Serialize, OssRequestModel)]
@@ -216,7 +217,10 @@ impl Client {
             method: http::Method::POST,
             bucket: Some(request.bucket.clone()),
             key: Some(request.key.clone()),
-            parameters: [("uploads", "")]  // This is required to indicate multipart upload initiation
+            parameters: [
+                ("uploads", ""), // This is required to indicate multipart upload initiation
+                ("encoding-type", "url"),
+            ]
                 .iter()
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect(),
@@ -235,13 +239,27 @@ impl Client {
         // Parse the XML response body
         let body_data = output.get_all_data().await?;
         let data_str = String::from_utf8_lossy(&body_data);
-        let result: InitiateMultipartUploadResult = quick_xml::de::from_str(&data_str)?;
+        let mut result: InitiateMultipartUploadResult = quick_xml::de::from_str(&data_str)?;
 
         // Update the common fields from the response
-        let mut mutable_result = result;
-        mutable_result.update_result(&output);
+        result.update_result(&output);
 
-        Ok(mutable_result)
+        // Decode the key when the response is URL-encoded. Mirrors Go
+        // `unmarshalEncodeType` for InitiateMultipartUploadResult.
+        let is_url_encoding = result
+            .encoding_type
+            .as_deref()
+            .map(|v| v.eq_ignore_ascii_case("url"))
+            .unwrap_or(false);
+        if is_url_encoding {
+            if let Some(key) = &mut result.key {
+                *key = urlencoding::decode(key)
+                    .unwrap_or_else(|_| std::borrow::Cow::Borrowed(key.as_str()))
+                    .into_owned();
+            }
+        }
+
+        Ok(result)
     }
 }
 
