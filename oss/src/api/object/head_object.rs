@@ -4,6 +4,7 @@ use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
 use crate::utils::modify_request;
 use crate::{OperationInput, OperationOutput};
+use std::collections::HashMap;
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct HeadObjectRequest {
@@ -158,6 +159,53 @@ pub struct HeadObjectResult {
     /// The last access time of the object.
     #[field(type = "header", rename = "x-oss-last-access-time")]
     pub last_access_time: Option<String>,
+
+    /// The requester. This header is included in the response if the
+    /// pay-by-requester mode is enabled for the bucket and the requester is not
+    /// the bucket owner.
+    #[field(type = "header", rename = "x-oss-request-charged")]
+    pub request_charged: Option<String>,
+
+    /// The origins allowed for cross-origin resource sharing (CORS).
+    #[field(type = "header", rename = "Access-Control-Allow-Origin")]
+    pub allow_origin: Option<String>,
+
+    /// The methods allowed for CORS.
+    #[field(type = "header", rename = "Access-Control-Allow-Methods")]
+    pub allow_methods: Option<String>,
+
+    /// The maximum caching period for CORS.
+    #[field(type = "header", rename = "Access-Control-Allow-Age")]
+    pub allow_age: Option<String>,
+
+    /// The headers allowed for CORS.
+    #[field(type = "header", rename = "Access-Control-Allow-Headers")]
+    pub allow_headers: Option<String>,
+
+    /// The headers that can be accessed by JavaScript applications on the
+    /// client.
+    #[field(type = "header", rename = "Access-Control-Expose-Headers")]
+    pub expose_headers: Option<String>,
+
+    /// The caching behavior of the web page when the object is downloaded.
+    #[field(type = "header", rename = "Cache-Control")]
+    pub cache_control: Option<String>,
+
+    /// The method that is used to access the object.
+    #[field(type = "header", rename = "Content-Disposition")]
+    pub content_disposition: Option<String>,
+
+    /// The method that is used to encode the object.
+    #[field(type = "header", rename = "Content-Encoding")]
+    pub content_encoding: Option<String>,
+
+    /// The expiration time of the cache in UTC.
+    #[field(type = "header", rename = "Expires")]
+    pub expires: Option<String>,
+
+    /// A map of metadata to store with the object.
+    #[field(type = "header", rename = "x-oss-meta-", usermeta)]
+    pub metadata: HashMap<String, String>,
 
     common: ResultCommon,
 }

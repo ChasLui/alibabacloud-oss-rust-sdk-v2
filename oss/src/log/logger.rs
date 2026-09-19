@@ -102,7 +102,6 @@ impl Logger for StandardLogger {
     /// * `message` - The warning message to log.
     fn warn(&self, message: &str) {
         if self.level >= LogLevel::Warn {
-            println!("[WARN]  {}", message);
             self.printer
                 .print(format!("[WARN]  {}\n", message).as_str());
         }

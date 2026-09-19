@@ -53,6 +53,11 @@ pub struct GetObjectMetaResult {
     #[field(type = "header", rename = "x-oss-version-id")]
     pub version_id: Option<String>,
 
+    /// The 64-bit CRC value of the object.
+    /// This value is calculated based on the ECMA-182 standard.
+    #[field(type = "header", rename = "x-oss-hash-crc64ecma")]
+    pub hash_crc64: Option<String>,
+
     #[serde(skip)]
     pub common: ResultCommon,
 }
@@ -60,7 +65,7 @@ pub struct GetObjectMetaResult {
 impl Client {
     /// Retrieves the metadata for an object in the OSS bucket.
     ///
-    /// This method sends a GET request to the OSS server to retrieve the metadata
+    /// This method sends a HEAD request to the OSS server to retrieve the metadata
     /// for the specified object. It returns a `GetObjectMetaResult` struct
     /// containing the metadata information.
     ///
@@ -106,7 +111,7 @@ impl Client {
     ) -> Result<GetObjectMetaResult, Box<dyn std::error::Error + Send + Sync>> {
         let mut input = OperationInput {
             op_name: "GetObjectMeta".to_string(),
-            method: http::Method::GET,
+            method: http::Method::HEAD,
             bucket: Some(request.bucket.clone()),
             key: Some(request.key.clone()),
             parameters: [("objectMeta", "")]
@@ -136,7 +141,6 @@ impl Client {
 
         result.update_result(&output);
 
-        println!("GetObjectMetaResult result {:?}", result);
         Ok(result)
     }
 }

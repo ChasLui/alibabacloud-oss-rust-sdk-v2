@@ -91,8 +91,9 @@ pub struct InitiateMultipartUploadRequest {
     pub storage_class: String,
 
     /// The metadata of the object that you want to upload.
-    // #[field(type = "header", rename = "x-oss-object-meta-")]
-    // pub metadata: HashMap<String, String>, // TODO `input:"header,x-oss-meta-,usermeta"`
+    #[serde(skip)]
+    #[field(type = "header", rename = "x-oss-meta-", usermeta)]
+    pub metadata: std::collections::HashMap<String, String>,
 
     /// The tags that are specified for the object using a key-value pair.
     /// You can specify multiple tags for an object. Example: TagA=A&TagB=B.

@@ -39,6 +39,10 @@ pub struct GetSymlinkResult {
     #[field(type = "header", rename = "ETag")]
     pub etag: Option<String>,
 
+    /// The metadata of the object that you want to symlink.
+    #[field(type = "header", rename = "x-oss-meta-", usermeta)]
+    pub metadata: std::collections::HashMap<String, String>,
+
     /// Common result fields
     pub common: ResultCommon,
 }

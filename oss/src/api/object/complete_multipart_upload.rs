@@ -116,6 +116,11 @@ pub struct CompleteMultipartUploadResult {
     #[field(type = "header", rename = "x-oss-version-id")]
     pub version_id: Option<String>,
 
+    /// The 64-bit CRC value of the object.
+    /// This value is calculated based on the ECMA-182 standard.
+    #[field(type = "header", rename = "x-oss-hash-crc64ecma")]
+    pub hash_crc64: Option<String>,
+
     /// Common result fields
     #[serde(skip)]
     pub common: ResultCommon,

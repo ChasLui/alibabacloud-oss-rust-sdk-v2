@@ -30,6 +30,10 @@ pub struct PutSymlinkRequest {
     #[field(type = "header", rename = "x-oss-storage-class")]
     pub storage_class: Option<String>,
 
+    /// The metadata of the object that you want to symlink.
+    #[field(type = "header", rename = "x-oss-meta-", usermeta)]
+    pub metadata: std::collections::HashMap<String, String>,
+
     /// To indicate that the requester is aware that the request and data
     /// download will incur costs
     #[field(type = "header", rename = "x-oss-request-payer")]

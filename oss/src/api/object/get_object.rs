@@ -4,6 +4,7 @@ use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
 use crate::utils::{modify_request, update_content_md5};
 use crate::{BodyStream, OperationInput, OperationOutput};
+use std::collections::HashMap;
 use std::sync::Arc;
 use bytes::Bytes;
 use futures_util::StreamExt;
@@ -148,8 +149,8 @@ pub struct GetObjectResult {
     pub content_md5: Option<String>,
 
     /// A map of metadata to store with the object.
-    // #[field(type = "header", rename = "x-oss-meta-")]
-    // pub metadata: HashMap<String, String>,
+    #[field(type = "header", rename = "x-oss-meta-", usermeta)]
+    pub metadata: HashMap<String, String>,
 
     /// If the requested object is encrypted by using a server-side encryption
     /// algorithm based on entropy encoding, OSS automatically decrypts the
@@ -247,6 +248,7 @@ impl std::fmt::Debug for GetObjectResult {
             .field("tagging_count", &self.tagging_count)
             .field("delete_marker", &self.delete_marker)
             .field("version_id", &self.version_id)
+            .field("metadata", &self.metadata)
             .field("body_stream", &"<stream>") // Don't print the stream itself
             .field("common", &self.common)
             .finish()

@@ -10,6 +10,51 @@ use syn::{parse_macro_input, DeriveInput, Field, Meta, NestedMeta, PathArguments
 use self::request_field_type::*;
 use self::result_field_type::*;
 
+/// Whether a field carries `usermeta` in its `#[field(...)]` attribute.
+/// Usermeta fields are `HashMap<String, String>` maps that expand to
+/// `prefix + key` headers on requests and capture `prefix*` headers on results.
+fn is_usermeta_field(field: &Field) -> bool {
+    for attr in field.attrs.iter() {
+        if !attr.path.is_ident("field") {
+            continue;
+        }
+        if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
+            for nested in meta_list.nested.iter() {
+                match nested {
+                    NestedMeta::Meta(Meta::Path(p)) if p.is_ident("usermeta") => return true,
+                    NestedMeta::Meta(Meta::NameValue(nv)) if nv.path.is_ident("usermeta") => {
+                        return true
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    false
+}
+
+/// The `rename` value of a usermeta field, used as the header prefix
+/// (e.g. `x-oss-meta-`).
+fn usermeta_prefix(field: &Field) -> Option<String> {
+    for attr in field.attrs.iter() {
+        if !attr.path.is_ident("field") {
+            continue;
+        }
+        if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
+            for nested in meta_list.nested.iter() {
+                if let NestedMeta::Meta(Meta::NameValue(nv)) = nested {
+                    if nv.path.is_ident("rename") {
+                        if let syn::Lit::Str(lit) = &nv.lit {
+                            return Some(lit.value());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 #[proc_macro_derive(OssRequestModel, attributes(field))]
 pub fn request_model_derive(input: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(input as DeriveInput);
@@ -40,8 +85,37 @@ pub fn request_model_derive(input: TokenStream) -> TokenStream {
         false
     }
 
+    let mut usermeta_insert_vec = vec![];
+    for field in fields.iter() {
+        if !is_usermeta_field(field) {
+            continue;
+        }
+        let field_ident = field.ident.as_ref().unwrap();
+        let prefix = match usermeta_prefix(field) {
+            Some(p) => p,
+            None => {
+                return TokenStream::from(quote! {
+                    compile_error!(
+                        "usermeta field requires a `rename` prefix, e.g. rename = \"x-oss-meta-\""
+                    );
+                })
+            }
+        };
+        usermeta_insert_vec.push(quote! {
+            self.#field_ident.iter().for_each(|(k, v)| {
+                map.insert(format!("{}{}", #prefix, k), v.clone());
+            });
+        });
+    }
+
     for field in fields.iter() {
         let field_ident = field.ident.as_ref().unwrap();
+
+        // `usermeta` fields expand to one header per map entry (prefix taken
+        // from `rename`) and are emitted after this loop.
+        if is_usermeta_field(field) {
+            continue;
+        }
 
         for attr in field.attrs.iter() {
             // only process `field` attributes
@@ -128,6 +202,7 @@ pub fn request_model_derive(input: TokenStream) -> TokenStream {
                 let mut map = std::collections::HashMap::new();
                 #( #header_insert_vec )*
                 #( #rename_vec )*
+                #( #usermeta_insert_vec )*
                 Self::merge_map_case_insensitive(&map, &self.common.headers)
             }
 
@@ -217,9 +292,11 @@ pub fn result_model_derive(input: TokenStream) -> TokenStream {
                                     indent_tag_map
                                         .insert(field_ident.to_string(), lit.value().to_string());
                                 }
+                            } else if nv.path.is_ident("usermeta") {
+                                // usermeta fields are handled by prefix capture below
                             } else {
                                 return TokenStream::from(quote! {
-                                    compile_error!("Invalid field tag, expected one of: [type, rename]");
+                                    compile_error!("Invalid field tag, expected one of: [type, rename, usermeta]");
                                 });
                             }
                         }
@@ -251,6 +328,21 @@ pub fn result_model_derive(input: TokenStream) -> TokenStream {
                                                     "all fields should have a field tag"
                                                 ),
                                             };
+                                        if is_usermeta_field(field) {
+                                            // prefix capture: collect every header whose name
+                                            // starts with `header_tag` into the map, keyed by
+                                            // the remainder (e.g. x-oss-meta-author -> author).
+                                            // Keys are lowercased, matching Go's unmarshalHeader.
+                                            let prefix_lower = header_tag.to_lowercase();
+                                            header_update_vec.push(quote! {
+                                                self.#field_ident = output.headers.iter().filter_map(|(k, v)| {
+                                                    k.to_lowercase()
+                                                        .strip_prefix(#prefix_lower)
+                                                        .map(|suffix| (suffix.to_string(), v.clone()))
+                                                }).collect();
+                                            });
+                                            continue;
+                                        }
                                         match field_type {
                                             ResultFieldType::Header => {
                                                 header_update_vec.push(quote! {

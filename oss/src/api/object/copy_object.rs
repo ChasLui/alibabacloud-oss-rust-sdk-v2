@@ -1,5 +1,6 @@
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::Deserialize;
+use std::collections::HashMap;
 
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
@@ -97,6 +98,10 @@ pub struct CopyObjectRequest {
     #[field(type = "header", rename = "Expires")]
     pub expires: Option<String>,
 
+    /// The metadata of the object that you want to upload.
+    #[field(type = "header", rename = "x-oss-meta-", usermeta)]
+    pub metadata: HashMap<String, String>,
+
     /// The speed limit value. The speed limit value ranges from 245760 to
     /// 838860800, in bit/s.
     #[field(type = "header", rename = "x-oss-traffic-limit")]
@@ -144,6 +149,19 @@ pub struct CopyObjectResult {
     /// The 64-bit CRC value of the object
     #[field(type = "header", rename = "x-oss-hash-crc64ecma")]
     pub hash_crc64: Option<String>,
+
+    /// The encryption algorithm used to encrypt the object on the server.
+    #[field(type = "header", rename = "x-oss-server-side-encryption")]
+    pub server_side_encryption: Option<String>,
+
+    /// The server side data encryption algorithm.
+    #[field(type = "header", rename = "x-oss-server-side-data-encryption")]
+    pub server_side_data_encryption: Option<String>,
+
+    /// The ID of the customer master key (CMK) that is managed by Key
+    /// Management Service (KMS).
+    #[field(type = "header", rename = "x-oss-server-side-encryption-key-id")]
+    pub server_side_encryption_key_id: Option<String>,
 
     /// Common result fields
     pub common: ResultCommon,

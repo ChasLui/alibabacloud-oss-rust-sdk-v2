@@ -30,6 +30,10 @@ pub struct UploadPartRequest {
     /// The data to upload as a part.
     pub body: Option<BodyContent>,
 
+    /// The MD5 hash of the part content.
+    #[field(type = "header", rename = "Content-MD5")]
+    pub content_md5: Option<String>,
+
     /// Progress callback function
     pub progress_fn: Option<Box<dyn Fn(i64, i64)>>,
 

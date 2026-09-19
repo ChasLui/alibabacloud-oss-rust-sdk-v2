@@ -82,6 +82,10 @@ pub struct AppendObjectRequest {
     #[field(type = "header", rename = "x-oss-tagging")]
     pub tagging: Option<String>,
 
+    /// The metadata of the object that you want to upload.
+    #[field(type = "header", rename = "x-oss-meta-", usermeta)]
+    pub metadata: std::collections::HashMap<String, String>,
+
     /// Specify the speed limit value. The speed limit value ranges from 245760
     /// to 838860800, with a unit of bit/s.
     #[field(type = "header", rename = "x-oss-traffic-limit")]
