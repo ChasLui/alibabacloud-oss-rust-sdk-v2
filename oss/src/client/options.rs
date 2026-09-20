@@ -1,6 +1,8 @@
+use std::cell::Cell;
 use std::rc::Rc;
 use std::time::Duration;
 
+use chrono::TimeDelta;
 use url::Url;
 
 use crate::credential::CredentialsProvider;
@@ -40,7 +42,13 @@ pub fn op_read_write_timeout(value: Duration) -> impl Fn(&mut ClientOptions) {
 #[derive(Clone, Default)]
 pub struct ClientInnerOptions {
     pub bw_token_buckets: BwTokenBuckets,
-    pub clock_offset: Duration,
+    /// Clock correction learned from `RequestTimeTooSkewed` responses.
+    ///
+    /// Signed (`TimeDelta`) because the server clock can run either ahead of
+    /// or behind the local one. `Cell` because the correction is written while
+    /// a request is being retried through a shared `&Client`, and the client
+    /// is single-threaded (`Rc`-based).
+    pub clock_offset: Cell<TimeDelta>,
     pub logger: Option<Rc<dyn Logger>>,
     pub user_agent: String,
 }

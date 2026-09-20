@@ -242,7 +242,7 @@ impl SignerV1 {
         let cred = ctx.credentials.as_ref().expect("Credentials is None");
 
         if ctx.time.is_none() {
-            ctx.time = Some(SystemTime::now() + ctx.clock_offset);
+            ctx.time = Some(super::now_with_offset(ctx.clock_offset));
         }
         let datetime: DateTime<Utc> = DateTime::from(ctx.time.expect("Time is None"));
         let datetime_string = datetime.to_rfc2822();

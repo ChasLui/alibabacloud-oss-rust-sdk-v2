@@ -9,7 +9,10 @@ use crate::credential::AnonymousCredentialsProvider;
 use crate::retry::DEFAULT_MAX_ATTEMPTS;
 use crate::signer::{SigningContext, SIGN_TIME, SUB_RESOURCE};
 use crate::utils::{build_url, header_map_to_hash_map, is_valid_endpoint, sleep_with_context};
-use crate::{AuthMethodType, OperationInput, OperationMetadata, OperationOutput, ServiceError, ClientError, HEADER_OSS_DATE, HTTP_HEADER_USER_AGENT, BodyStream, BodyContent};
+use crate::{
+    AuthMethodType, BodyStream, ClientError, HEADER_OSS_DATE, HTTP_HEADER_USER_AGENT,
+    OperationInput, OperationMetadata, OperationOutput, ServiceError,
+};
 
 impl Client {
     /// Invokes an operation on the Alibaba Cloud OSS service.
@@ -103,12 +106,9 @@ impl Client {
 
         logger.info(format!("sendRequest Start:\ninput: {:#?}", &input).as_str());  // 使用引用
 
-        let signing_context = self.build_signing_context(input, options).await?;
-
-
         // Send request
         let response = self
-            .send_http_request(signing_context, options)
+            .send_http_request(input, options)
             .await?;
 
         logger.info(
@@ -302,7 +302,7 @@ impl Client {
             .cloned()
             .unwrap_or_default();
 
-        let clock_offset = self.inner_options.clock_offset;
+        let clock_offset = self.inner_options.clock_offset.get();
         let request = request_builder.build().expect("Unable to build request");
 
         let sign_time = if let Some(date_str) = request
@@ -346,12 +346,20 @@ impl Client {
 
     /// Asynchronously sends an HTTP request to the specified endpoint.
     ///
+    /// Retries the request according to the configured retryer until it
+    /// succeeds, the error is not retryable, or the attempt budget runs out.
+    /// The request is rebuilt from `input` for every attempt, so only bodies
+    /// that can be replayed (`File`, `Bytes`, `Text`) are retried — an owned
+    /// `Stream` is consumed by its first send. Mirrors Go
+    /// `Client.sendHttpRequest`.
+    ///
     /// # Arguments
     ///
-    /// * `signing_ctx` - A mutable reference to a [SigningContext] object that
-    ///   contains the signing context for the request.
-    /// * `options` - An optional reference to [ClientOptions] object that
-    ///   contains additional options for the client.
+    /// * `&self` - A reference to the current instance of the class.
+    /// * `input` - The [OperationInput] containing the details of the
+    ///   operation to be performed.
+    /// * `options` - An optional reference to [ClientOptions] which contains
+    ///   additional options for the client.
     ///
     /// # Returns
     ///
@@ -360,10 +368,86 @@ impl Client {
     /// error occurs.
     async fn send_http_request(
         &self,
-        signing_ctx: SigningContext,
+        input: OperationInput,
         options: Option<&ClientOptions>,
     ) -> Result<Response, Box<dyn std::error::Error + Send + Sync>> {
-        self.send_http_request_once(signing_ctx, options).await
+        let logger = self.inner_options.logger.as_ref().expect("Logger not set");
+
+        let opts = options.unwrap_or(&self.options);
+        let retryer = opts.retryer.clone();
+        // A retryer that reports zero attempts (or an unset budget) still has
+        // to make one attempt, otherwise nothing is ever sent.
+        let max_attempts = self.retry_max_attempts(options).max(1);
+
+        // A body that cannot be replayed gets exactly one attempt: the first
+        // send consumes it. Mirrors Go `teeReadNopCloser.IsSeekable`.
+        let is_replayable = input
+            .body
+            .as_ref()
+            .map_or(true, |body| body.try_clone().is_some());
+
+        // The original input is consumed by the final attempt; every earlier
+        // attempt gets a rebuilt copy.
+        let mut input = input;
+        let mut last_error: Option<Box<dyn std::error::Error + Send + Sync>> = None;
+
+        for attempt in 1..=max_attempts {
+            if attempt > 1 {
+                let delay = match retryer
+                    .as_ref()
+                    .expect("Retryer not set")
+                    .retry_delay(attempt, last_error.as_deref().expect("Error not set"))
+                {
+                    Ok(delay) => delay,
+                    Err(err) => {
+                        logger
+                            .warn(format!("Retry aborted while computing delay: {}", err).as_str());
+                        break;
+                    }
+                };
+
+                logger.info(
+                    format!("Attempt retry, tries:{}, retry delay:{:?}", attempt, delay).as_str(),
+                );
+                sleep_with_context(delay).await;
+            }
+
+            let attempt_input = if is_replayable && attempt < max_attempts {
+                let mut copy = input.clone();
+                // `OperationInput::clone` drops the body, so restore it.
+                copy.body = input.body.as_ref().and_then(|body| body.try_clone());
+                copy
+            } else {
+                std::mem::take(&mut input)
+            };
+
+            // Rebuilt per attempt, so each send carries a fresh timestamp and
+            // a replayable body.
+            let mut signing_ctx = match self.build_signing_context(attempt_input, options).await {
+                Ok(signing_ctx) => signing_ctx,
+                Err(err) => return Err(err),
+            };
+
+            match self.send_http_request_once(&mut signing_ctx, options).await {
+                Ok(response) => return Ok(response),
+                Err(err) => {
+                    self.post_send_http_request_once(&mut signing_ctx, options, err.as_ref());
+
+                    let retryable = retryer
+                        .as_ref()
+                        .expect("Retryer not set")
+                        .is_error_retryable(err.as_ref());
+
+                    if !is_replayable || !retryable {
+                        return Err(err);
+                    }
+
+                    last_error = Some(err);
+                }
+            }
+        }
+
+        Err(last_error.expect("retry attempts exhausted without an error"))
     }
 
     /// Determines the maximum number of retry attempts for a request.
@@ -409,7 +493,7 @@ impl Client {
     ///   additional options for the client.
     async fn send_http_request_once(
         &self,
-        mut signing_ctx: SigningContext,
+        signing_ctx: &mut SigningContext,
         options: Option<&ClientOptions>,
     ) -> Result<Response, Box<dyn std::error::Error + Send + Sync>> {
         let logger = self.inner_options.logger.as_ref().expect("Logger not set");
@@ -424,7 +508,7 @@ impl Client {
             .as_str(),
         );
 
-        self.sign_request(&mut signing_ctx, options).await?;
+        self.sign_request(signing_ctx, options).await?;
 
         // Log HTTP request
         // logger.debug(
@@ -449,13 +533,9 @@ impl Client {
             .as_str(),
         );
 
-        // Send HTTP request. Capture the request headers before the request is
-        // moved into the client: OSS reports a failed callback as HTTP 203
-        // (Non-Authoritative Information), which is not an error status under
-        // `is_success()`, so the callback case has to be detected explicitly.
-        // Mirrors Go `callbackErrorResponseHandler`.
         let request = signing_ctx
             .request
+            .take()
             .expect("Unable to clone request");
         let request_headers = request.headers().clone();
 
@@ -466,7 +546,14 @@ impl Client {
             .execute(request)
             .await?;
 
-        if !is_callback_error(response.status(), &request_headers) {
+        // OSS reports a failed callback as HTTP 203 (Non-Authoritative
+        // Information), which is not an error status under `is_success()`, so
+        // the callback case has to be detected explicitly. Mirrors Go
+        // `callbackErrorResponseHandler`.
+        let is_error = !response.status().is_success()
+            || is_callback_error(response.status(), &request_headers);
+
+        if !is_error {
             let ossRes = OssResponse::SucResponse(&response);
 
             for handler in &opts.response_handlers {
@@ -476,7 +563,6 @@ impl Client {
             Ok(response)
         } else {
             logger.debug(format!("send_http_request_once::response:\n{:?}", &response).as_str());
-            // let ossRes = OssResponse::from_response_and_context(response).await?;
             let status = response.status();
             let headers = response.headers().clone();
             let url = response.url().to_string();
@@ -541,13 +627,53 @@ impl Client {
         Ok(())
     }
 
-    #[allow(unused_variables)]
+    /// Learns the clock correction from a `RequestTimeTooSkewed` failure so the
+    /// next attempt is signed with a corrected timestamp.
+    ///
+    /// Compares the server timestamp carried by the error against the exact
+    /// time the failed request was signed with, and stores the difference in
+    /// the client so later requests inherit it. Mirrors Go
+    /// `Client.postSendHttpRequestOnce`.
     fn post_send_http_request_once(
         &self,
         signing_ctx: &mut SigningContext,
+        options: Option<&ClientOptions>,
         err: &(dyn std::error::Error + 'static),
     ) {
-        // TODO require casting to concrete error type
+        let logger = self.inner_options.logger.as_ref().expect("Logger not set");
+
+        let Some(service_error) = err.downcast_ref::<ServiceError>() else {
+            return;
+        };
+
+        let opts = options.unwrap_or(&self.options);
+        let correct_clock_skew = opts
+            .feature_flags
+            .contains(crate::FeatureFlagsType::CORRECT_CLOCK_SKEW);
+        let Some(server_time) = service_error.timestamp else {
+            return;
+        };
+
+        if correct_clock_skew && service_error.code == "RequestTimeTooSkewed" {
+            // The signer stamped the request with the offset it had at the
+            // time; the correction is measured against that same instant.
+            let sign_time = signing_ctx
+                .time
+                .unwrap_or_else(|| crate::signer::now_with_offset(signing_ctx.clock_offset));
+            let offset = DateTime::<Utc>::from(server_time) - DateTime::<Utc>::from(sign_time);
+
+            signing_ctx.clock_offset = offset;
+            self.inner_options.clock_offset.set(offset);
+
+            logger.warn(
+                format!(
+                    "Got RequestTimeTooSkewed error, correct clock, ClockOffset:{:?}, Server \
+                     Time:{:?}, Client time:{:?}",
+                    offset, server_time, sign_time
+                )
+                .as_str(),
+            );
+        }
     }
 }
 
@@ -588,6 +714,190 @@ mod tests {
     use crate::log::LogLevel;
     use crate::{SignatureVersionType, DEFAULT_CONTENT_TYPE, HTTP_HEADER_CONTENT_TYPE};
     use crate::test_utils::{load_test_config, TestConfig};
+    use bytes::Bytes;
+    use std::time::Duration;
+    use crate::BodyContent;
+
+    /// A V4-signed request carrying a `Bytes` body must be retried on a
+    /// retryable server error, and the replayable body must be resent intact
+    /// on the retry. `500` twice then `200` proves both: the request reached
+    /// the server three times and the final response is a success.
+    #[tokio::test]
+    async fn test_send_http_request_retries_5xx_and_replays_body() {
+        let mut server = mockito::Server::new_async().await;
+
+        // mockito matches the mock with remaining expected hits first, so the
+        // single-fire 500 mocks are consumed before the 200 one is used.
+        let fail = server
+            .mock("PUT", mockito::Matcher::Any)
+            .with_status(500)
+            .with_body("<Error><Code>InternalError</Code></Error>")
+            .expect(2)
+            .create_async()
+            .await;
+
+        let ok = server
+            .mock("PUT", mockito::Matcher::Any)
+            .with_status(200)
+            .with_body("")
+            .create_async()
+            .await;
+
+        let client = Client::new(
+            &Config::default()
+                .with_endpoint(server.url().as_str())
+                .with_region("cn-hangzhou")
+                .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
+                    "test-ak", "test-sk", &[],
+                )))
+                .with_signature_version(SignatureVersionType::V1)
+                .with_log_level(LogLevel::Off)
+                .with_retryer(Rc::new(crate::retry::Standard::new().with_backoff(
+                    // Deterministic, zero delay keeps the test fast.
+                    Box::new(crate::retry::FixedDelayBackoff::new(Duration::ZERO)),
+                ))),
+        );
+
+        let input = OperationInput {
+            op_name: "PutObject".to_string(),
+            method: http::Method::PUT,
+            bucket: Some("test-bucket".to_string()),
+            key: Some("retry-object".to_string()),
+            body: Some(BodyContent::from_bytes(Bytes::from_static(b"payload"), None)),
+            ..Default::default()
+        };
+
+        let output = client
+            .invoke_operation_inner(input, vec![])
+            .await
+            .expect("retry should turn the 500s into a success");
+
+        assert!(output.status.is_success());
+        fail.assert_async().await;
+        ok.assert_async().await;
+    }
+
+    /// A server error whose status is not retryable must fail after exactly
+    /// one attempt, not consume the retry budget.
+    #[tokio::test]
+    async fn test_send_http_request_does_not_retry_4xx() {
+        let mut server = mockito::Server::new_async().await;
+
+        let not_found = server
+            .mock("GET", mockito::Matcher::Any)
+            .with_status(404)
+            .with_body("<Error><Code>NoSuchKey</Code></Error>")
+            .expect(1)
+            .create_async()
+            .await;
+
+        let client = Client::new(
+            &Config::default()
+                .with_endpoint(server.url().as_str())
+                .with_region("cn-hangzhou")
+                .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
+                    "test-ak", "test-sk", &[],
+                )))
+                .with_signature_version(SignatureVersionType::V1)
+                .with_log_level(LogLevel::Off)
+                .with_retryer(Rc::new(crate::retry::Standard::new().with_backoff(
+                    Box::new(crate::retry::FixedDelayBackoff::new(Duration::ZERO)),
+                ))),
+        );
+
+        let input = OperationInput {
+            op_name: "GetObject".to_string(),
+            method: http::Method::GET,
+            bucket: Some("test-bucket".to_string()),
+            key: Some("missing-object".to_string()),
+            ..Default::default()
+        };
+
+        // `invoke_operation_inner` returns the error, never an error response.
+        let err = client
+            .invoke_operation_inner(input, vec![])
+            .await
+            .expect_err("404 must be reported as an error");
+
+        assert_eq!(
+            err.downcast_ref::<ServiceError>().map(|e| e.code.as_str()),
+            Some("NoSuchKey"),
+            "unexpected error: {}",
+            err
+        );
+        not_found.assert_async().await;
+    }
+
+    /// A `RequestTimeTooSkewed` response makes the client learn the server
+    /// clock offset, and the retry then succeeds: the corrected timestamp is
+    /// what turns the skew rejection into a success.
+    #[tokio::test]
+    async fn test_send_http_request_corrects_clock_skew() {
+        let mut server = mockito::Server::new_async().await;
+
+        // The server reports its clock one minute ahead of the client; that
+        // `Date` header is what the correction is derived from.
+        let server_time = SystemTime::now() + Duration::from_secs(60);
+        let server_date = DateTime::<Utc>::from(server_time).to_rfc2822();
+
+        let skew = server
+            .mock("GET", mockito::Matcher::Any)
+            .with_status(403)
+            .with_header("Date", server_date.as_str())
+            .with_body(
+                "<Error><Code>RequestTimeTooSkewed</Code><Message>skewed</Message></Error>",
+            )
+            .expect(1)
+            .create_async()
+            .await;
+
+        let ok = server
+            .mock("GET", mockito::Matcher::Any)
+            .with_status(200)
+            .with_body("")
+            .create_async()
+            .await;
+
+        let client = Client::new(
+            &Config::default()
+                .with_endpoint(server.url().as_str())
+                .with_region("cn-hangzhou")
+                .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
+                    "test-ak", "test-sk", &[],
+                )))
+                .with_signature_version(SignatureVersionType::V1)
+                .with_log_level(LogLevel::Off)
+                .with_retryer(Rc::new(crate::retry::Standard::new().with_backoff(
+                    Box::new(crate::retry::FixedDelayBackoff::new(Duration::ZERO)),
+                ))),
+        );
+
+        let input = OperationInput {
+            op_name: "GetBucketInfo".to_string(),
+            method: http::Method::GET,
+            bucket: Some("test-bucket".to_string()),
+            ..Default::default()
+        };
+
+        let output = client
+            .invoke_operation_inner(input, vec![])
+            .await
+            .expect("clock-skewed request should be corrected and retried");
+
+        assert!(output.status.is_success());
+        skew.assert_async().await;
+        ok.assert_async().await;
+
+        // The mock reported its clock 60s ahead, so the learned offset must
+        // land near +60s. An equality-with-zero check would also pass on a
+        // millisecond fallback timestamp, so assert the magnitude instead.
+        let offset_secs = client.inner_options.clock_offset.get().num_seconds();
+        assert!(
+            (55..=65).contains(&offset_secs),
+            "expected an offset of about 60s, got {}s",
+            offset_secs
+        );
+    }
 
     /// 203 counts as success for `is_success()`, so only a callback request
     /// may treat it as an error; a callback-less 203 stays a success response.

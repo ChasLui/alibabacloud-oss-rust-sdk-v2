@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use std::fmt::Write;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use hmac::{Hmac, Mac};
@@ -180,7 +180,7 @@ impl SignerV4 {
 
         // Date
         if ctx.time.is_none() {
-            ctx.time = Some(SystemTime::now() + ctx.clock_offset);
+            ctx.time = Some(super::now_with_offset(ctx.clock_offset));
         }
         let utc_datetime: DateTime<Utc> = ctx.time.ok_or("Time is None")?.into();
         let datetime = utc_datetime.format(ISO8601_DATETIME_FORMAT).to_string();

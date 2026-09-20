@@ -165,13 +165,16 @@ let config = Config::default()
 ### Advanced Configuration
 
 ```rust
+use std::rc::Rc;
+use alibabacloud_oss_sdk_rust_v2::retry::Standard;
+
 let config = Config::default()
     .with_region("cn-hangzhou")
     .with_credentials_provider(credentials_provider)
     .with_signature_version(SignatureVersionType::V4)
-    .with_retry_max_attempts(3)
-    .with_retry_initial_interval(1.0)
-    .with_retry_max_interval(60.0)
+    // Requests are retried by the `Standard` retryer (3 attempts) unless a
+    // retryer is supplied explicitly.
+    .with_retryer(Rc::new(Standard::new().with_max_attempts(5)))
     .with_log_level(LogLevel::Debug);
 ```
 
@@ -685,7 +688,7 @@ Error: Connection timeout
 
 - Check network connection
 - Verify region endpoint is accessible
-- Implement retry logic (see error handling example)
+- Transient failures are retried automatically by the default `Standard` retryer; tune it via `.with_retryer(...)` or cap attempts with `.with_retry_max_attempts(n)`
 - Adjust timeout settings in configuration
 
 #### "region is not set (required for V4 signature)"

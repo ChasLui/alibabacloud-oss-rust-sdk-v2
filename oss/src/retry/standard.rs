@@ -50,8 +50,16 @@ impl Standard {
     }
 
     /// Sets the maximum number of retry attempts for the Standard retryer.
+    ///
+    /// A value of zero is invalid — at least one attempt is always made — so
+    /// it falls back to [DEFAULT_MAX_ATTEMPTS]. Mirrors Go `NewStandard`,
+    /// which normalizes a non-positive `MaxAttempts` the same way.
     pub fn with_max_attempts(mut self, max_attempts: u32) -> Self {
-        self.max_attempts = max_attempts;
+        self.max_attempts = if max_attempts == 0 {
+            DEFAULT_MAX_ATTEMPTS
+        } else {
+            max_attempts
+        };
         self
     }
 
@@ -117,6 +125,12 @@ mod tests {
         assert_eq!(standard_retryer.max_attempts(), 5);
         assert!(
             standard_retryer.is_error_retryable(&Error::new(ConnectionReset, "connection reset"))
+        );
+
+        // A zero attempt budget would otherwise send nothing at all.
+        assert_eq!(
+            Standard::default().with_max_attempts(0).max_attempts(),
+            DEFAULT_MAX_ATTEMPTS
         );
 
         // test fixed-delay-backoff retryer

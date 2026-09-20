@@ -1,7 +1,6 @@
 use std::rc::Rc;
 
 use super::{try_convert_service_error, ClientOptions, OssResponse};
-use crate::retry::NopRetryer;
 use crate::{OperationInput, OP_META_KEY_RESPONSE_HANDLER};
 use log::debug;
 
@@ -34,7 +33,9 @@ pub(super) fn apply_operation_opt(
     }
 
     if base_options.retryer.is_none() {
-        base_options.retryer = Some(Rc::new(NopRetryer));
+        // Go defaults to `retry.NewStandard()` (3 attempts, with the standard
+        // set of retryable-error predicates) rather than disabling retries.
+        base_options.retryer = Some(Rc::new(crate::retry::Standard::new()));
     }
 
     if let Some(op_read_write_timeout) = modified_options.op_read_write_timeout {

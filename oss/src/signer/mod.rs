@@ -9,10 +9,27 @@ mod utils;
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 
+use chrono::TimeDelta;
+
 use crate::credential::Credentials;
 
 pub const SUB_RESOURCE: &str = "SubResource";
 pub const SIGN_TIME: &str = "SignTime";
+
+/// Stamps the current time shifted by a signed clock correction.
+///
+/// `SystemTime` only adds/subtracts an unsigned `Duration`, so a negative
+/// correction has to be applied by subtracting its magnitude. Mirrors Go
+/// `time.Now().Add(signingCtx.ClockOffset)`.
+pub(crate) fn now_with_offset(offset: TimeDelta) -> SystemTime {
+    let now = SystemTime::now();
+    let magnitude = offset.abs().to_std().unwrap_or(Duration::ZERO);
+    if offset < TimeDelta::zero() {
+        now - magnitude
+    } else {
+        now + magnitude
+    }
+}
 
 // Common
 pub(crate) const DEFAULT_EXPIRES_DURATION: Duration = Duration::from_secs(15 * 60);
@@ -43,7 +60,10 @@ pub struct SigningContext {
     pub auth_method_query: bool,
     // input and output
     pub time: Option<SystemTime>,
-    pub clock_offset: Duration,
+    /// Signed clock correction applied when stamping `time`; also carries the
+    /// correction learned from a `RequestTimeTooSkewed` response back to the
+    /// client. Mirrors Go `signer.SigningContext.ClockOffset`.
+    pub clock_offset: TimeDelta,
     // output
     pub signed_headers: HashMap<String, String>,
     pub string_to_sign: String,
@@ -112,7 +132,7 @@ mod tests {
         assert_eq!(ctx.credentials, None);
         assert!(!ctx.auth_method_query);
         assert_eq!(ctx.time, None);
-        assert_eq!(ctx.clock_offset, Duration::default());
+        assert_eq!(ctx.clock_offset, TimeDelta::zero());
         assert_eq!(ctx.signed_headers, HashMap::<String, String>::new());
         assert_eq!(ctx.string_to_sign, String::new());
         assert_eq!(ctx.sign_time, None);

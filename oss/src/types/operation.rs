@@ -140,6 +140,32 @@ impl BodyContent {
             BodyContent::Stream { md5, .. } => *md5,
         }
     }
+
+    /// Returns a fresh copy of this body for another send attempt.
+    ///
+    /// `File`, `Bytes`, and `Text` bodies can be rebuilt; an owned `Stream` is
+    /// consumed by its first send and cannot be replayed. Mirrors Go's
+    /// `teeReadNopCloser.IsSeekable` check in `Client.sendHttpRequest`.
+    pub fn try_clone(&self) -> Option<BodyContent> {
+        match self {
+            BodyContent::File { path, len, md5 } => Some(BodyContent::File {
+                path: path.clone(),
+                len: *len,
+                md5: *md5,
+            }),
+            BodyContent::Bytes { data, len, md5 } => Some(BodyContent::Bytes {
+                data: data.clone(),
+                len: *len,
+                md5: *md5,
+            }),
+            BodyContent::Text { data, len, md5 } => Some(BodyContent::Text {
+                data: data.clone(),
+                len: *len,
+                md5: *md5,
+            }),
+            BodyContent::Stream { .. } => None,
+        }
+    }
 }
 
 // 假设你的 SDK 错误类型是 SdkError

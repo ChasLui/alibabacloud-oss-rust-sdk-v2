@@ -4,18 +4,25 @@ use std::time::SystemTime;
 
 use serde::Deserialize;
 
+/// Error returned by the OSS service.
+///
+/// Every field is optional on the wire: real OSS error bodies omit fields
+/// (e.g. `RequestId` on malformed responses), and Go's `xml.Unmarshal`
+/// tolerates that by zero-filling. Requiring every element here would make
+/// the whole body fail to parse, lose `Code`, and break error-code-based
+/// retry decisions, so each field defaults.
 #[derive(Debug, Deserialize)]
 pub struct ServiceError {
-    #[serde(rename = "Code")]
+    #[serde(rename = "Code", default)]
     pub code: String,
 
-    #[serde(rename = "Message")]
+    #[serde(rename = "Message", default)]
     pub message: String,
 
-    #[serde(rename = "RequestId")]
+    #[serde(rename = "RequestId", default)]
     pub request_id: String,
 
-    #[serde(rename = "EC")]
+    #[serde(rename = "EC", default)]
     pub ec: String,
 
     #[serde(skip)]
