@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 use crate::BodyContent;
+use urlencoding;
 
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::{Deserialize, Serialize};
@@ -139,9 +140,34 @@ pub struct CompleteMultipartUploadResult {
     #[field(type = "header", rename = "x-oss-hash-crc64ecma")]
     pub hash_crc64: Option<String>,
 
+    /// The callback result of the upload. This field is populated with the
+    /// JSON body returned by OSS when the request carries an
+    /// `x-oss-callback` header and the callback is executed.
+    #[serde(skip)]
+    pub callback_result: std::collections::HashMap<String, serde_json::Value>,
+
     /// Common result fields
     #[serde(skip)]
     pub common: ResultCommon,
+}
+
+/// Decodes URL-encoded fields in the result when the response reports
+/// `EncodingType=url`. Mirrors Go `unmarshalEncodeType` for
+/// `CompleteMultipartUploadResult`.
+fn decode_result(result: &mut CompleteMultipartUploadResult) {
+    let is_url_encoding = result
+        .encoding_type
+        .as_deref()
+        .map(|v| v.eq_ignore_ascii_case("url"))
+        .unwrap_or(false);
+    if !is_url_encoding {
+        return;
+    }
+    if let Some(key) = &mut result.key {
+        *key = urlencoding::decode(key)
+            .unwrap_or_else(|_| std::borrow::Cow::Borrowed(key.as_str()))
+            .into_owned();
+    }
 }
 
 impl Client {
@@ -207,12 +233,17 @@ impl Client {
             method: http::Method::POST,
             bucket: Some(request.bucket.clone()),
             key: Some(request.key.clone()),
-            parameters: [("uploadId", request.upload_id.clone())]
+            parameters: [("uploadId", request.upload_id.clone()), ("encoding-type", "url".to_string())]
                 .iter()
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect(),
             ..Default::default()
         };
+
+        // A caller-supplied encoding type overrides the hardcoded default.
+        if let Some(encoding_type) = &request.encoding_type {
+            input.parameters.insert("encoding-type".to_string(), encoding_type.clone());
+        }
 
         // Serialize the parts as XML body (sorted ascending, like the Go SDK).
         let xml_body = serialize_complete_body(&request.parts)?;
@@ -228,6 +259,19 @@ impl Client {
 
         let mut output = self.invoke_operation(input, vec![]).await?;
 
+        // When a callback is configured, OSS returns the callback result as a
+        // JSON body instead of the usual XML result. Mirrors Go
+        // `unmarshalCallbackBody`, which is only wired up in the callback
+        // branch.
+        if request.callback.is_some() {
+            let body_data = output.get_all_data().await?;
+            let mut result = CompleteMultipartUploadResult::default();
+            result.callback_result =
+                serde_json::from_slice(&body_data).unwrap_or_default();
+            result.update_result(&output);
+            return Ok(result);
+        }
+
         // Parse the XML response
         let body_data = output.get_all_data().await?;
         let data_str = String::from_utf8_lossy(&body_data);
@@ -236,6 +280,10 @@ impl Client {
         // Update the common fields from the response
         let mut mutable_result = result;
         mutable_result.update_result(&output);
+
+        // Decode the object key when the response is URL-encoded. Mirrors Go
+        // `unmarshalEncodeType` for CompleteMultipartUploadResult.
+        decode_result(&mut mutable_result);
 
         Ok(mutable_result)
     }
@@ -284,6 +332,38 @@ mod tests {
         );
         // The caller's slice must not be reordered.
         assert_eq!(parts[0].part_number, 3);
+    }
+
+    /// `Key` must be decoded only when the response reports `EncodingType=url`;
+    /// the request hardcodes `encoding-type=url`, so a server that ignores it
+    /// (no `EncodingType` in the body) must leave the key untouched.
+    #[test]
+    fn test_decode_result_requires_url_encoding() {
+        let mut result = CompleteMultipartUploadResult {
+            encoding_type: Some("url".to_string()),
+            key: Some("a%20b/c%2Bd".to_string()),
+            ..Default::default()
+        };
+        decode_result(&mut result);
+        assert_eq!(result.key.as_deref(), Some("a b/c+d"));
+
+        // No EncodingType marker: leave the key as returned.
+        let mut plain = CompleteMultipartUploadResult {
+            encoding_type: None,
+            key: Some("a%20b".to_string()),
+            ..Default::default()
+        };
+        decode_result(&mut plain);
+        assert_eq!(plain.key.as_deref(), Some("a%20b"));
+
+        // Explicit non-url encoding type: also leave it alone.
+        let mut other = CompleteMultipartUploadResult {
+            encoding_type: Some("base64".to_string()),
+            key: Some("a%20b".to_string()),
+            ..Default::default()
+        };
+        decode_result(&mut other);
+        assert_eq!(other.key.as_deref(), Some("a%20b"));
     }
 
     #[tokio::test]

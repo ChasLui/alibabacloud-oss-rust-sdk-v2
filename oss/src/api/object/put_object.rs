@@ -6,6 +6,7 @@ use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
+use crate::client::BodyDataReader;
 use crate::utils::{modify_request, update_content_length};
 use crate::{OperationInput, OperationOutput, BodyContent};
 
@@ -132,8 +133,9 @@ pub struct PutObjectResult {
     #[field(type = "header", rename = "x-oss-version-id")]
     pub version_id: Option<String>,
 
-    /// Callback result
-    pub callback_result: HashMap<String, Box<dyn std::any::Any>>,
+    /// Callback result. Populated with the JSON body returned by OSS when the
+    /// request carries an `x-oss-callback` header and the callback is executed.
+    pub callback_result: HashMap<String, serde_json::Value>,
 
     /// Common result fields
     pub common: ResultCommon,
@@ -207,9 +209,17 @@ impl Client {
             vec![update_content_length],
         )?;
 
-        let output = self.invoke_operation(input, vec![]).await?;
+        let mut output = self.invoke_operation(input, vec![]).await?;
 
         let mut result = PutObjectResult::default();
+
+        // When a callback is configured, OSS returns the callback result as a
+        // JSON body. Mirrors Go `unmarshalCallbackBody`, which is only wired up
+        // in the callback branch.
+        if request.callback.is_some() {
+            let body_data = output.get_all_data().await?;
+            result.callback_result = serde_json::from_slice(&body_data).unwrap_or_default();
+        }
 
         result.update_result(&output);
 

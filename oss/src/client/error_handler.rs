@@ -22,24 +22,24 @@ pub fn try_convert_service_error(
                 .map(|datetime| datetime.into())
                 .unwrap_or_else(SystemTime::now);
 
-            // let response_headers = errResponse.headers;
-            // let response_status = response.status();
-            // let response_url = response.url().clone();
-            //
-            // let body = response.bytes().await?;
-            // let mut resp_body = body.to_vec();
-            //
-            // if body.is_empty() && response_headers.contains_key(HEADER_OSS_ERR) {
-            //     if let Some(encoded_err) = response_headers.get(HEADER_OSS_ERR) {
-            //         if let Ok(decoded) =
-            //             base64::engine::general_purpose::STANDARD.decode(encoded_err.to_str()?)
-            //         {
-            //             resp_body = decoded;
-            //         }
-            //     }
-            // }
-
-
+// An empty body with an `x-oss-err` header means the error payload
+            // is base64-encoded in that header. Mirrors Go
+            // `tryConvertServiceError`.
+            let decoded_body;
+            let body = if body.is_empty() {
+                decoded_body = headers
+                    .get(HEADER_OSS_ERR)
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|v| {
+                        base64::engine::general_purpose::STANDARD
+                            .decode(v.as_bytes())
+                            .ok()
+                    })
+                    .and_then(|bytes| String::from_utf8(bytes).ok());
+                decoded_body.as_deref().unwrap_or(body.as_str())
+            } else {
+                body.as_str()
+            };
 
             let mut service_error = ServiceError {
                 status_code: status.clone(),
@@ -56,7 +56,37 @@ pub fn try_convert_service_error(
                 ec: String::new(),
             };
 
-            match quick_xml::de::from_str::<ServiceError>(&String::from_utf8_lossy(&body.as_bytes())) {
+            // A callback failure is reported as a JSON body (`{"Error": {...}}`),
+            // not XML. Mirrors the JSON branch of Go `tryConvertServiceError`.
+            let is_json = headers
+                .get("Content-Type")
+                .and_then(|v| v.to_str().ok())
+                .map(|v| v.eq_ignore_ascii_case("application/json"))
+                .unwrap_or(false);
+            if is_json {
+                if let Ok(raw) = serde_json::from_str::<serde_json::Value>(body) {
+                    let payload = raw.get("Error").unwrap_or(&raw);
+                    service_error.code = payload
+                        .get("Code")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("BadErrorResponse")
+                        .to_string();
+                    service_error.message = payload
+                        .get("Message")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or_default()
+                        .to_string();
+                    if let Some(rid) = payload.get("RequestId").and_then(|v| v.as_str()) {
+                        service_error.request_id = rid.to_string();
+                    }
+                    if let Some(ec) = payload.get("EC").and_then(|v| v.as_str()) {
+                        service_error.ec = ec.to_string();
+                    }
+                    return Err(service_error.into());
+                }
+            }
+
+            match quick_xml::de::from_str::<ServiceError>(body) {
                 Ok(parsed) => {
                     service_error.code = parsed.code;
                     service_error.message = parsed.message;

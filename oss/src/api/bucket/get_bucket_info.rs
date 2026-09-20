@@ -35,6 +35,20 @@ pub struct GetBucketInfoResult {
     pub common: ResultCommon,
 }
 
+/// OSS reports an unset encryption setting as the literal string `"None"`;
+/// normalize it to an empty value. Mirrors Go `unmarshalSseRule`.
+fn normalize_sse_rule(sse_rule: &mut crate::api::bucket::SSERule) {
+    for field in [
+        &mut sse_rule.kms_master_key_id,
+        &mut sse_rule.sse_algorithm,
+        &mut sse_rule.kms_data_encryption,
+    ] {
+        if field.as_deref() == Some("None") {
+            *field = Some(String::new());
+        }
+    }
+}
+
 impl Client {
     /// Retrieves information about a bucket.
     ///
@@ -102,6 +116,10 @@ impl Client {
         let mut result: GetBucketInfoResult =
             quick_xml::de::from_str(&body_data)?;
 
+        // OSS reports an unset encryption setting as the literal string
+        // "None"; normalize it to an empty value. Mirrors Go `unmarshalSseRule`.
+        normalize_sse_rule(&mut result.bucket_info.sse_rule);
+
         result.update_result(&output);
 
         Ok(result)
@@ -119,6 +137,28 @@ mod tests {
     use crate::log::LogLevel;
     use crate::SignatureVersionType;
     use crate::test_utils::{load_test_config, TestConfig, generate_unique_bucket_name};
+
+    /// `"None"` is OSS's marker for "not set" and must become an empty string;
+    /// real values must pass through untouched.
+    #[test]
+    fn test_normalize_sse_rule_replaces_none() {
+        let mut rule = crate::api::bucket::SSERule {
+            kms_master_key_id: Some("None".to_string()),
+            sse_algorithm: Some("KMS".to_string()),
+            kms_data_encryption: Some("None".to_string()),
+        };
+        normalize_sse_rule(&mut rule);
+        assert_eq!(rule.kms_master_key_id.as_deref(), Some(""));
+        assert_eq!(rule.sse_algorithm.as_deref(), Some("KMS"));
+        assert_eq!(rule.kms_data_encryption.as_deref(), Some(""));
+
+        // Absent fields stay absent rather than becoming empty strings.
+        let mut empty = crate::api::bucket::SSERule::default();
+        normalize_sse_rule(&mut empty);
+        assert_eq!(empty.kms_master_key_id, None);
+        assert_eq!(empty.sse_algorithm, None);
+        assert_eq!(empty.kms_data_encryption, None);
+    }
 
     #[tokio::test]
     #[serial_test::serial]

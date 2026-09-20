@@ -449,21 +449,24 @@ impl Client {
             .as_str(),
         );
 
-        // Send HTTP request
+        // Send HTTP request. Capture the request headers before the request is
+        // moved into the client: OSS reports a failed callback as HTTP 203
+        // (Non-Authoritative Information), which is not an error status under
+        // `is_success()`, so the callback case has to be detected explicitly.
+        // Mirrors Go `callbackErrorResponseHandler`.
+        let request = signing_ctx
+            .request
+            .expect("Unable to clone request");
+        let request_headers = request.headers().clone();
+
         let response = opts
             .http_client
             .as_ref()
             .expect("Client not set")
-            .execute(
-                signing_ctx
-                    .request
-                    .expect("Unable to clone request"),
-            )
+            .execute(request)
             .await?;
 
-
-        if(response.status().is_success())
-        {
+        if !is_callback_error(response.status(), &request_headers) {
             let ossRes = OssResponse::SucResponse(&response);
 
             for handler in &opts.response_handlers {
@@ -491,7 +494,7 @@ impl Client {
                 handler(&ossRes2)?;
             }
 
-            panic!("it will not go to here! All err status should return corresponding ServiceErr")
+            unreachable!("response handlers must convert error responses into a ServiceError")
         }
     }
 
@@ -548,13 +551,23 @@ impl Client {
     }
 }
 
+/// OSS reports a failed callback as HTTP 203 (Non-Authoritative
+/// Information). Because 203 is a 2xx status, it would otherwise be treated
+/// as success and the error body swallowed. Mirrors Go
+/// `callbackErrorResponseHandler`, which only converts the response when the
+/// request carried an `x-oss-callback` header.
+fn is_callback_error(status: http::StatusCode, request_headers: &http::HeaderMap) -> bool {
+    status == http::StatusCode::NON_AUTHORITATIVE_INFORMATION
+        && request_headers.contains_key(crate::HEADER_OSS_CALLBACK)
+}
+
 // Helper function to convert HashMap to HeaderMap
 fn convert_hashmap_to_headermap(
     hashmap: std::collections::HashMap<String, String>,
 ) -> Result<http::HeaderMap, Box<dyn std::error::Error + Send + Sync>> {
     use http::HeaderMap;
     let mut header_map = HeaderMap::new();
-    
+
     for (key, value) in hashmap {
         if let (Ok(header_name), Ok(header_value)) = (
             http::HeaderName::from_bytes(key.as_bytes()),
@@ -563,7 +576,7 @@ fn convert_hashmap_to_headermap(
             header_map.insert(header_name, header_value);
         }
     }
-    
+
     Ok(header_map)
 }
 
@@ -575,6 +588,35 @@ mod tests {
     use crate::log::LogLevel;
     use crate::{SignatureVersionType, DEFAULT_CONTENT_TYPE, HTTP_HEADER_CONTENT_TYPE};
     use crate::test_utils::{load_test_config, TestConfig};
+
+    /// 203 counts as success for `is_success()`, so only a callback request
+    /// may treat it as an error; a callback-less 203 stays a success response.
+    #[test]
+    fn test_callback_error_detection() {
+        let with_callback = {
+            let mut h = http::HeaderMap::new();
+            h.insert(
+                http::HeaderName::from_static("x-oss-callback"),
+                http::HeaderValue::from_static("eyJjYWxsYmFja0JvZHkiOiAidGVzdCJ9"),
+            );
+            h
+        };
+        let without_callback = http::HeaderMap::new();
+
+        assert!(is_callback_error(
+            http::StatusCode::NON_AUTHORITATIVE_INFORMATION,
+            &with_callback
+        ));
+        assert!(!is_callback_error(
+            http::StatusCode::NON_AUTHORITATIVE_INFORMATION,
+            &without_callback
+        ));
+        assert!(!is_callback_error(http::StatusCode::OK, &with_callback));
+        assert!(!is_callback_error(
+            http::StatusCode::NOT_FOUND,
+            &with_callback
+        ));
+    }
 
     #[tokio::test]
     #[serial_test::serial]
