@@ -65,31 +65,61 @@ impl fmt::Debug for BodyContent {
 
 impl BodyContent {
     pub async fn into_reqwest_body(self) -> Result<reqwest::Body, std::io::Error> {
+        self.into_reqwest_body_with_trackers(Vec::new()).await
+    }
+
+    /// Same as [`BodyContent::into_reqwest_body`], but feeds every chunk read
+    /// from the body through `trackers` first.
+    ///
+    /// This is how upload integrity checks observe the bytes actually sent:
+    /// the request body is consumed by reqwest, so a tracker has to sit in the
+    /// read path rather than on a buffer. Mirrors Go `TeeReadNopCloser`, which
+    /// tees `input.Body` into the writers registered under
+    /// `OpMetaKeyRequestBodyTracker`.
+    pub async fn into_reqwest_body_with_trackers(
+        self,
+        trackers: Vec<Arc<dyn BodyTracker>>,
+    ) -> Result<reqwest::Body, std::io::Error> {
         use futures_util::stream::StreamExt;
+
+        // Tees each chunk into the trackers before it reaches reqwest.
+        let tee = move |chunk: Bytes| -> Result<Bytes, Box<dyn std::error::Error + Send + Sync>> {
+            for tracker in &trackers {
+                tracker.update(&chunk)?;
+            }
+            Ok(chunk)
+        };
 
         match self {
             BodyContent::File { path, .. } => {
                 let file = tokio::fs::File::open(path).await?;
                 let stream = tokio_util::codec::FramedRead::new(file, tokio_util::codec::BytesCodec::new());
-                let mapped = stream.map(|result| {
-                    result.map(|bytes| bytes.freeze()).map_err(|e| Box::<dyn std::error::Error + Send + Sync>::from(e))
-                });
+                let mapped = stream
+                    .map(|result| {
+                        result
+                            .map(|bytes| bytes.freeze())
+                            .map_err(|e| Box::<dyn std::error::Error + Send + Sync>::from(e))
+                    })
+                    .map(move |result| result.and_then(&tee));
                 let byte_stream = ByteStream::new(mapped);
                 Ok(reqwest::Body::wrap_stream(byte_stream))
             }
             BodyContent::Bytes { data, .. } => {
-                let stream = futures_util::stream::once(async { Ok(data) });
+                let tracked = tee(data);
+                let stream = futures_util::stream::once(async { tracked });
                 let byte_stream = ByteStream::new(stream);
                 Ok(reqwest::Body::wrap_stream(byte_stream))
             }
             BodyContent::Text { data, .. } => {
-                let stream = futures_util::stream::once(async { Ok(Bytes::from(data.into_bytes())) });
+                let tracked = tee(Bytes::from(data.into_bytes()));
+                let stream = futures_util::stream::once(async { tracked });
                 let byte_stream = ByteStream::new(stream);
                 Ok(reqwest::Body::wrap_stream(byte_stream))
             }
-            BodyContent::Stream { stream, len: _, md5: _ } => {
+            BodyContent::Stream { stream, .. } => {
                 // 对于Stream类型，直接使用传入的stream（现在拥有所有权）
-                Ok(reqwest::Body::wrap_stream(stream))
+                let mapped = stream.map(move |result| result.and_then(&tee));
+                Ok(reqwest::Body::wrap_stream(ByteStream::new(mapped)))
             }
         }
     }
@@ -165,6 +195,60 @@ impl BodyContent {
             }),
             BodyContent::Stream { .. } => None,
         }
+    }
+}
+
+/// Observes the bytes of a request body as they are sent.
+///
+/// The body is consumed by reqwest, so integrity checks (CRC64) have to see
+/// chunks on the read path. Trackers ride the request stream, which requires
+/// `Send`, so they are shared through `Arc` and mutate through a lock; the
+/// same instance is queried afterwards by the response check. Mirrors the
+/// `io.Writer` registered under Go's `OpMetaKeyRequestBodyTracker`.
+pub trait BodyTracker: Send + Sync {
+    /// Feeds the next chunk of the request body.
+    fn update(&self, chunk: &[u8]) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+
+    /// Resets to the initial state so a retried body is tracked from scratch.
+    fn reset(&self);
+}
+
+/// A [`BodyTracker`] that accumulates a CRC64 over the request body.
+///
+/// The accumulator lives behind an `Arc` so a handle can be registered in
+/// `OperationMetadata` (which stores `Rc`) while another handle rides the
+/// request stream, which requires `Send` and therefore `Arc`.
+#[derive(Clone)]
+pub(crate) struct Crc64Tracker {
+    crc: Arc<Mutex<crate::utils::Crc64>>,
+}
+
+impl Crc64Tracker {
+    pub(crate) fn new(init: u64) -> Self {
+        Crc64Tracker {
+            crc: Arc::new(Mutex::new(crate::utils::Crc64::new(init))),
+        }
+    }
+
+    /// Returns the CRC64 of everything written so far, as OSS reports it in
+    /// `x-oss-hash-crc64ecma`.
+    pub(crate) fn sum64(&self) -> u64 {
+        self.crc.lock().expect("crc tracker lock poisoned").sum64()
+    }
+}
+
+impl BodyTracker for Crc64Tracker {
+    fn update(&self, chunk: &[u8]) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.crc
+            .lock()
+            .expect("crc tracker lock poisoned")
+            .write(chunk)
+            .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { format!("{}", e).into() })?;
+        Ok(())
+    }
+
+    fn reset(&self) {
+        self.crc.lock().expect("crc tracker lock poisoned").reset();
     }
 }
 

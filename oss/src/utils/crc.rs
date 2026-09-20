@@ -1,12 +1,26 @@
+use std::any::Any;
+use std::rc::Rc;
+
+use crate::client::{OssResponse, ResponseHandler, ResponseHandlers};
+use crate::{
+    OperationInput, OP_META_KEY_REQUEST_BODY_TRACKER, OP_META_KEY_RESPONSE_HANDLER,
+    HEADER_OSS_CRC64,
+};
+use crate::Crc64Tracker;
+
 /// Represents a Crc64 calculator.
-#[allow(unused)]
+///
+/// `size`/`block_size`/`append_sum` complete the `hash.Hash64` surface that Go
+/// exposes; they are kept for parity with `NewCRC64` even though the SDK's own
+/// paths only need `write` and `sum64`.
+#[allow(dead_code)]
 pub(crate) struct Crc64 {
     init: u64,
     crc: u64,
     crc_instance: crc::Crc<u64>,
 }
 
-#[allow(unused)]
+#[allow(dead_code)]
 impl Crc64 {
     /// Creates a new `Crc64` instance.
     ///
@@ -37,8 +51,14 @@ impl Crc64 {
     }
 
     /// Writes the given buffer to the CRC calculation.
+    ///
+    /// Continues from the current value, so a body sent as several chunks
+    /// yields the same CRC as the concatenation of those chunks. Recomputing
+    /// `checksum(buf)` from scratch would discard everything written earlier.
     pub fn write(&mut self, buf: &[u8]) -> Result<usize, Box<dyn std::error::Error>> {
-        self.crc = self.crc_instance.checksum(buf);
+        let mut digest = self.crc_instance.digest_with_initial(self.crc);
+        digest.update(buf);
+        self.crc = digest.finalize();
         Ok(buf.len())
     }
 
@@ -55,6 +75,68 @@ impl Crc64 {
     pub fn append_sum(&self, in_bytes: &mut Vec<u8>) {
         in_bytes.extend_from_slice(&self.sum64().to_be_bytes());
     }
+}
+
+/// Attaches a CRC64 upload check to `input`, if the client enabled it.
+///
+/// Registers a tracker that observes the bytes actually sent, plus a response
+/// handler that compares the tracker's checksum against the server's
+/// `x-oss-hash-crc64ecma`. A mismatch is reported as an error whose message
+/// contains `"crc is inconsistent"`, which
+/// `ConnectionErrorRetryable` already recognises as retryable. Mirrors Go
+/// `Client.addCrcCheck` and `checkResponseHeaderCRC64`.
+///
+/// # Arguments
+///
+/// * `input` - The operation input to attach the check to.
+/// * `init` - The initial CRC64 value; `AppendObject` resumes from the value
+///   returned by the previous append, other operations start at `0`.
+/// * `enabled` - Whether `ENABLE_CRC64_CHECK_UPLOAD` is set on the client.
+pub fn add_crc64_check(input: &mut OperationInput, init: u64, enabled: bool) {
+    if !enabled {
+        return;
+    }
+    // A body-less upload has nothing to verify.
+    if input.body.is_none() {
+        return;
+    }
+
+    let tracker = Rc::new(Crc64Tracker::new(init));
+    input.op_metadata.set(
+        OP_META_KEY_REQUEST_BODY_TRACKER,
+        tracker.clone() as Rc<dyn Any>,
+    );
+
+    let handler: ResponseHandler = Rc::new(
+        move |response: &OssResponse| -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+            let server_crc = match response {
+                OssResponse::SucResponse(response) => response
+                    .headers()
+                    .get(HEADER_OSS_CRC64)
+                    .and_then(|v| v.to_str().ok()),
+                OssResponse::ErrResponse { headers, .. } => {
+                    headers.get(HEADER_OSS_CRC64).and_then(|v| v.to_str().ok())
+                }
+            };
+
+            let client_crc = tracker.sum64().to_string();
+            if let Some(server_crc) = server_crc {
+                if !server_crc.is_empty() && server_crc != client_crc {
+                    return Err(format!(
+                        "crc is inconsistent, client {}, server {}",
+                        client_crc, server_crc
+                    )
+                    .into());
+                }
+            }
+            Ok(())
+        },
+    );
+    // The metadata slot holds one `Vec` of handlers, matching the contract in
+    // `apply_operation_metadata` (it downcasts the single value), so the check
+    // is pushed as a one-element vector.
+    let handlers: ResponseHandlers = vec![handler];
+    input.op_metadata.add(OP_META_KEY_RESPONSE_HANDLER, Rc::new(handlers));
 }
 
 #[cfg(test)]
@@ -101,6 +183,45 @@ mod tests {
         let mut crc = Crc64::new(0);
         crc.write(EXAMPLE_INPUT).unwrap();
         assert_eq!(crc.crc, EXAMPLE_CHECKSUM);
+    }
+
+    /// Chunked writes must equal a single whole-buffer write. Previously each
+    /// `write` recomputed the checksum from scratch, so a chunked body
+    /// silently reported only its last chunk's CRC.
+    #[test]
+    fn test_write_accumulates_across_chunks() {
+        let mut whole = Crc64::new(0);
+        whole.write(EXAMPLE_INPUT).unwrap();
+
+        let mut chunked = Crc64::new(0);
+        chunked.write(b"He").unwrap();
+        chunked.write(b"ll").unwrap();
+        chunked.write(b"o").unwrap();
+
+        assert_eq!(chunked.sum64(), whole.sum64());
+        assert_eq!(chunked.sum64(), EXAMPLE_CHECKSUM);
+    }
+
+    /// A non-zero init participates in the accumulation, which mirrors Go's
+    /// `hashCRC64{crc: init}` + `crc64.Update(d.crc, tab, p)` resume semantics.
+    #[test]
+    fn test_write_resumes_from_init() {
+        // The init is the running value, not a "reset to" constant: starting
+        // from a mid-stream value and finishing the input must reproduce the
+        // whole-buffer checksum.
+        let mut first_half = Crc64::new(0);
+        first_half.write(b"He").unwrap();
+
+        let mut second_half = Crc64::new(first_half.sum64());
+        second_half.write(b"llo").unwrap();
+
+        assert_eq!(second_half.sum64(), EXAMPLE_CHECKSUM);
+
+        // A non-zero init that is not a real resume point still changes the
+        // digest, proving the value feeds into the calculation.
+        let mut off_init = Crc64::new(0x1234);
+        off_init.write(EXAMPLE_INPUT).unwrap();
+        assert_ne!(off_init.sum64(), EXAMPLE_CHECKSUM);
     }
 
     #[test]

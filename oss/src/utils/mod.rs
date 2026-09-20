@@ -21,7 +21,6 @@ mod validation;
 pub use self::api_modifier::*;
 pub(crate) use self::bandwidth_limiter::*;
 pub(crate) use self::body_reader::*;
-#[allow(unused)]
 pub(crate) use self::crc::*;
 pub(crate) use self::endpoint::*;
 pub(crate) use self::escape_path::*;

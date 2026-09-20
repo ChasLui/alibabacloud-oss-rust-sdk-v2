@@ -5,8 +5,8 @@ use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
-use crate::utils::{modify_request, update_content_length};
-use crate::{OperationInput, OperationOutput, BodyContent};
+use crate::utils::{add_crc64_check, modify_request, update_content_length};
+use crate::{BodyContent, FeatureFlagsType, OperationInput, OperationOutput};
 
 #[derive(Default, OssRequestModel)]
 pub struct UploadPartRequest {
@@ -148,6 +148,16 @@ impl Client {
             queries,
             vec![update_content_length],
         )?;
+
+        // Client-side CRC64 check over the bytes actually sent. Mirrors Go
+        // `Client.UploadPart`'s `c.addCrcCheck`.
+        add_crc64_check(
+            &mut input,
+            0,
+            self.options
+                .feature_flags
+                .contains(FeatureFlagsType::ENABLE_CRC64_CHECK_UPLOAD),
+        );
 
         let output = self.invoke_operation(input, vec![]).await?;
 

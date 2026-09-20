@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use super::{try_convert_service_error, ClientOptions, OssResponse};
+use super::{try_convert_service_error, ClientOptions, OssResponse, ResponseHandlers};
 use crate::{OperationInput, OP_META_KEY_RESPONSE_HANDLER};
 use log::debug;
 
@@ -50,10 +50,7 @@ pub(super) fn apply_operation_opt(
         base_options.auth_method = Some(auth_method.clone());
     }
 
-    #[allow(clippy::type_complexity)]
-    let mut handlers: Vec<
-        Rc<dyn Fn(&OssResponse) -> Result<(), Box<dyn std::error::Error + Send + Sync>>>,
-    > = Vec::new();
+    let mut handlers: ResponseHandlers = Vec::new();
     handlers.push(Rc::new(
         |response: &OssResponse| -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             match &response {
@@ -114,9 +111,7 @@ pub(crate) fn apply_operation_context() {
 /// * `base_options` - A mutable reference to the base options.
 pub(super) fn apply_operation_metadata(input: &OperationInput, base_options: &mut ClientOptions) {
     if let Some(handlers_rc) = input.op_metadata.get(OP_META_KEY_RESPONSE_HANDLER) {
-        if let Some(handlers_vec) = handlers_rc.downcast_ref::<Vec<
-            Rc<dyn Fn(&OssResponse) -> Result<(), Box<dyn std::error::Error + Send + Sync>>>,
-        >>() {
+        if let Some(handlers_vec) = handlers_rc.downcast_ref::<ResponseHandlers>() {
             for handler in handlers_vec {
                 base_options.response_handlers.push(handler.clone());
             }

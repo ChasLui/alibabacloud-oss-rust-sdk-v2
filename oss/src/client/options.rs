@@ -13,7 +13,20 @@ use crate::utils::BwTokenBuckets;
 use crate::{AuthMethodType, FeatureFlagsType, UrlStyleType};
 use crate::client::OssResponse;
 
-#[allow(clippy::type_complexity)]
+/// A callback invoked on the response before it is returned to the caller.
+///
+/// Handlers may reject a response by returning an error, which is how
+/// integrity checks (CRC64) and error conversion surface failures. This is
+/// the `OssResponse`-based counterpart of Go's
+/// `func(*http.Response) error` response handlers.
+pub type ResponseHandler =
+    Rc<dyn Fn(&OssResponse) -> Result<(), Box<dyn std::error::Error + Send + Sync>>>;
+
+/// A batch of [`ResponseHandler`]s, as stored in `OperationMetadata` under
+/// `OP_META_KEY_RESPONSE_HANDLER`.
+pub type ResponseHandlers = Vec<ResponseHandler>;
+
+
 #[derive(Clone, Default)]
 pub struct ClientOptions {
     pub product: String,
@@ -24,8 +37,7 @@ pub struct ClientOptions {
     pub signer: Option<Rc<dyn Signer>>,
     pub credentials_provider: Option<Rc<dyn CredentialsProvider>>,
     pub http_client: Option<reqwest::Client>,
-    pub response_handlers:
-        Vec<Rc<dyn Fn(&OssResponse) -> Result<(), Box<dyn std::error::Error + Send + Sync>>>>,
+    pub response_handlers: ResponseHandlers,
     pub url_style: UrlStyleType,
     pub feature_flags: FeatureFlagsType,
     pub op_read_write_timeout: Option<Duration>,

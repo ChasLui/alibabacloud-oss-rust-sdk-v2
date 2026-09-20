@@ -2,8 +2,8 @@ use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
-use crate::utils::{modify_request, update_content_length};
-use crate::{BodyContent, OperationInput, OperationOutput};
+use crate::utils::{add_crc64_check, modify_request, update_content_length};
+use crate::{BodyContent, FeatureFlagsType, OperationInput, OperationOutput};
 
 #[derive(Default, OssRequestModel)]
 pub struct AppendObjectRequest {
@@ -95,8 +95,6 @@ pub struct AppendObjectRequest {
     pub body: Option<BodyContent>,
 
     /// Specify the initial value of CRC64. If not set, the crc check is ignored.
-    /// Note: client-side CRC64 verification is not implemented yet; this field
-    /// is kept for API parity with the Go SDK.
     pub init_hash_crc64: Option<String>,
 
     /// To indicate that the requester is aware that the request and data
@@ -202,6 +200,33 @@ impl Client {
         };
 
         modify_request(&mut input, headers, queries, vec![update_content_length])?;
+
+        // Client-side CRC64 check over the bytes actually sent. Unlike the
+        // other uploads this one resumes from `init_hash_crc64`, because the
+        // object's CRC accumulates across appends. Mirrors Go
+        // `Client.AppendObject`, which only wires the check when
+        // `InitHashCRC64` is provided.
+        if let Some(init) = request.init_hash_crc64.as_deref() {
+            let init = init.parse::<u64>().map_err(|_| {
+                let client_error = crate::ClientError {
+                    code: "InvalidParameter".to_string(),
+                    message: "request.InitHashCRC64 is not a valid u64".to_string(),
+                    err: Box::new(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "request.InitHashCRC64 is not a valid u64",
+                    )),
+                };
+                Box::new(client_error) as Box<dyn std::error::Error + Send + Sync>
+            })?;
+
+            add_crc64_check(
+                &mut input,
+                init,
+                self.options
+                    .feature_flags
+                    .contains(FeatureFlagsType::ENABLE_CRC64_CHECK_UPLOAD),
+            );
+        }
 
         let output = self.invoke_operation(input, vec![]).await?;
 

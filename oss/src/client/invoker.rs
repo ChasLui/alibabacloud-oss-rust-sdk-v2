@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::SystemTime;
 
 use chrono::{DateTime, Utc};
@@ -10,7 +11,7 @@ use crate::retry::DEFAULT_MAX_ATTEMPTS;
 use crate::signer::{SigningContext, SIGN_TIME, SUB_RESOURCE};
 use crate::utils::{build_url, header_map_to_hash_map, is_valid_endpoint, sleep_with_context};
 use crate::{
-    AuthMethodType, BodyStream, ClientError, HEADER_OSS_DATE, HTTP_HEADER_USER_AGENT,
+    AuthMethodType, BodyStream, BodyTracker, ClientError, HEADER_OSS_DATE, HTTP_HEADER_USER_AGENT,
     OperationInput, OperationMetadata, OperationOutput, ServiceError,
 };
 
@@ -290,7 +291,19 @@ impl Client {
         let body_content = input.body;  // 移动 body_content
 
         if let Some(content) = body_content {  // 移动 content
-            let body = content.into_reqwest_body().await?;
+            // Trackers observe the bytes actually sent, which is how
+            // integrity checks (CRC64) see the request body. Registered by
+            // `utils::add_crc64_check` under `OP_META_KEY_REQUEST_BODY_TRACKER`.
+            let trackers: Vec<Arc<dyn BodyTracker>> = input
+                .op_metadata
+                .values(crate::OP_META_KEY_REQUEST_BODY_TRACKER)
+                .into_iter()
+                .flatten()
+                .filter_map(|v| v.clone().downcast::<crate::Crc64Tracker>().ok())
+                .map(|v| Arc::new((*v).clone()) as Arc<dyn BodyTracker>)
+                .collect();
+
+            let body = content.into_reqwest_body_with_trackers(trackers).await?;
             request_builder = request_builder.body(body);
         }
 
@@ -412,13 +425,32 @@ impl Client {
                 sleep_with_context(delay).await;
             }
 
-            let attempt_input = if is_replayable && attempt < max_attempts {
-                let mut copy = input.clone();
+            // A retry resends the body from the start, so anything tracking
+            // the bytes sent must start over too. Mirrors Go
+            // `teeReadNopCloser.Reset`, which resets its writers alongside the
+            // reader position.
+            if attempt > 1 {
+                if let Some(trackers) = input
+                    .op_metadata
+                    .values(crate::OP_META_KEY_REQUEST_BODY_TRACKER)
+                {
+                    for tracker in trackers {
+                        if let Ok(tracker) = tracker.clone().downcast::<crate::Crc64Tracker>() {
+                            tracker.reset();
+                        }
+                    }
+                }
+            }
+
+            // Replayable bodies are rebuilt for every attempt; the final attempt (or a
+            // single-shot body) moves the body out, leaving headers and
+            // metadata — which carry the request-body trackers — intact.
+            let mut attempt_input = input.clone();
+            attempt_input.body = if attempt < max_attempts && is_replayable {
                 // `OperationInput::clone` drops the body, so restore it.
-                copy.body = input.body.as_ref().and_then(|body| body.try_clone());
-                copy
+                input.body.as_ref().and_then(|body| body.try_clone())
             } else {
-                std::mem::take(&mut input)
+                input.body.take()
             };
 
             // Rebuilt per attempt, so each send carries a fresh timestamp and
@@ -879,25 +911,147 @@ mod tests {
             ..Default::default()
         };
 
+        // Bracket the request in time: the signer stamps the request with the
+        // local clock at send time, so the learned offset is
+        // `server_time - sign_time`, which drifts by however long the suite
+        // takes between setup and the request. Asserting against the actual
+        // bracket keeps the check tight without assuming instant setup.
+        let before = SystemTime::now();
         let output = client
             .invoke_operation_inner(input, vec![])
             .await
             .expect("clock-skewed request should be corrected and retried");
+        let after = SystemTime::now();
 
         assert!(output.status.is_success());
         skew.assert_async().await;
         ok.assert_async().await;
 
-        // The mock reported its clock 60s ahead, so the learned offset must
-        // land near +60s. An equality-with-zero check would also pass on a
-        // millisecond fallback timestamp, so assert the magnitude instead.
-        let offset_secs = client.inner_options.clock_offset.get().num_seconds();
+        let offset = client.inner_options.clock_offset.get();
+        // `Date` carries second precision, so allow one second of slack at
+        // each end of the bracket.
+        let upper = DateTime::<Utc>::from(server_time) - DateTime::<Utc>::from(before);
+        let lower = DateTime::<Utc>::from(server_time) - DateTime::<Utc>::from(after);
+        let slack = chrono::TimeDelta::seconds(1);
+
         assert!(
-            (55..=65).contains(&offset_secs),
-            "expected an offset of about 60s, got {}s",
-            offset_secs
+            offset <= upper + slack && offset >= lower - slack,
+            "expected an offset between {:?} and {:?}, got {:?}",
+            lower,
+            upper,
+            offset
         );
     }
+
+    /// A CRC64 mismatch reported by the server must surface as an error, and
+    /// the message must be the one `ConnectionErrorRetryable` recognises —
+    /// that is what lets a corrupted upload be retried instead of silently
+    /// accepted.
+#[tokio::test]
+async fn test_put_object_crc64_mismatch_is_rejected() {
+    let mut server = mockito::Server::new_async().await;
+
+    // 0 is never the CRC64 of "payload", so the server value is a mismatch.
+    let mismatch = server
+        .mock("PUT", mockito::Matcher::Any)
+        .with_status(200)
+        .with_header("x-oss-hash-crc64ecma", "0")
+        .with_body("")
+        .create_async()
+        .await;
+
+    let client = Client::new(
+        &Config::default()
+            .with_endpoint(server.url().as_str())
+            .with_region("cn-hangzhou")
+            .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
+                "test-ak", "test-sk", &[],
+            )))
+            .with_signature_version(SignatureVersionType::V1)
+            .with_log_level(LogLevel::Off)
+            .with_retryer(Rc::new(crate::retry::NopRetryer::new())),
+    );
+
+    let mut input = OperationInput {
+        op_name: "PutObject".to_string(),
+        method: http::Method::PUT,
+        bucket: Some("test-bucket".to_string()),
+        key: Some("crc-object".to_string()),
+        body: Some(BodyContent::from_bytes(Bytes::from_static(b"payload"), None)),
+        ..Default::default()
+    };
+
+    // The check is attached the same way PutObject does it.
+    crate::utils::add_crc64_check(
+        &mut input,
+        0,
+        true,
+    );
+
+    let err = client
+        .invoke_operation_inner(input, vec![])
+        .await
+        .expect_err("a CRC mismatch must fail the operation");
+
+    assert!(
+        err.to_string().contains("crc is inconsistent"),
+        "unexpected error: {}",
+        err
+    );
+    mismatch.assert_async().await;
+}
+
+/// A matching CRC64 must leave the operation successful.
+#[tokio::test]
+async fn test_put_object_crc64_match_succeeds() {
+    let mut server = mockito::Server::new_async().await;
+
+    // The CRC64 of "payload", which is what the client computes.
+    let expected = {
+        let mut crc = crate::utils::Crc64::new(0);
+        crc.write(b"payload").unwrap();
+        crc.sum64().to_string()
+    };
+
+    let ok = server
+        .mock("PUT", mockito::Matcher::Any)
+        .with_status(200)
+        .with_header("x-oss-hash-crc64ecma", expected.as_str())
+        .with_body("")
+        .create_async()
+        .await;
+
+    let client = Client::new(
+        &Config::default()
+            .with_endpoint(server.url().as_str())
+            .with_region("cn-hangzhou")
+            .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
+                "test-ak", "test-sk", &[],
+            )))
+            .with_signature_version(SignatureVersionType::V1)
+            .with_log_level(LogLevel::Off)
+            .with_retryer(Rc::new(crate::retry::NopRetryer::new())),
+    );
+
+    let mut input = OperationInput {
+        op_name: "PutObject".to_string(),
+        method: http::Method::PUT,
+        bucket: Some("test-bucket".to_string()),
+        key: Some("crc-object".to_string()),
+        body: Some(BodyContent::from_bytes(Bytes::from_static(b"payload"), None)),
+        ..Default::default()
+    };
+
+    crate::utils::add_crc64_check(&mut input, 0, true);
+
+    let output = client
+        .invoke_operation_inner(input, vec![])
+        .await
+        .expect("a matching CRC must succeed");
+
+    assert!(output.status.is_success());
+    ok.assert_async().await;
+}
 
     /// 203 counts as success for `is_success()`, so only a callback request
     /// may treat it as an error; a callback-less 203 stays a success response.

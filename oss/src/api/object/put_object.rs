@@ -7,8 +7,8 @@ use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
 use crate::client::BodyDataReader;
-use crate::utils::{modify_request, update_content_length};
-use crate::{OperationInput, OperationOutput, BodyContent};
+use crate::utils::{add_crc64_check, modify_request, update_content_length};
+use crate::{BodyContent, FeatureFlagsType, OperationInput, OperationOutput};
 
 #[derive(Default, OssRequestModel)]
 pub struct PutObjectRequest {
@@ -209,6 +209,16 @@ impl Client {
             vec![update_content_length],
         )?;
 
+        // Client-side CRC64 check over the bytes actually sent. Mirrors Go
+        // `Client.PutObject`'s `c.addCrcCheck`.
+        add_crc64_check(
+            &mut input,
+            0,
+            self.options
+                .feature_flags
+                .contains(FeatureFlagsType::ENABLE_CRC64_CHECK_UPLOAD),
+        );
+
         let mut output = self.invoke_operation(input, vec![]).await?;
 
         let mut result = PutObjectResult::default();
@@ -243,6 +253,82 @@ mod tests {
     use futures_util::stream;
     use std::pin::Pin;
     use futures_util::StreamExt;
+
+    #[tokio::test]
+    async fn test_put_object_crc_check_is_wired_into_the_operation() {
+        let mut server = mockito::Server::new_async().await;
+
+        // The CRC64 of the body the client will send.
+        let expected = {
+            let mut crc = crate::utils::Crc64::new(0);
+            crc.write(b"payload").unwrap();
+            crc.sum64().to_string()
+        };
+
+        // A wrong server CRC must fail the operation, proving `put_object`
+        // actually attaches the check (an unattached check would succeed).
+        let bad = server
+            .mock("PUT", mockito::Matcher::Any)
+            .with_status(200)
+            .with_header("x-oss-hash-crc64ecma", "1")
+            .with_body("")
+            .create_async()
+            .await;
+
+        let client = Client::new(
+            &Config::default()
+                .with_endpoint(server.url().as_str())
+                .with_region("cn-hangzhou")
+                .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
+                    "test-ak", "test-sk", &[],
+                )))
+                .with_signature_version(SignatureVersionType::V1)
+                .with_log_level(LogLevel::Off)
+                .with_retryer(Rc::new(crate::retry::NopRetryer::new())),
+        );
+
+        let request = PutObjectRequest {
+            bucket: "test-bucket".to_string(),
+            key: "crc-op-object".to_string(),
+            body: Some(BodyContent::from_bytes(Bytes::from_static(b"payload"), None)),
+            ..Default::default()
+        };
+
+        let err = client
+            .put_object(request)
+            .await
+            .expect_err("a CRC mismatch must fail put_object");
+        assert!(
+            err.to_string().contains("crc is inconsistent"),
+            "unexpected error: {}",
+            err
+        );
+        bad.assert_async().await;
+
+        // The same operation with the correct CRC succeeds, and the expected
+        // value matches what the SDK computes for this body.
+        server.reset();
+        let good = server
+            .mock("PUT", mockito::Matcher::Any)
+            .with_status(200)
+            .with_header("x-oss-hash-crc64ecma", expected.as_str())
+            .with_body("")
+            .create_async()
+            .await;
+
+        let request = PutObjectRequest {
+            bucket: "test-bucket".to_string(),
+            key: "crc-op-object".to_string(),
+            body: Some(BodyContent::from_bytes(Bytes::from_static(b"payload"), None)),
+            ..Default::default()
+        };
+
+        client
+            .put_object(request)
+            .await
+            .expect("a matching CRC must succeed");
+        good.assert_async().await;
+    }
 
     #[tokio::test]
     #[serial_test::serial]
