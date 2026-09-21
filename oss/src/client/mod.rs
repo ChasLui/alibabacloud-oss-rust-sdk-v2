@@ -1,4 +1,5 @@
 mod applier;
+mod downloader;
 mod error_handler;
 mod invoker;
 mod options;
@@ -6,6 +7,7 @@ mod resolver;
 mod paginators;
 mod presign;
 
+pub use self::downloader::*;
 pub use self::paginators::*;
 pub use self::presign::*;
 
