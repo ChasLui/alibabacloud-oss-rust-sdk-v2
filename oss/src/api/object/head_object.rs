@@ -207,7 +207,7 @@ pub struct HeadObjectResult {
     #[field(type = "header", rename = "x-oss-meta-", usermeta)]
     pub metadata: HashMap<String, String>,
 
-    common: ResultCommon,
+    pub common: ResultCommon,
 }
 
 impl Client {
