@@ -11,6 +11,9 @@ Rust SDK for [Alibaba Cloud Object Storage Service (OSS)](https://www.alibabaclo
 - [Examples](#examples)
 - [API Reference](#api-reference)
   - [Concurrent Transfers](#concurrent-transfers)
+  - [Resumable Transfers](#resumable-transfers)
+  - [Server-Side Copy](#server-side-copy)
+  - [File-Like Handles](#file-like-handles)
   - [Presigning](#presigning)
   - [Paginators](#paginators)
 
@@ -37,6 +40,9 @@ This SDK provides a comprehensive set of APIs for interacting with Alibaba Cloud
 - **Automatic Serialization**: Header/query parameter handling via macros
 - **Full API Coverage**: 154 operations aligned with the Go SDK v2 — objects, buckets, service, regions, and access points (the Go SDK's operation set exactly)
 - **Concurrent Transfers**: `Client::download_file` and `Client::upload_file` — ranged parallel download with per-part checksum folding, and multipart upload that aborts on failure so no billable parts are orphaned
+- **Server-Side Copy**: `Client::copy_object_to_object` — one `CopyObject` for small sources, `UploadPartCopy` for large ones, with the destination's checksum compared against the source's
+- **File-Like Handles**: `open_read_only_file` / `open_append_only_file` / `open_write_only_file` — seekable reads, appends that carry the running checksum, and a streaming writer that uploads parts as they fill
+- **Resumable Transfers**: `download_file_with_checkpoint` / `upload_file_with_checkpoint` — progress survives a failure; an upload resumes from the parts the service actually holds
 - **Pre-signed URLs**: `Client::presign` with V4/V1 signing for upload, download, and multipart workflows
 - **Paginators**: Ergonomic page-by-page iteration for all six list operations, with URL-decoded keys
 - **Comprehensive Testing**: Extensive integration tests with automatic resource cleanup
@@ -413,6 +419,119 @@ Notes:
 - **Part size floor.** OSS rejects multipart parts below 100 KiB; the uploader
   applies that floor before sending any part, so a smaller `part_size` is
   raised rather than failing at completion.
+
+### Resumable Transfers
+
+A transfer that fails can continue where it stopped instead of starting over. Progress lives in a small JSON checkpoint next to the destination; it is keyed to the source object and destination path, so a checkpoint can only be picked up by the transfer that wrote it.
+
+```rust
+use alibabacloud_oss_sdk_rust_v2::client::{
+    DownloaderCheckpointOptions, UploaderCheckpointOptions,
+};
+
+let result = client
+    .download_file_with_checkpoint(
+        &GetObjectRequest {
+            bucket: "my-bucket".to_string(),
+            key: "large.bin".to_string(),
+            ..Default::default()
+        },
+        "/local/large.bin",
+        6 * 1024 * 1024, // part size
+        DownloaderCheckpointOptions::default()
+            .with_checkpoint_dir("/local/checkpoints")
+            .with_verify_data(true),
+    )
+    .await?;
+println!("resumed at {}, {} bytes this attempt", result.resumed_from, result.written);
+
+let result = client
+    .upload_file_with_checkpoint(
+        &PutObjectRequest {
+            bucket: "my-bucket".to_string(),
+            key: "large.bin".to_string(),
+            ..Default::default()
+        },
+        "/local/large.bin",
+        UploaderCheckpointOptions::default()
+            .with_checkpoint_dir("/local/checkpoints")
+            .with_part_size(6 * 1024 * 1024),
+    )
+    .await?;
+```
+
+Notes:
+
+- **Downloads resume at the first gap.** Parts arrive out of order, so the recorded progress is the longest contiguous run from the start — not the number of bytes written, which would skip a hole in the middle. `with_verify_data(true)` re-reads that prefix and checks its checksum before trusting it.
+- **Uploads trust the service, not the checkpoint.** The checkpoint records only the upload ID; which parts exist is read back with `ListParts`, so a part the service never accepted is uploaded again. Only a run of full parts from part 1 is adopted — a short part in the middle would leave a hole.
+- **A stale checkpoint is discarded, not resumed.** A checkpoint whose object, size, modification time, or part size does not match the transfer at hand is removed and the transfer starts fresh.
+- **The checkpoint is removed only after the object exists.** A crash between completion and removal resumes an upload that is already done rather than losing the fact that it was.
+
+### Server-Side Copy
+
+Copies an object without the bytes travelling through the client. Sources above the threshold are copied part by part, and the destination's checksum is compared against the source's when the copy completes.
+
+```rust
+use alibabacloud_oss_sdk_rust_v2::api::object::CopyObjectRequest;
+use alibabacloud_oss_sdk_rust_v2::client::CopierOptions;
+
+let result = client
+    .copy_object_to_object(
+        &CopyObjectRequest {
+            bucket: "dest-bucket".to_string(),
+            key: "dest-key".to_string(),
+            copy_source: "/src-bucket/src-key".to_string(),
+            ..Default::default()
+        },
+        CopierOptions::default()
+            .with_part_size(64 * 1024 * 1024)
+            .with_multipart_copy_threshold(200 * 1024 * 1024),
+    )
+    .await?;
+println!("etag {:?}, {} bytes", result.etag, result.transferred);
+```
+
+Notes:
+
+- `MetadataDirective: COPY` (the default) carries the source's metadata to the destination and drops any metadata on the request; `REPLACE` uses the request's own values. An unrecognised directive is rejected before anything is sent.
+- A large source first attempts one `CopyObject` under a 30-second deadline, which is much cheaper when the service allows it. Only a timeout or an `EntityTooLarge` rejection falls back to copying by parts; any other error is reported as-is.
+- A failed part aborts the upload unless `leave_parts_on_error` is set.
+
+### File-Like Handles
+
+Three handles treat an object as a file. None of them buffer the whole object.
+
+```rust
+use alibabacloud_oss_sdk_rust_v2::client::{OpenOptions, AppendOptions, WriteOnlyOptions};
+
+// Read: seekable, and checked against the object it was opened from.
+let mut file = client
+    .open_read_only_file("my-bucket", "my-object", OpenOptions::default())
+    .await?;
+let head = file.read_exact(16).await?;
+
+// Append: the running checksum is carried on every write.
+let mut file = client
+    .open_append_only_file("my-bucket", "log.txt", AppendOptions::default())
+    .await?;
+file.write(b"a line\n".to_vec()).await?;
+
+// Write: parts are uploaded as they fill.
+let mut file = client.open_write_only_file(
+    "my-bucket",
+    "streamed.bin",
+    WriteOnlyOptions::default().with_part_size(6 * 1024 * 1024),
+);
+file.write(vec![0u8; 1024]).await?;
+file.close().await?;
+```
+
+Notes:
+
+- **Reads are guarded.** The size, ETag, and last-modified time are captured at open; a ranged response whose `Content-Range` starts somewhere else, or whose object identity changed, fails the read instead of splicing two versions together.
+- **Appends verify position.** The service rejects an append whose position does not match the object's length. That is retried once, and only when a re-read shows the object ends exactly where this write would have — a genuine concurrent writer is an error.
+- **Small writes never open a multipart upload.** A `WriteOnlyFile` that never filled a part is written with a single `PutObject` on close. A failure is sticky: every later call reports it, and `close` refuses to commit.
+- Attributes that have no multipart equivalent (the ACL) are applied on completion. An append's creation attributes apply only on the write that creates the object.
 
 ### Presigning
 
