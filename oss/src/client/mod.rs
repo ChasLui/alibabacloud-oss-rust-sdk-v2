@@ -1,4 +1,5 @@
 mod applier;
+mod checkpoint;
 mod copier;
 mod downloader;
 mod error_handler;
@@ -11,6 +12,7 @@ mod paginators;
 mod presign;
 mod uploader;
 
+pub use self::checkpoint::*;
 pub use self::copier::*;
 pub use self::downloader::*;
 pub use self::filelike::*;

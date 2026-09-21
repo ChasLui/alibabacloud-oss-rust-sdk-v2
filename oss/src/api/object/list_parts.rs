@@ -105,6 +105,13 @@ pub struct Part {
     /// The size of the part.
     #[serde(rename = "Size")]
     pub size: i64,
+
+    /// The 64-bit CRC value of the part, per the ECMA-182 standard.
+    #[serde(
+        rename = "HashCrc64ecma",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub hash_crc64: Option<String>,
 }
 
 impl Client {
