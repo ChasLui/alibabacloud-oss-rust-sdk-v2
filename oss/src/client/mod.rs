@@ -6,10 +6,12 @@ mod options;
 mod resolver;
 mod paginators;
 mod presign;
+mod uploader;
 
 pub use self::downloader::*;
 pub use self::paginators::*;
 pub use self::presign::*;
+pub use self::uploader::*;
 
 use std::rc::Rc;
 use std::pin::Pin;
