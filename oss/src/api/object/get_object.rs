@@ -4,10 +4,10 @@ use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
 use crate::utils::{modify_request, update_content_md5};
 use crate::{BodyStream, OperationInput, OperationOutput};
-use std::collections::HashMap;
-use std::sync::Arc;
 use bytes::Bytes;
 use futures_util::StreamExt;
+use std::collections::HashMap;
+use std::sync::Arc;
 
 #[derive(Default, OssRequestModel)]
 pub struct GetObjectRequest {
@@ -237,7 +237,10 @@ impl std::fmt::Debug for GetObjectResult {
             .field("storage_class", &self.storage_class)
             .field("content_md5", &self.content_md5)
             .field("server_side_encryption", &self.server_side_encryption)
-            .field("server_side_data_encryption", &self.server_side_data_encryption)
+            .field(
+                "server_side_data_encryption",
+                &self.server_side_data_encryption,
+            )
             .field("sse_kms_key_id", &self.sse_kms_key_id)
             .field("object_type", &self.object_type)
             .field("next_append_position", &self.next_append_position)
@@ -261,7 +264,7 @@ impl crate::client::BodyDataReader for GetObjectResult {
         self.body.take()
     }
 
-    fn set_body(&mut self, body: Option<crate::client::BodyStream>){
+    fn set_body(&mut self, body: Option<crate::client::BodyStream>) {
         self.body = body;
     }
 }
@@ -340,6 +343,123 @@ impl Client {
 
         Ok(result)
     }
+
+    /// Downloads an object into a local file.
+    ///
+    /// When `ENABLE_CRC64_CHECK_DOWNLOAD` is set on the client, the bytes
+    /// written to disk are accumulated into a CRC64 that is compared against
+    /// the object's `x-oss-hash-crc64ecma` once the download completes. A
+    /// mismatch is reported with the same `crc is inconsistent` message as the
+    /// upload check, which `ConnectionErrorRetryable` treats as retryable — so
+    /// a corrupted download is retried rather than silently accepted.
+    ///
+    /// A ranged download is **not** checksum-verified: the server reports the
+    /// CRC64 of the whole object, so a partial body can never match it.
+    /// Mirrors Go `Client.GetObjectToFile`.
+    ///
+    /// # Arguments
+    ///
+    /// * `request` - The `GetObjectRequest` describing the object to download.
+    /// * `file_path` - Where the object is written. An existing file is
+    ///   truncated; the parent directory must exist.
+    pub async fn get_object_to_file(
+        &self,
+        request: GetObjectRequest,
+        file_path: impl AsRef<std::path::Path>,
+    ) -> Result<GetObjectResult, Box<dyn std::error::Error + Send + Sync>> {
+        let file_path = file_path.as_ref();
+        let check_crc = self
+            .options
+            .feature_flags
+            .contains(crate::FeatureFlagsType::ENABLE_CRC64_CHECK_DOWNLOAD)
+            && request.range.is_none();
+
+        // A failed checksum makes the whole download retryable: the bytes that
+        // reached disk are known to be wrong, so the only useful recovery is
+        // to fetch the object again. Each attempt truncates the file and
+        // restarts the checksum, so a retry pays off exactly when the
+        // corruption was transient. Mirrors Go `Client.GetObjectToFile`, which
+        // loops until the checksum validates or the attempt budget runs out.
+        let max_attempts = self.retry_max_attempts(None).max(1);
+        let mut last_error: Option<Box<dyn std::error::Error + Send + Sync>> = None;
+
+        for attempt in 1..=max_attempts {
+            match self
+                .download_object_to_file(&request, file_path, check_crc)
+                .await
+            {
+                Ok(result) => return Ok(result),
+                Err(err) => {
+                    if attempt == max_attempts {
+                        return Err(err);
+                    }
+                    last_error = Some(err);
+                }
+            }
+        }
+
+        Err(last_error.expect("a failed download always records the last error"))
+    }
+
+    /// One attempt of [`Client::get_object_to_file`]: issues the request,
+    /// streams the body to disk, and verifies the checksum when requested.
+    async fn download_object_to_file(
+        &self,
+        request: &GetObjectRequest,
+        file_path: &std::path::Path,
+        check_crc: bool,
+    ) -> Result<GetObjectResult, Box<dyn std::error::Error + Send + Sync>> {
+        let mut input = OperationInput {
+            op_name: "GetObject".to_string(),
+            method: http::Method::GET,
+            bucket: Some(request.bucket.clone()),
+            key: Some(request.key.clone()),
+            ..Default::default()
+        };
+
+        modify_request(
+            &mut input,
+            request.header_map(),
+            request.query_map(),
+            vec![update_content_md5],
+        )?;
+
+        let output = self.invoke_operation(input, vec![]).await?;
+
+        let mut result = GetObjectResult::default();
+        result.update_result(&output);
+
+        let body = output
+            .body
+            .ok_or_else(|| -> Box<dyn std::error::Error + Send + Sync> {
+                "GetObject returned no body".into()
+            })?;
+
+        // The body is streamed straight to disk so a large object never has to
+        // fit in memory; the checksum rides the same path.
+        let mut file = tokio::fs::File::create(file_path).await?;
+        let mut crc = crate::utils::Crc64::new(0);
+        let mut body = std::pin::pin!(body);
+
+        while let Some(chunk) = body.next().await {
+            let chunk = chunk?;
+            if check_crc {
+                crc.write(&chunk)
+                    .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
+                        e.to_string().into()
+                    })?;
+            }
+            tokio::io::AsyncWriteExt::write_all(&mut file, &chunk).await?;
+        }
+        tokio::io::AsyncWriteExt::flush(&mut file).await?;
+
+        if check_crc {
+            crate::utils::check_crc64(crc.sum64(), result.hash_crc64.as_deref())
+                .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.into() })?;
+        }
+
+        Ok(result)
+    }
 }
 
 #[cfg(test)]
@@ -347,14 +467,15 @@ mod tests {
     use std::rc::Rc;
 
     use super::*;
-    use crate::api::object::tests::{delete_multiple, put, put_with_size, TEST_OBJECT_CONTENT, TEST_OBJECT_NAME};
+    use crate::api::object::tests::{
+        delete_multiple, put, put_with_size, TEST_OBJECT_CONTENT, TEST_OBJECT_NAME,
+    };
+    use crate::client::BodyDataReader;
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
-    use crate::{SignatureVersionType, HTTP_HEADER_CONTENT_RANGE};
     use crate::test_utils::{load_test_config, TestConfig};
-    use crate::client::BodyDataReader;
-
+    use crate::{SignatureVersionType, HTTP_HEADER_CONTENT_RANGE};
 
     pub(super) async fn get_by_range(
         client: &Client,
@@ -376,6 +497,170 @@ mod tests {
 
     // Function to load test configuration from file
     // Using shared load_test_config from test_utils
+
+    /// A download whose body does not match the server's
+    /// `x-oss-hash-crc64ecma` must fail and must leave the wrong bytes off
+    /// disk only if the check runs — the error, not a silent success, is the
+    /// contract.
+    #[tokio::test]
+    async fn test_get_object_to_file_crc_mismatch_fails() {
+        let mut server = mockito::Server::new_async().await;
+
+        // A permanently wrong checksum is retried until the attempt budget
+        // runs out, so the mock has to answer every attempt.
+        let attempts = crate::retry::DEFAULT_MAX_ATTEMPTS;
+        let mock = server
+            .mock("GET", mockito::Matcher::Any)
+            .with_status(200)
+            .with_header("x-oss-hash-crc64ecma", "1") // never the CRC of "payload"
+            .with_body("payload")
+            .expect(attempts as usize)
+            .create_async()
+            .await;
+
+        let client = Client::new(
+            &Config::default()
+                .with_endpoint(server.url().as_str())
+                .with_region("cn-hangzhou")
+                .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
+                    "test-ak",
+                    "test-sk",
+                    &[],
+                )))
+                .with_signature_version(SignatureVersionType::V1)
+                .with_log_level(LogLevel::Off),
+        );
+
+        let dir = std::env::temp_dir().join("oss-crc-download-test");
+        std::fs::create_dir_all(&dir).expect("Failed to create temp dir");
+        let path = dir.join("mismatch.bin");
+
+        let err = client
+            .get_object_to_file(
+                GetObjectRequest {
+                    bucket: "test-bucket".to_string(),
+                    key: "crc-object".to_string(),
+                    ..Default::default()
+                },
+                &path,
+            )
+            .await
+            .expect_err("a CRC mismatch must fail the download");
+
+        assert!(
+            err.to_string().contains("crc is inconsistent"),
+            "unexpected error: {}",
+            err
+        );
+        mock.assert_async().await;
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The same download with the correct checksum succeeds and the file
+    /// contents match what the server sent.
+    #[tokio::test]
+    async fn test_get_object_to_file_crc_match_succeeds() {
+        let mut server = mockito::Server::new_async().await;
+
+        let expected = {
+            let mut crc = crate::utils::Crc64::new(0);
+            crc.write(b"payload").unwrap();
+            crc.sum64().to_string()
+        };
+
+        let mock = server
+            .mock("GET", mockito::Matcher::Any)
+            .with_status(200)
+            .with_header("x-oss-hash-crc64ecma", expected.as_str())
+            .with_body("payload")
+            .create_async()
+            .await;
+
+        let client = Client::new(
+            &Config::default()
+                .with_endpoint(server.url().as_str())
+                .with_region("cn-hangzhou")
+                .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
+                    "test-ak",
+                    "test-sk",
+                    &[],
+                )))
+                .with_signature_version(SignatureVersionType::V1)
+                .with_log_level(LogLevel::Off),
+        );
+
+        let dir = std::env::temp_dir().join("oss-crc-download-test");
+        std::fs::create_dir_all(&dir).expect("Failed to create temp dir");
+        let path = dir.join("match.bin");
+
+        client
+            .get_object_to_file(
+                GetObjectRequest {
+                    bucket: "test-bucket".to_string(),
+                    key: "crc-object".to_string(),
+                    ..Default::default()
+                },
+                &path,
+            )
+            .await
+            .expect("a matching CRC must succeed");
+        mock.assert_async().await;
+
+        let written = std::fs::read(&path).expect("downloaded file must exist");
+        assert_eq!(written, b"payload");
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A ranged download is not checksum-verified: the server reports the CRC
+    /// of the whole object, so a partial body could never match. A wrong
+    /// header must therefore NOT fail the download.
+    #[tokio::test]
+    async fn test_get_object_to_file_skips_crc_for_ranged_download() {
+        let mut server = mockito::Server::new_async().await;
+
+        let mock = server
+            .mock("GET", mockito::Matcher::Any)
+            .with_status(206)
+            .with_header("x-oss-hash-crc64ecma", "1") // whole-object CRC
+            .with_body("part")
+            .create_async()
+            .await;
+
+        let client = Client::new(
+            &Config::default()
+                .with_endpoint(server.url().as_str())
+                .with_region("cn-hangzhou")
+                .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
+                    "test-ak",
+                    "test-sk",
+                    &[],
+                )))
+                .with_signature_version(SignatureVersionType::V1)
+                .with_log_level(LogLevel::Off),
+        );
+
+        let dir = std::env::temp_dir().join("oss-crc-download-test");
+        std::fs::create_dir_all(&dir).expect("Failed to create temp dir");
+        let path = dir.join("ranged.bin");
+
+        client
+            .get_object_to_file(
+                GetObjectRequest {
+                    bucket: "test-bucket".to_string(),
+                    key: "crc-object".to_string(),
+                    range: Some("bytes=0-3".to_string()),
+                    ..Default::default()
+                },
+                &path,
+            )
+            .await
+            .expect("a ranged download must not be checksum-verified");
+        mock.assert_async().await;
+
+        let _ = std::fs::remove_file(&path);
+    }
 
     #[tokio::test]
     #[serial_test::serial]
@@ -524,7 +809,9 @@ mod tests {
         let request = GetObjectRequest {
             bucket: config.bucket.to_string(),
             key: "nonexistent-object-key".to_string(), // Use a key that doesn't exist
-            version_id: Some("CAEQUhiBgMDwk5fQ3hkiIDQ1NmExZTM4YzcyYTRlZmU5NjViNjE2YmQwZDU0MTc0".to_string()), // Specify a version that definitely doesn't exist
+            version_id: Some(
+                "CAEQUhiBgMDwk5fQ3hkiIDQ1NmExZTM4YzcyYTRlZmU5NjViNjE2YmQwZDU0MTc0".to_string(),
+            ), // Specify a version that definitely doesn't exist
             ..Default::default()
         };
 
@@ -532,11 +819,17 @@ mod tests {
             Ok(result) => {
                 // We expect a 404 error code
                 assert_eq!(result.common.status, http::StatusCode::NOT_FOUND);
-                println!("Got expected 404 error when requesting nonexistent object version: {:?}", result);
+                println!(
+                    "Got expected 404 error when requesting nonexistent object version: {:?}",
+                    result
+                );
             }
             Err(err) => {
                 // The error might contain the 404 status as well
-                println!("Got error as expected when requesting nonexistent object version: {:?}", err);
+                println!(
+                    "Got error as expected when requesting nonexistent object version: {:?}",
+                    err
+                );
                 // We could potentially check the error details to confirm it's a 404
             }
         }
@@ -566,7 +859,7 @@ mod tests {
         );
 
         // put object 10MB
-        match put_with_size(&client, &config.bucket,10*1024*1024).await {
+        match put_with_size(&client, &config.bucket, 10 * 1024 * 1024).await {
             Ok(output) => println!("{:?}", output),
             Err(err) => panic!("Invoke operation failed: {:?}", err),
         }
@@ -584,16 +877,23 @@ mod tests {
         // 使用 try_next 方法逐步读取数据
         let mut full_content = Vec::new();
         let mut total_bytes = 0;
-        
+
         while let Ok(Some(bytes)) = result.try_next().await {
             full_content.extend_from_slice(&bytes);
             total_bytes += bytes.len();
-            println!("Received chunk of {} bytes, total: {}", bytes.len(), total_bytes);
+            println!(
+                "Received chunk of {} bytes, total: {}",
+                bytes.len(),
+                total_bytes
+            );
         }
 
         // let content = String::from_utf8(full_content).unwrap();
         // assert_eq!(content, TEST_OBJECT_CONTENT);
-        println!("Successfully downloaded '{}' bytes using try_next", total_bytes);
+        println!(
+            "Successfully downloaded '{}' bytes using try_next",
+            total_bytes
+        );
 
         // delete object
         match delete_multiple(&client, &config.bucket).await {

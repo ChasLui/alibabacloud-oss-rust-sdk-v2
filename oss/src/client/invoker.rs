@@ -496,7 +496,7 @@ impl Client {
     ///   the `retry_max_attempts` field in the provided options, the
     ///   `max_attempts` method of the `retryer` in the provided options, or the
     ///   [DEFAULT_MAX_ATTEMPTS] constant, in that order.
-    fn retry_max_attempts(&self, options: Option<&ClientOptions>) -> u32 {
+    pub(crate) fn retry_max_attempts(&self, options: Option<&ClientOptions>) -> u32 {
         // Use the provided options if available, otherwise default to the client's
         // options
         let options = options.unwrap_or(&self.options);

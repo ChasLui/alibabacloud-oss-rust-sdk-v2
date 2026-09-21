@@ -2,11 +2,11 @@ use std::any::Any;
 use std::rc::Rc;
 
 use crate::client::{OssResponse, ResponseHandler, ResponseHandlers};
-use crate::{
-    OperationInput, OP_META_KEY_REQUEST_BODY_TRACKER, OP_META_KEY_RESPONSE_HANDLER,
-    HEADER_OSS_CRC64,
-};
 use crate::Crc64Tracker;
+use crate::{
+    OperationInput, HEADER_OSS_CRC64, OP_META_KEY_REQUEST_BODY_TRACKER,
+    OP_META_KEY_RESPONSE_HANDLER,
+};
 
 /// Represents a Crc64 calculator.
 ///
@@ -77,6 +77,24 @@ impl Crc64 {
     }
 }
 
+/// Compares a locally computed CRC64 against the server's
+/// `x-oss-hash-crc64ecma` value.
+///
+/// A missing or empty server value means the server did not report a
+/// checksum; there is then nothing to verify and the check passes. Mirrors Go
+/// `checkResponseHeaderCRC64`.
+pub fn check_crc64(client_crc: u64, server_crc: Option<&str>) -> Result<(), String> {
+    if let Some(server_crc) = server_crc {
+        if !server_crc.is_empty() && server_crc != client_crc.to_string() {
+            return Err(format!(
+                "crc is inconsistent, client {}, server {}",
+                client_crc, server_crc
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Attaches a CRC64 upload check to `input`, if the client enabled it.
 ///
 /// Registers a tracker that observes the bytes actually sent, plus a response
@@ -119,15 +137,8 @@ pub fn add_crc64_check(input: &mut OperationInput, init: u64, enabled: bool) {
                 }
             };
 
-            let client_crc = tracker.sum64().to_string();
-            if let Some(server_crc) = server_crc {
-                if !server_crc.is_empty() && server_crc != client_crc {
-                    return Err(format!(
-                        "crc is inconsistent, client {}, server {}",
-                        client_crc, server_crc
-                    )
-                    .into());
-                }
+            if let Err(e) = check_crc64(tracker.sum64(), server_crc) {
+                return Err(e.into());
             }
             Ok(())
         },
@@ -136,7 +147,9 @@ pub fn add_crc64_check(input: &mut OperationInput, init: u64, enabled: bool) {
     // `apply_operation_metadata` (it downcasts the single value), so the check
     // is pushed as a one-element vector.
     let handlers: ResponseHandlers = vec![handler];
-    input.op_metadata.add(OP_META_KEY_RESPONSE_HANDLER, Rc::new(handlers));
+    input
+        .op_metadata
+        .add(OP_META_KEY_RESPONSE_HANDLER, Rc::new(handlers));
 }
 
 #[cfg(test)]
