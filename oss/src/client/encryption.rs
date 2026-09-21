@@ -661,6 +661,9 @@ mod tests {
     use crate::log::LogLevel;
     use crate::SignatureVersionType;
 
+    // Test fixtures, copied verbatim from the upstream Go SDK's mock test
+    // (`encryption_client_mock_test.go`); a throwaway key pair that guards
+    // nothing, kept so both implementations are tested with the same material.
     const PUBLIC_KEY: &str = "-----BEGIN PUBLIC KEY-----
 MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCokfiAVXXf5ImFzKDw+XO/UByW
 6mse2QsIgz3ZwBtMNu59fR5zttSx+8fB7vR4CN3bTztrP9A6bjoN0FFnhlQ3vNJC

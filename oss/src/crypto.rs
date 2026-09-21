@@ -513,6 +513,10 @@ pub fn adjust_range_start(start: i64, align: i64) -> i64 {
 mod tests {
     use super::*;
 
+    // Test fixtures, copied verbatim from the upstream Go SDK's own mock test
+    // (`encryption_client_mock_test.go`). They are a throwaway key pair that
+    // exists only in that public repository and guard nothing; they are here
+    // so the two implementations are exercised against the same material.
     const PUBLIC_KEY: &str = "-----BEGIN PUBLIC KEY-----
 MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCokfiAVXXf5ImFzKDw+XO/UByW
 6mse2QsIgz3ZwBtMNu59fR5zttSx+8fB7vR4CN3bTztrP9A6bjoN0FFnhlQ3vNJC
