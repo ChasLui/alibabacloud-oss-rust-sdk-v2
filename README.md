@@ -14,6 +14,8 @@ Rust SDK for [Alibaba Cloud Object Storage Service (OSS)](https://www.alibabaclo
   - [Resumable Transfers](#resumable-transfers)
   - [Server-Side Copy](#server-side-copy)
   - [File-Like Handles](#file-like-handles)
+  - [Client-Side Encryption](#client-side-encryption)
+  - [Bandwidth Limits](#bandwidth-limits)
   - [Presigning](#presigning)
   - [Paginators](#paginators)
 
@@ -43,6 +45,8 @@ This SDK provides a comprehensive set of APIs for interacting with Alibaba Cloud
 - **Server-Side Copy**: `Client::copy_object_to_object` — one `CopyObject` for small sources, `UploadPartCopy` for large ones, with the destination's checksum compared against the source's
 - **File-Like Handles**: `open_read_only_file` / `open_append_only_file` / `open_write_only_file` — seekable reads, appends that carry the running checksum, and a streaming writer that uploads parts as they fill
 - **Resumable Transfers**: `download_file_with_checkpoint` / `upload_file_with_checkpoint` — progress survives a failure; an upload resumes from the parts the service actually holds
+- **Client-Side Encryption**: `EncryptionClient` — AES-CTR envelope encryption with an RSA master key, including ranged reads and multipart uploads
+- **Bandwidth Limits**: `with_upload_bandwidth_limit` / `with_download_bandwidth_limit` — token-bucket pacing on the body streams
 - **Pre-signed URLs**: `Client::presign` with V4/V1 signing for upload, download, and multipart workflows
 - **Paginators**: Ergonomic page-by-page iteration for all six list operations, with URL-decoded keys
 - **Comprehensive Testing**: Extensive integration tests with automatic resource cleanup
@@ -532,6 +536,64 @@ Notes:
 - **Appends verify position.** The service rejects an append whose position does not match the object's length. That is retried once, and only when a re-read shows the object ends exactly where this write would have — a genuine concurrent writer is an error.
 - **Small writes never open a multipart upload.** A `WriteOnlyFile` that never filled a part is written with a single `PutObject` on close. A failure is sticky: every later call reports it, and `close` refuses to commit.
 - Attributes that have no multipart equivalent (the ACL) are applied on completion. An append's creation attributes apply only on the write that creates the object.
+
+### Client-Side Encryption
+
+`EncryptionClient` encrypts an object's bytes before they are sent and decrypts them on the way back. The service stores ciphertext plus an envelope: a fresh AES key and its IV, each wrapped with your RSA master key.
+
+```rust
+use alibabacloud_oss_sdk_rust_v2::client::EncryptionClient;
+use alibabacloud_oss_sdk_rust_v2::crypto::{MasterRsaCipher, MasterCipher};
+use std::collections::HashMap;
+
+let master = MasterRsaCipher::new(&HashMap::new(), PUBLIC_KEY_PEM, PRIVATE_KEY_PEM);
+let client = EncryptionClient::new(client, Box::new(master));
+
+let result = client
+    .put_object(PutObjectRequest {
+        bucket: "my-bucket".to_string(),
+        key: "secret.txt".to_string(),
+        body: Some(BodyContent::from_bytes(b"contents".to_vec(), None)),
+        ..Default::default()
+    })
+    .await?;
+
+let mut result = client
+    .get_object(GetObjectRequest {
+        bucket: "my-bucket".to_string(),
+        key: "secret.txt".to_string(),
+        ..Default::default()
+    })
+    .await?;
+let plaintext = result.get_all_data().await?;
+```
+
+Notes:
+
+- **Ranges are widened, then trimmed.** AES-CTR's keystream is defined per block, so a ranged read of `bytes=15-29` is issued as `bytes=0-29` and the leading 15 bytes are discarded after decryption. Returning them would hand back plaintext the caller did not ask for.
+- **Multipart parts are independent.** Each part is encrypted from a counter derived from its part number, so parts may be uploaded concurrently, retried, or replaced. The part size must be a multiple of the block size (16), or a part boundary would fall inside a block.
+- **An unusable envelope is an error, not a pass-through.** Bytes that cannot be decrypted are ciphertext, and returning them as the object's contents would be worse than failing.
+- **A plain object passes through unchanged.** Only objects carrying the envelope metadata are decrypted.
+- Master keys are PEM, in either PKCS#8 or PKCS#1 form. Additional keys can be registered with `with_master_cipher` and are selected by the object's recorded key description.
+
+### Bandwidth Limits
+
+Paces uploads and downloads client-side. The limit is configured in KBps and applies to the bytes that actually cross the wire.
+
+```rust
+let config = Config::default()
+    .with_upload_bandwidth_limit(1024)      // 1 MiB/s
+    .with_download_bandwidth_limit(4 * 1024) // 4 MiB/s
+    // A paced transfer outlives the default request timeout, so allow for it.
+    .with_read_write_timeout(std::time::Duration::from_secs(300));
+```
+
+Notes:
+
+- **The limit is a token bucket, not a per-packet delay.** The bucket admits a burst (a quarter second's worth, with a 4 MiB floor) and then paces the average. A 4 MiB floor is what lets one request still make progress under a low limit on a fast link.
+- **Waiting is asynchronous.** The pacing happens on the request and response body streams, which the runtime is driving; a blocking wait there would stall everything else.
+- **A limit and a short timeout conflict.** `read_write_timeout` bounds the whole request, so raising a limit's effect on duration means raising the timeout with it.
+- Downloads are paced where the response body arrives, uploads where the request body leaves; reqwest owns the socket, so those streams are the only places the SDK can throttle.
 
 ### Presigning
 
