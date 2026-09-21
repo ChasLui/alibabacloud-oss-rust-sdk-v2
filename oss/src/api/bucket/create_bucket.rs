@@ -101,7 +101,11 @@ impl Client {
         request: &CreateBucketRequest,
     ) -> Result<CreateBucketResult, Box<dyn std::error::Error + Send + Sync>> {
         let mut input = OperationInput {
-            op_name: "CreateBucket".to_string(),
+            // Go names this operation "PutBucket" (api_op_bucket.go); OSS serves
+            // bucket creation under PUT /?bucket, and upstream labels it
+            // PutBucket. op_name feeds logging and operation-error wrapping; it
+            // must match upstream so logs stay comparable across SDKs.
+            op_name: "PutBucket".to_string(),
             method: http::Method::PUT,
             bucket: Some(request.bucket.clone()),
             headers: [(HTTP_HEADER_CONTENT_TYPE, "application/xml")]
