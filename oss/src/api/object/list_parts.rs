@@ -83,6 +83,50 @@ pub struct ListPartsResult {
     #[serde(rename = "Part", default)]
     pub parts: Vec<Part>,
 
+    /// The wrapped content key, base64, for a client-side-encrypted object.
+    /// Mirrors Go's `ClientEncryptionKey`.
+    #[serde(
+        rename = "ClientEncryptionKey",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub client_encryption_key: Option<String>,
+
+    /// The wrapped IV, base64, for a client-side-encrypted object.
+    /// Mirrors Go's `ClientEncryptionStart`.
+    #[serde(
+        rename = "ClientEncryptionStart",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub client_encryption_start: Option<String>,
+
+    /// The content algorithm of a client-side-encrypted object.
+    #[serde(
+        rename = "ClientEncryptionCekAlg",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub client_encryption_cek_alg: Option<String>,
+
+    /// The wrapping algorithm of a client-side-encrypted object.
+    #[serde(
+        rename = "ClientEncryptionWrapAlg",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub client_encryption_wrap_alg: Option<String>,
+
+    /// The total plaintext size recorded when the upload was initiated.
+    #[serde(
+        rename = "ClientEncryptionDataSize",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub client_encryption_data_size: Option<i64>,
+
+    /// The plaintext part size recorded when the upload was initiated.
+    #[serde(
+        rename = "ClientEncryptionPartSize",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub client_encryption_part_size: Option<i64>,
+
     /// Common result fields
     #[serde(skip)]
     pub common: ResultCommon,

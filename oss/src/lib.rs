@@ -2,6 +2,7 @@ pub mod api;
 pub mod client;
 pub mod config;
 pub mod credential;
+pub mod crypto;
 pub mod log;
 pub mod retry;
 pub mod signer;

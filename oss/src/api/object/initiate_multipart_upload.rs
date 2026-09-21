@@ -113,6 +113,19 @@ pub struct InitiateMultipartUploadRequest {
     #[field(type = "header", rename = "x-oss-request-payer")]
     pub request_payer: Option<String>,
 
+    /// The total plaintext size, when the object is uploaded through a
+    /// client-side-encryption client. Written as metadata by that client, so
+    /// it is not a header of its own. Mirrors Go's `CSEDataSize`.
+    #[serde(skip)]
+    pub cse_data_size: Option<i64>,
+
+    /// The plaintext part size, when the object is uploaded through a
+    /// client-side-encryption client. Must be aligned to the IV length, so a
+    /// part's keystream starts on a block boundary. Mirrors Go's
+    /// `CSEPartSize`.
+    #[serde(skip)]
+    pub cse_part_size: Option<i64>,
+
     #[serde(skip)]
     pub common: RequestCommon,
 }

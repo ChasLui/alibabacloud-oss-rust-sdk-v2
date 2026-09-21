@@ -223,7 +223,7 @@ pub struct GetObjectResult {
     /// Object data.
     pub body: Option<BodyStream>,
 
-    common: ResultCommon,
+    pub common: ResultCommon,
 }
 
 impl std::fmt::Debug for GetObjectResult {
