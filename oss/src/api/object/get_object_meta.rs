@@ -4,7 +4,7 @@ use serde::Deserialize;
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
 use crate::utils::{acl_grant_de, modify_request};
-use crate::{OperationInput, OperationOutput};
+use crate::{OperationInput, OperationOutput, ServiceError};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct GetObjectMetaRequest {
@@ -137,6 +137,71 @@ impl Client {
 
         Ok(result)
     }
+
+    /// Checks whether an object exists.
+    ///
+    /// A `NoSuchKey` response means the object is absent, which is reported as
+    /// `Ok(false)`; every other failure — including permission and network
+    /// errors — is propagated, so a caller never mistakes "could not check"
+    /// for "does not exist". The probe is `GetObjectMeta`, whose HEAD request
+    /// returns the same object-not-found code without transferring the body.
+    /// Mirrors Go `Client.IsObjectExist`.
+    pub async fn is_object_exist(
+        &self,
+        bucket: &str,
+        key: &str,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        self.is_object_exist_with_options(bucket, key, IsObjectExistOptions::default())
+            .await
+    }
+
+    /// [`Client::is_object_exist`] with the version ID and payer options.
+    pub async fn is_object_exist_with_options(
+        &self,
+        bucket: &str,
+        key: &str,
+        options: IsObjectExistOptions,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        let err = match self
+            .get_object_meta(&GetObjectMetaRequest {
+                bucket: bucket.to_string(),
+                key: key.to_string(),
+                version_id: options.version_id,
+                request_payer: options.request_payer,
+                ..Default::default()
+            })
+            .await
+        {
+            Ok(_) => return Ok(true),
+            Err(err) => err,
+        };
+
+        // A missing object may arrive as `NoSuchKey`, or as a 404 whose body
+        // OSS replaced with a plain error (`BadErrorResponse`), in which case
+        // the real code never makes it into the parsed error. Mirrors the two
+        // conditions in Go `Client.IsObjectExist`.
+        if let Some(service_error) = err.downcast_ref::<ServiceError>() {
+            if service_error.code == "NoSuchKey"
+                || (service_error.status_code == http::StatusCode::NOT_FOUND
+                    && service_error.code == "BadErrorResponse")
+            {
+                return Ok(false);
+            }
+        }
+
+        Err(err)
+    }
+}
+
+/// Optional parameters for [`Client::is_object_exist_with_options`].
+#[derive(Debug, Default)]
+pub struct IsObjectExistOptions {
+    /// The version ID of the object.
+    pub version_id: Option<String>,
+
+    /// To indicate that the requester is aware that the request and data
+    /// download will incur costs.
+    pub request_payer: Option<String>,
 }
 
 #[cfg(test)]
@@ -144,12 +209,119 @@ mod tests {
     use std::rc::Rc;
 
     use super::*;
+
+    /// Builds a client pointed at a mock server, so the existence probes can
+    /// be driven without real credentials.
+    pub(crate) async fn mock_client(server: &mockito::ServerGuard) -> Client {
+        Client::new(
+            &Config::default()
+                .with_endpoint(server.url().as_str())
+                .with_region("cn-hangzhou")
+                .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
+                    "test-ak", "test-sk", &[],
+                )))
+                .with_signature_version(SignatureVersionType::V1)
+                .with_log_level(LogLevel::Off),
+        )
+    }
     use crate::api::object::tests::{delete_multiple, put, put_with_meta, TEST_OBJECT_CONTENT, TEST_OBJECT_NAME, generate_unique_object_name};
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
     use crate::{SignatureVersionType, HTTP_HEADER_CONTENT_RANGE};
     use crate::test_utils::{load_test_config, TestConfig};
+
+    /// A missing object is reported as `false`, not as an error.
+    #[tokio::test]
+    async fn test_is_object_exist_missing_object_is_false() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("HEAD", mockito::Matcher::Any)
+            .with_status(404)
+            .with_header("content-type", "application/xml")
+            .with_body("<Error><Code>NoSuchKey</Code><Message>no</Message></Error>")
+            .create_async()
+            .await;
+
+        let client = super::tests::mock_client(&server).await;
+
+        assert!(!client
+            .is_object_exist("test-bucket", "missing")
+            .await
+            .expect("a missing object must not be an error"));
+        mock.assert_async().await;
+    }
+
+    /// A present object is reported as `true`.
+    #[tokio::test]
+    async fn test_is_object_exist_present_object_is_true() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("HEAD", mockito::Matcher::Any)
+            .with_status(200)
+            .with_header("content-length", "3")
+            .create_async()
+            .await;
+
+        let client = super::tests::mock_client(&server).await;
+
+        assert!(client
+            .is_object_exist("test-bucket", "present")
+            .await
+            .expect("a present object must not be an error"));
+        mock.assert_async().await;
+    }
+
+    /// A non-404 service failure must surface as an error rather than being
+    /// silently turned into `false`.
+    ///
+    /// A HEAD response carries no body, so the real error code never reaches
+    /// the client and every service failure is reported as `BadErrorResponse`.
+    /// That makes the status code the only discriminator — exactly why Go's
+    /// `IsObjectExist` pairs `BadErrorResponse` with a 404 check, and why a 403
+    /// has to fall through to the error branch.
+    #[tokio::test]
+    async fn test_is_object_exist_non_404_failure_is_an_error() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("HEAD", mockito::Matcher::Any)
+            .with_status(403)
+            .create_async()
+            .await;
+
+        let client = super::tests::mock_client(&server).await;
+
+        let err = client
+            .is_object_exist("test-bucket", "secret")
+            .await
+            .expect_err("a permission failure must not be reported as a missing object");
+        assert!(
+            err.to_string().contains("403"),
+            "the underlying failure must survive: {}",
+            err
+        );
+        mock.assert_async().await;
+    }
+
+    /// A 404 without a parseable error body is how OSS reports a missing
+    /// object to a HEAD probe, and must be reported as `false`.
+    #[tokio::test]
+    async fn test_is_object_exist_404_bad_error_response_is_false() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("HEAD", mockito::Matcher::Any)
+            .with_status(404)
+            .create_async()
+            .await;
+
+        let client = super::tests::mock_client(&server).await;
+
+        assert!(!client
+            .is_object_exist("test-bucket", "missing")
+            .await
+            .expect("a bodiless 404 must count as a missing object"));
+        mock.assert_async().await;
+    }
 
     #[tokio::test]
     #[serial_test::serial]

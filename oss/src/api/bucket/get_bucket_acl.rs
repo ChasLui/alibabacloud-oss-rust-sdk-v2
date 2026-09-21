@@ -3,13 +3,12 @@ use serde::Deserialize;
 
 use super::Owner;
 use crate::api::{RequestCommon, ResultCommon};
+use crate::client::BodyDataReader;
 use crate::client::Client;
 use crate::utils::{acl_grant_de, modify_request};
 use crate::{
-    OperationInput, OperationOutput, DEFAULT_CONTENT_TYPE, HTTP_HEADER_CONTENT_TYPE,
+    OperationInput, OperationOutput, ServiceError, DEFAULT_CONTENT_TYPE, HTTP_HEADER_CONTENT_TYPE,
 };
-use crate::client::BodyDataReader;
-
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct GetBucketAclRequest {
@@ -114,6 +113,33 @@ impl Client {
 
         Ok(result)
     }
+
+    /// Checks whether a bucket exists.
+    ///
+    /// The probe is `GetBucketAcl`. Only `NoSuchBucket` means the bucket is
+    /// absent (`Ok(false)`); any other *service* error still proves the bucket
+    /// was reached, so it reports `Ok(true)` — a permission or region error is
+    /// not evidence that the bucket is missing. A failure that never reached
+    /// the service (transport error) is propagated. Mirrors Go
+    /// `Client.IsBucketExist`.
+    pub async fn is_bucket_exist(
+        &self,
+        bucket: &str,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        let request = GetBucketAclRequest {
+            bucket: bucket.to_string(),
+            ..Default::default()
+        };
+
+        match self.get_bucket_acl(&request).await {
+            Ok(_) => Ok(true),
+            Err(err) => match err.downcast_ref::<ServiceError>() {
+                Some(service_error) if service_error.code == "NoSuchBucket" => Ok(false),
+                Some(_) => Ok(true),
+                None => Err(err),
+            },
+        }
+    }
 }
 
 #[cfg(test)]
@@ -125,8 +151,91 @@ mod tests {
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
+    use crate::test_utils::{generate_unique_bucket_name, load_test_config, TestConfig};
     use crate::SignatureVersionType;
-    use crate::test_utils::{load_test_config, TestConfig, generate_unique_bucket_name};
+
+    /// Builds a client pointed at a mock server.
+    fn mock_client(server: &mockito::ServerGuard) -> Client {
+        Client::new(
+            &Config::default()
+                .with_endpoint(server.url().as_str())
+                .with_region("cn-hangzhou")
+                .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
+                    "test-ak",
+                    "test-sk",
+                    &[],
+                )))
+                .with_signature_version(SignatureVersionType::V1)
+                .with_log_level(LogLevel::Off),
+        )
+    }
+
+    /// `NoSuchBucket` is the one answer that means the bucket is absent.
+    #[tokio::test]
+    async fn test_is_bucket_exist_no_such_bucket_is_false() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", mockito::Matcher::Any)
+            .with_status(404)
+            .with_header("content-type", "application/xml")
+            .with_body("<Error><Code>NoSuchBucket</Code><Message>no</Message></Error>")
+            .create_async()
+            .await;
+
+        let client = mock_client(&server);
+
+        assert!(!client
+            .is_bucket_exist("missing-bucket")
+            .await
+            .expect("a missing bucket must not be an error"));
+        mock.assert_async().await;
+    }
+
+    /// A reachable bucket answers `true`.
+    #[tokio::test]
+    async fn test_is_bucket_exist_present_bucket_is_true() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", mockito::Matcher::Any)
+            .with_status(200)
+            .with_header("content-type", "application/xml")
+            .with_body("<AccessControlPolicy><AccessControlList><Grant>private</Grant></AccessControlList><Owner><ID>o</ID></Owner></AccessControlPolicy>")
+            .create_async()
+            .await;
+
+        let client = mock_client(&server);
+
+        assert!(client
+            .is_bucket_exist("bucket")
+            .await
+            .expect("a present bucket must not be an error"));
+        mock.assert_async().await;
+    }
+
+    /// A service error other than `NoSuchBucket` still proves the bucket was
+    /// reached, so it reports `true` rather than failing — an access-denied
+    /// answer is not evidence that the bucket is gone. Mirrors Go
+    /// `Client.IsBucketExist`, which returns `true` for any other service
+    /// error and only propagates failures that never reached the service.
+    #[tokio::test]
+    async fn test_is_bucket_exist_other_service_error_is_true() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", mockito::Matcher::Any)
+            .with_status(403)
+            .with_header("content-type", "application/xml")
+            .with_body("<Error><Code>AccessDenied</Code><Message>denied</Message></Error>")
+            .create_async()
+            .await;
+
+        let client = mock_client(&server);
+
+        assert!(client
+            .is_bucket_exist("private-bucket")
+            .await
+            .expect("an access-denied answer must not be an error"));
+        mock.assert_async().await;
+    }
 
     #[tokio::test]
     #[serial_test::serial]
@@ -159,7 +268,7 @@ mod tests {
             bucket: bucket_name.clone(),
             ..Default::default()
         };
-        
+
         match client.create_bucket(&create_request).await {
             Ok(_) => println!("Bucket created: {}", bucket_name),
             Err(err) => panic!("Failed to create bucket: {:?}", err),
@@ -178,7 +287,7 @@ mod tests {
                     Ok(_) => println!("Bucket deleted: {}", bucket_name),
                     Err(err) => eprintln!("Failed to delete bucket: {:?}", err),
                 }
-            },
+            }
             Err(err) => {
                 // Even if the test fails, try to clean up
                 let delete_request = DeleteBucketRequest {

@@ -235,6 +235,31 @@ impl Client {
 
         Ok(result)
     }
+
+    /// Uploads a local file as an object.
+    ///
+    /// The file is streamed rather than buffered, so a large upload never has
+    /// to fit in memory. The file's length is taken from its metadata and
+    /// becomes the request's `Content-Length`. Mirrors Go
+    /// `Client.PutObjectFromFile`.
+    ///
+    /// # Arguments
+    ///
+    /// * `request` - The `PutObjectRequest`; any `body` it carries is replaced
+    ///   by the file.
+    /// * `file_path` - The local file to upload. A missing or unreadable file
+    ///   fails before any request is sent.
+    pub async fn put_object_from_file(
+        &self,
+        mut request: PutObjectRequest,
+        file_path: impl AsRef<std::path::Path>,
+    ) -> Result<PutObjectResult, Box<dyn std::error::Error + Send + Sync>> {
+        let file_path = file_path.as_ref();
+        let len = tokio::fs::metadata(file_path).await?.len();
+        request.body = Some(BodyContent::from_file_path(file_path, len, None).await?);
+
+        self.put_object(request).await
+    }
 }
 
 #[cfg(test)]
@@ -253,6 +278,96 @@ mod tests {
     use futures_util::stream;
     use std::pin::Pin;
     use futures_util::StreamExt;
+
+    /// The uploaded file's bytes must arrive intact, and the request must
+    /// carry the file's real length — a stream without a known length would
+    /// otherwise be sent chunked.
+    #[tokio::test]
+    async fn test_put_object_from_file_streams_file_contents() {
+        let mut server = mockito::Server::new_async().await;
+
+        let expected = {
+            let mut crc = crate::utils::Crc64::new(0);
+            crc.write(b"file contents").unwrap();
+            crc.sum64().to_string()
+        };
+
+        // The CRC check only passes if the body really was the file's bytes.
+        let mock = server
+            .mock("PUT", mockito::Matcher::Any)
+            .with_status(200)
+            .with_header("x-oss-hash-crc64ecma", expected.as_str())
+            .with_body("")
+            .create_async()
+            .await;
+
+        let client = Client::new(
+            &Config::default()
+                .with_endpoint(server.url().as_str())
+                .with_region("cn-hangzhou")
+                .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
+                    "test-ak", "test-sk", &[],
+                )))
+                .with_signature_version(SignatureVersionType::V1)
+                .with_log_level(LogLevel::Off),
+        );
+
+        let dir = std::env::temp_dir().join("oss-put-from-file-test");
+        std::fs::create_dir_all(&dir).expect("Failed to create temp dir");
+        let path = dir.join("upload.bin");
+        std::fs::write(&path, b"file contents").expect("Failed to write temp file");
+
+        client
+            .put_object_from_file(
+                PutObjectRequest {
+                    bucket: "test-bucket".to_string(),
+                    key: "from-file".to_string(),
+                    ..Default::default()
+                },
+                &path,
+            )
+            .await
+            .expect("uploading a readable file must succeed");
+        mock.assert_async().await;
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A missing file must fail before any request is sent.
+    #[tokio::test]
+    async fn test_put_object_from_file_missing_file_fails() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("PUT", mockito::Matcher::Any)
+            .with_status(200)
+            .expect(0) // no request may be sent
+            .create_async()
+            .await;
+
+        let client = Client::new(
+            &Config::default()
+                .with_endpoint(server.url().as_str())
+                .with_region("cn-hangzhou")
+                .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
+                    "test-ak", "test-sk", &[],
+                )))
+                .with_signature_version(SignatureVersionType::V1)
+                .with_log_level(LogLevel::Off),
+        );
+
+        client
+            .put_object_from_file(
+                PutObjectRequest {
+                    bucket: "test-bucket".to_string(),
+                    key: "missing".to_string(),
+                    ..Default::default()
+                },
+                std::env::temp_dir().join("oss-put-from-file-test/does-not-exist.bin"),
+            )
+            .await
+            .expect_err("a missing file must fail");
+        mock.assert_async().await;
+    }
 
     #[tokio::test]
     async fn test_put_object_crc_check_is_wired_into_the_operation() {
