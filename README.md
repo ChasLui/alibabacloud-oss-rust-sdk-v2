@@ -10,6 +10,7 @@ Rust SDK for [Alibaba Cloud Object Storage Service (OSS)](https://www.alibabaclo
 - [Configuration](#configuration)
 - [Examples](#examples)
 - [API Reference](#api-reference)
+  - [Concurrent Transfers](#concurrent-transfers)
   - [Presigning](#presigning)
   - [Paginators](#paginators)
 
@@ -34,7 +35,8 @@ This SDK provides a comprehensive set of APIs for interacting with Alibaba Cloud
 
 - **Type-Safe API Design**: Strongly-typed request and response structures
 - **Automatic Serialization**: Header/query parameter handling via macros
-- **Full API Coverage**: 150+ operations aligned with the Go SDK v2 — objects, buckets, service, regions, and access points
+- **Full API Coverage**: 154 operations aligned with the Go SDK v2 — objects, buckets, service, regions, and access points (the Go SDK's operation set exactly)
+- **Concurrent Transfers**: `Client::download_file` and `Client::upload_file` — ranged parallel download with per-part checksum folding, and multipart upload that aborts on failure so no billable parts are orphaned
 - **Pre-signed URLs**: `Client::presign` with V4/V1 signing for upload, download, and multipart workflows
 - **Paginators**: Ergonomic page-by-page iteration for all six list operations, with URL-decoded keys
 - **Comprehensive Testing**: Extensive integration tests with automatic resource cleanup
@@ -353,6 +355,65 @@ All operations take a request struct and return a result struct. Most configurat
 - `get_access_point_policy` / `put_access_point_policy` / `delete_access_point_policy`
 - `get_access_point_public_access_block` / `put_access_point_public_access_block` / `delete_access_point_public_access_block`
 
+### Concurrent Transfers
+
+Large objects are moved in parallel parts. Both helpers resolve what they need
+with a `HeadObject` (download) or the file's own metadata (upload), so nothing
+is fetched twice.
+
+```rust
+use alibabacloud_oss_sdk_rust_v2::api::object::{GetObjectRequest, PutObjectRequest};
+use alibabacloud_oss_sdk_rust_v2::client::{DownloaderOptions, UploaderOptions};
+
+// Download: parts are fetched concurrently and written at their final offsets.
+let result = client
+    .download_file(
+        &GetObjectRequest {
+            bucket: "my-bucket".to_string(),
+            key: "large.bin".to_string(),
+            ..Default::default()
+        },
+        "/local/large.bin",
+        DownloaderOptions::default()
+            .with_part_size(6 * 1024 * 1024)
+            .with_parallel_num(4),
+    )
+    .await?;
+println!("{} bytes, etag {:?}", result.written, result.etag);
+
+// Upload: below one part it is a single PutObject; above, a multipart upload.
+let result = client
+    .upload_file(
+        &PutObjectRequest {
+            bucket: "my-bucket".to_string(),
+            key: "large.bin".to_string(),
+            ..Default::default()
+        },
+        "/local/large.bin",
+        UploaderOptions::default().with_parallel_num(4),
+    )
+    .await?;
+println!("upload id {:?}, etag {:?}", result.upload_id, result.etag);
+```
+
+Notes:
+
+- **Checksums.** OSS reports one CRC64 for the whole object but checksums each
+  part separately, and parts finish in arbitrary order. Both helpers fold the
+  per-part checksums with `crc64_combine` and compare the result against the
+  server's value; a mismatch fails the transfer rather than keeping bytes that
+  are known to be wrong. A ranged download sees only a slice, so it reports no
+  whole-object checksum instead of one that would be meaningless.
+- **Partial writes.** The destination file is created before the first part
+  lands, so a failure leaves what was already written. Download to a temporary
+  path and rename on success if you need all-or-nothing semantics.
+- **Upload failures.** A failed upload aborts the multipart upload, so no
+  billable parts are left behind. Set `UploaderOptions::leave_parts_on_error`
+  only when you intend to resume the upload id.
+- **Part size floor.** OSS rejects multipart parts below 100 KiB; the uploader
+  applies that floor before sending any part, so a smaller `part_size` is
+  raised rather than failing at completion.
+
 ### Presigning
 
 Generate pre-signed URLs without sending a request:
@@ -432,9 +493,11 @@ aliyun-oss-sdk-rust-v2/
 │   │   │   ├── service/         # Service operations (7)
 │   │   │   └── mod.rs
 │   │   ├── client/              # Client implementation
+│   │   │   ├── downloader.rs    # Concurrent ranged download
 │   │   │   ├── invoker.rs       # Request invoking, signing context assembly
 │   │   │   ├── paginators.rs    # Page-by-page list iterators
-│   │   │   └── presign.rs       # Pre-signed URL generation
+│   │   │   ├── presign.rs       # Pre-signed URL generation
+│   │   │   └── uploader.rs      # Multipart upload
 │   │   ├── credential/          # Authentication providers
 │   │   ├── retry/               # Retry mechanisms
 │   │   ├── signer/              # Request signing (V1/V4)
