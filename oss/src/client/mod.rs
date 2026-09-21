@@ -2,6 +2,7 @@ mod applier;
 mod copier;
 mod downloader;
 mod error_handler;
+mod filelike;
 mod invoker;
 mod options;
 mod resolver;
@@ -11,6 +12,7 @@ mod uploader;
 
 pub use self::copier::*;
 pub use self::downloader::*;
+pub use self::filelike::*;
 pub use self::paginators::*;
 pub use self::presign::*;
 pub use self::uploader::*;
