@@ -38,9 +38,15 @@ pub struct TransportConfig {
     /// Indicates whether redirects are enabled.
     pub enabled_redirect: Option<bool>,
     /// A list of functions to be executed after reading from the connection.
-    pub post_read: Option<Vec<Arc<dyn Fn(&io::Result<usize>) + Send + Sync>>>,
+    ///
+    /// Each callback receives the result of the read and the number of bytes
+    /// it moved.
+    pub post_read: Option<Vec<Arc<dyn Fn(&io::Result<usize>, usize) + Send + Sync>>>,
     /// A list of functions to be executed after writing to the connection.
-    pub post_write: Option<Vec<Arc<dyn Fn(&io::Result<usize>) + Send + Sync>>>,
+    ///
+    /// Each callback receives the result of the write and the number of bytes
+    /// it moved.
+    pub post_write: Option<Vec<Arc<dyn Fn(&io::Result<usize>, usize) + Send + Sync>>>,
     /// Indicates whether to skip verification of TLS certificates.
     pub insecure_skip_verify: Option<bool>,
     /// The maximum number of connections to keep open.
@@ -136,8 +142,8 @@ mod tests {
             tls_min_version: Some(tls::Version::TLS_1_3),
             all_proxy: Some(Url::parse("http://proxy.example.com").unwrap()),
             use_env_proxy: Some(false),
-            post_read: Some(vec![Arc::new(|_| {})]),
-            post_write: Some(vec![Arc::new(|_| {})]),
+            post_read: Some(vec![Arc::new(|_, _| {})]),
+            post_write: Some(vec![Arc::new(|_, _| {})]),
         };
 
         // Merge config2 into config1

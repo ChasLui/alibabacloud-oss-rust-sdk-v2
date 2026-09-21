@@ -12,11 +12,12 @@ use super::{ClientInnerOptions, ClientOptions};
 use crate::config::Config;
 use crate::retry::Standard as StandardRetryer;
 use crate::signer::{SignerV1, SignerV4};
+
 use crate::transport::{self, TransportConfig};
 #[allow(unused_imports)]
 use crate::utils::{
     add_endpoint_scheme, endpoint_from_region, is_valid_region, BwTokenBucket, EndpointType,
-    BW_TOKEN_BUCKET_SLOT_RX, BW_TOKEN_BUCKET_SLOT_TX, DEFAULT_USER_AGENT,
+    DEFAULT_USER_AGENT,
 };
 use crate::{FeatureFlagsType, SignatureVersionType, UrlStyleType, DEFAULT_SIGNATURE_VERSION};
 
@@ -76,7 +77,7 @@ pub fn resolve_http_client(
         return;
     }
 
-    let transport_config = TransportConfig {
+    let mut transport_config = TransportConfig {
         connect_timeout: config.connect_timeout,
         read_write_timeout: config.read_write_timeout,
         enabled_redirect: config.enabled_redirect,
@@ -91,37 +92,26 @@ pub fn resolve_http_client(
         ..Default::default()
     };
 
-    // if let Some(upload_bandwidth_limit) = config.upload_bandwidth_limit {
-    //     let value = upload_bandwidth_limit * 1024;
-    //     let bandwidth_token_bucket = BwTokenBucket::new(value);
-    //     transport_config
-    //         .post_write
-    //         .as_mut()
-    //         .unwrap_or(&mut vec![])
-    //         .push(Arc::new(move |_: &io::Result<usize>| {
-    //             bandwidth_token_bucket.limit_bandwidth(value);
-    //         }));
-    //     inner_options.bw_token_buckets[BW_TOKEN_BUCKET_SLOT_TX] =
-    // Some(bandwidth_token_bucket); }
-
-    // if let Some(download_bandwidth_limit) = config.download_bandwidth_limit {
-    //     let value = download_bandwidth_limit * 1024;
-    //     let bandwidth_token_bucket = BwTokenBucket::new(value);
-    //     transport_config
-    //         .post_read
-    //         .as_mut()
-    //         .unwrap_or(&mut vec![])
-    //         .push(Arc::new(move |_: &io::Result<usize>| {
-    //             bandwidth_token_bucket.limit_bandwidth(value);
-    //         }));
-    //     inner_options.bw_token_buckets[BW_TOKEN_BUCKET_SLOT_RX] =
-    // Some(bandwidth_token_bucket); }
-
     client_options.http_client = Some(
         transport::new_http_client_builder(&transport_config, &[])
             .build()
             .expect("Failed to create HTTP client"),
     );
+}
+
+/// Resolves the bandwidth limits into usable limiters.
+///
+/// A limit is configured in KBps and becomes a limiter in bytes per second.
+/// The limiter is attached to the client's options rather than to raw sockets,
+/// because reqwest does its own socket handling: the only place the SDK can
+/// pace traffic is the body streams it hands to and receives from reqwest.
+pub fn resolve_bandwidth_limit(config: &Config, client_options: &mut ClientOptions) {
+    if let Some(limit) = config.upload_bandwidth_limit.filter(|limit| *limit > 0) {
+        client_options.upload_bandwidth_limiter = Some(Arc::new(BwTokenBucket::new(limit * 1024)));
+    }
+    if let Some(limit) = config.download_bandwidth_limit.filter(|limit| *limit > 0) {
+        client_options.download_bandwidth_limiter = Some(Arc::new(BwTokenBucket::new(limit * 1024)));
+    }
 }
 
 /// Resolves the signer based on the provided configuration and updates the

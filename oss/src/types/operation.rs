@@ -80,27 +80,52 @@ impl BodyContent {
         self,
         trackers: Vec<Arc<dyn BodyTracker>>,
     ) -> Result<reqwest::Body, std::io::Error> {
+        self.into_reqwest_body_with_limit(trackers, None).await
+    }
+
+    /// Builds the request body, pacing it through `limiter` when one is set.
+    ///
+    /// The limit is applied per chunk as it leaves the SDK, which is the only
+    /// point where an outgoing body can be throttled: reqwest owns the socket.
+    pub async fn into_reqwest_body_with_limit(
+        self,
+        trackers: Vec<Arc<dyn BodyTracker>>,
+        limiter: Option<Arc<crate::utils::BwTokenBucket>>,
+    ) -> Result<reqwest::Body, std::io::Error> {
         use futures_util::stream::StreamExt;
 
-        // Tees each chunk into the trackers before it reaches reqwest.
-        let tee = move |chunk: Bytes| -> Result<Bytes, Box<dyn std::error::Error + Send + Sync>> {
-            for tracker in &trackers {
-                tracker.update(&chunk)?;
-            }
-            Ok(chunk)
-        };
+        // Tees each chunk into the trackers before it reaches reqwest. Shared
+        // so both the plain and the paced paths can use it.
+        let tee = std::sync::Arc::new(
+            move |chunk: Bytes| -> Result<Bytes, Box<dyn std::error::Error + Send + Sync>> {
+                for tracker in &trackers {
+                    tracker.update(&chunk)?;
+                }
+                Ok(chunk)
+            },
+        );
 
         match self {
             BodyContent::File { path, .. } => {
                 let file = tokio::fs::File::open(path).await?;
                 let stream = tokio_util::codec::FramedRead::new(file, tokio_util::codec::BytesCodec::new());
+                let limiter_for_file = limiter.clone();
                 let mapped = stream
                     .map(|result| {
                         result
                             .map(|bytes| bytes.freeze())
                             .map_err(|e| Box::<dyn std::error::Error + Send + Sync>::from(e))
                     })
-                    .map(move |result| result.and_then(&tee));
+                    .then(move |result| {
+                        let limiter = limiter_for_file.clone();
+                        let tee = tee.clone();
+                        async move {
+                            if let (Some(limiter), Ok(ref chunk)) = (&limiter, &result) {
+                                limiter.limit_bandwidth(chunk.len()).await;
+                            }
+                            result.and_then(|chunk| tee(chunk))
+                        }
+                    });
                 let byte_stream = ByteStream::new(mapped);
                 Ok(reqwest::Body::wrap_stream(byte_stream))
             }
@@ -118,7 +143,8 @@ impl BodyContent {
             }
             BodyContent::Stream { stream, .. } => {
                 // 对于Stream类型，直接使用传入的stream（现在拥有所有权）
-                let mapped = stream.map(move |result| result.and_then(&tee));
+                let tee = tee.clone();
+                let mapped = stream.map(move |result| result.and_then(|chunk| tee(chunk)));
                 Ok(reqwest::Body::wrap_stream(ByteStream::new(mapped)))
             }
         }

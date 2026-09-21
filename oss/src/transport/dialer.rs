@@ -17,9 +17,15 @@ pub struct Dialer {
     /// The timeout for read and write operations.
     pub read_write_timeout: Duration,
     /// A list of functions to be executed after reading from the connection.
-    pub post_read: Vec<Arc<dyn Fn(&io::Result<usize>) + Send + Sync>>,
+    ///
+    /// Each callback receives the result of the read and the number of bytes
+    /// it moved, so a bandwidth limiter can pace the traffic.
+    pub post_read: Vec<Arc<dyn Fn(&io::Result<usize>, usize) + Send + Sync>>,
     /// A list of functions to be executed after writing to the connection.
-    pub post_write: Vec<Arc<dyn Fn(&io::Result<usize>) + Send + Sync>>,
+    ///
+    /// Each callback receives the result of the write and the number of bytes
+    /// it moved, so a bandwidth limiter can pace the traffic.
+    pub post_write: Vec<Arc<dyn Fn(&io::Result<usize>, usize) + Send + Sync>>,
 }
 
 impl Dialer {
@@ -104,7 +110,7 @@ impl Read for TimeoutConnection {
         let res = self.stream.read(buf);
         let n = res.as_ref().map(|&n| n).unwrap_or(0);
         for callback in &self.dialer.post_read {
-            callback(&res);
+            callback(&res, n);
         }
         if res.is_ok() && n > 0 && self.timeout > Duration::from_secs(0) {
             self.nudge_deadline()?;
@@ -134,7 +140,7 @@ impl Write for TimeoutConnection {
         let res = self.stream.write(buf);
         let n = res.as_ref().map(|&n| n).unwrap_or(0);
         for callback in &self.dialer.post_write {
-            callback(&res);
+            callback(&res, n);
         }
         if res.is_ok() && n > 0 && self.timeout > Duration::from_secs(0) {
             self.nudge_deadline()?;
@@ -202,8 +208,8 @@ mod tests {
         let rw_timeout = Duration::from_secs(10);
         let config_with_one_post_read = TransportConfig {
             read_write_timeout: Some(rw_timeout),
-            post_read: Some(vec![Arc::new(|_| {})]),
-            post_write: Some(vec![Arc::new(|_| {}), Arc::new(|_| {})]),
+            post_read: Some(vec![Arc::new(|_, _| {})]),
+            post_write: Some(vec![Arc::new(|_, _| {}), Arc::new(|_, _| {})]),
             ..Default::default()
         };
         let connection = Dialer::new(&config_with_one_post_read).dial(&addr).unwrap();

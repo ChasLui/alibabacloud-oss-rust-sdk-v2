@@ -1,5 +1,6 @@
 use std::cell::Cell;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::TimeDelta;
@@ -9,7 +10,6 @@ use crate::credential::CredentialsProvider;
 use crate::log::Logger;
 use crate::retry::Retryer;
 use crate::signer::Signer;
-use crate::utils::BwTokenBuckets;
 use crate::{AuthMethodType, FeatureFlagsType, UrlStyleType};
 use crate::client::OssResponse;
 
@@ -41,6 +41,13 @@ pub struct ClientOptions {
     pub url_style: UrlStyleType,
     pub feature_flags: FeatureFlagsType,
     pub op_read_write_timeout: Option<Duration>,
+    /// Paces the bytes of a response body, in bytes per second.
+    ///
+    /// Applied on the body stream rather than on raw sockets, because that is
+    /// where reqwest actually delivers the bytes.
+    pub download_bandwidth_limiter: Option<Arc<crate::utils::BwTokenBucket>>,
+    /// Paces the bytes of a request body, in bytes per second.
+    pub upload_bandwidth_limiter: Option<Arc<crate::utils::BwTokenBucket>>,
     pub auth_method: Option<AuthMethodType>,
     pub additional_headers: Vec<String>,
 }
@@ -53,7 +60,6 @@ pub fn op_read_write_timeout(value: Duration) -> impl Fn(&mut ClientOptions) {
 
 #[derive(Clone, Default)]
 pub struct ClientInnerOptions {
-    pub bw_token_buckets: BwTokenBuckets,
     /// Clock correction learned from `RequestTimeTooSkewed` responses.
     ///
     /// Signed (`TimeDelta`) because the server clock can run either ahead of

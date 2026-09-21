@@ -130,7 +130,27 @@ impl Client {
         // let request_clone = request.try_clone().expect("Unable to clone request");
         
         if status.is_success() {
-            let body = Some(Box::pin(response.bytes_stream()) as BodyStream);
+            let stream = response.bytes_stream();
+            let body = match self.options.download_bandwidth_limiter.clone() {
+                Some(limiter) => {
+                    let paced = futures_util::stream::unfold(
+                        (stream, limiter),
+                        |(mut stream, limiter)| async move {
+                            match futures_util::StreamExt::next(&mut stream).await {
+                                Some(item) => {
+                                    if let Ok(ref chunk) = item {
+                                        limiter.limit_bandwidth(chunk.len()).await;
+                                    }
+                                    Some((item, (stream, limiter)))
+                                }
+                                None => None,
+                            }
+                        },
+                    );
+                    Some(Box::pin(paced) as BodyStream)
+                }
+                None => Some(Box::pin(stream) as BodyStream),
+            };
             Ok(OperationOutput {
                 input: Some(Rc::new(input_clone)),  // 使用之前克隆的完整input
                 status,
@@ -303,7 +323,12 @@ impl Client {
                 .map(|v| Arc::new((*v).clone()) as Arc<dyn BodyTracker>)
                 .collect();
 
-            let body = content.into_reqwest_body_with_trackers(trackers).await?;
+            let body = content
+                .into_reqwest_body_with_limit(
+                    trackers,
+                    self.options.upload_bandwidth_limiter.clone(),
+                )
+                .await?;
             request_builder = request_builder.body(body);
         }
 
