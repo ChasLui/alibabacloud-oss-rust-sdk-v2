@@ -7,7 +7,7 @@ use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::rc::Rc;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use alibabacloud_oss_sdk_rust_v2::api::object::GetObjectRequest;
 use alibabacloud_oss_sdk_rust_v2::client::Client;
@@ -48,6 +48,27 @@ fn read_head(stream: &mut TcpStream) -> String {
     String::from_utf8_lossy(&acc).to_string()
 }
 
+/// Accepts one connection, giving up after `timeout`.
+fn accept_within(listener: &TcpListener, timeout: Duration) -> Option<TcpStream> {
+    listener.set_nonblocking(true).expect("nonblocking");
+    let deadline = Instant::now() + timeout;
+    loop {
+        match listener.accept() {
+            Ok((stream, _)) => {
+                stream.set_nonblocking(false).expect("blocking");
+                return Some(stream);
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                if Instant::now() >= deadline {
+                    return None;
+                }
+                thread::sleep(Duration::from_millis(20));
+            }
+            Err(_) => return None,
+        }
+    }
+}
+
 /// The `bytes=<start>-` a request asks for, if any.
 fn requested_start(head: &str) -> Option<usize> {
     head.lines()
@@ -70,7 +91,10 @@ fn serve_with_interruption(
     let handle = thread::spawn(move || {
         let mut heads = Vec::new();
         for (attempt, etag) in etags.iter().enumerate() {
-            let Ok((mut stream, _)) = listener.accept() else {
+            // A client that never reconnects would otherwise park this thread
+            // on `accept` forever, turning a failing assertion into a hung
+            // test run.
+            let Some(mut stream) = accept_within(&listener, Duration::from_secs(20)) else {
                 break;
             };
             let head = read_head(&mut stream);

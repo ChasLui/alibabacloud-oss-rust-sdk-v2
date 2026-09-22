@@ -65,7 +65,9 @@ impl Client {
 
         apply_operation_opt(&mut options, &modified_options);
         apply_operation_metadata(&input, &mut options);  // 使用 &input 而不是 input
-        // apply_operation_context()
+        // Go sets the operation's read/write timeout through a request context
+        // at this point. Rust has no such context: the timeout is applied when
+        // the HTTP client is built, from `Config::read_write_timeout`.
 
         let request_result = self.send_request(input, Some(&options)).await;  // 传递所有权给send_request
 

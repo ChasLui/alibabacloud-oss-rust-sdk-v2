@@ -1,32 +1,23 @@
 //! Client-side bandwidth limiting.
 //!
-//! Mirrors Go's `BwTokenBucket` in `oss/limiter.go`. The limit is applied by
-//! the transport after each socket read or write, so it throttles the bytes
-//! that actually cross the connection rather than the bytes a caller hands to
-//! an API.
+//! Mirrors Go's `BwTokenBucket` in `oss/limiter.go`, with one structural
+//! difference: Go paces the socket, while this paces the body streams handed
+//! to and taken from reqwest. reqwest owns its sockets, so those streams are
+//! the only places the SDK sees the bytes at all.
 //!
 //! Two decisions are worth stating:
 //!
-//! - The limiter is a token bucket whose burst is a whole megabyte-scale
-//!   window, not one packet. Waiting per small read would add a scheduling
-//!   round trip to every syscall and cap throughput far below the configured
-//!   rate; a window lets a burst through and slows the average down, which is
-//!   what a bandwidth limit means.
-//! - Waiting happens on the transport's own thread while a request is in
-//!   flight, so a limited upload also limits how fast the caller's body is
-//!   consumed. That backpressure is the point: buffering the whole body and
-//!   then pacing it would defeat the limit's purpose for large objects.
+//! - The limiter is a token bucket whose burst is a megabyte-scale window, not
+//!   one packet. Waiting per small chunk would add a scheduling round trip to
+//!   every read and cap throughput far below the configured rate; a window
+//!   lets a burst through and slows the average down, which is what a
+//!   bandwidth limit means.
+//! - Waiting is asynchronous, because the stream runs on the caller's runtime.
+//!   A blocking sleep there stalls every other task that runtime is driving —
+//!   measurably, a download that should have taken seconds ran into its own
+//!   request timeout.
 
 use std::time::{Duration, Instant};
-
-#[allow(unused)]
-pub(crate) const BW_TOKEN_BUCKET_SLOT_RX: usize = 0;
-#[allow(unused)]
-pub(crate) const BW_TOKEN_BUCKET_SLOT_TX: usize = 1;
-pub(crate) const BW_TOKEN_BUCKET_SLOTS: usize = 2;
-
-/// The per-direction limiter slots carried on the client's options.
-pub type BwTokenBuckets = [Option<BwTokenBucket>; BW_TOKEN_BUCKET_SLOTS];
 
 /// A token bucket that admits bytes at a configured rate.
 ///

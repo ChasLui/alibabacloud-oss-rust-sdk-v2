@@ -231,7 +231,7 @@ impl Client {
 
         resolve_endpoint(config, &mut options);
         resolve_retryer(config, &mut options);
-        resolve_http_client(config, &mut options, &mut inner_options);
+        resolve_http_client(config, &mut options);
         resolve_bandwidth_limit(config, &mut options);
         resolve_signer(config, &mut options);
         resolve_url_style(config, &mut options);

@@ -4,11 +4,9 @@ use std::str::FromStr;
 #[allow(unused_imports)]
 use std::sync::Arc;
 #[allow(unused_imports)]
-use std::{io, vec};
-
 use url::Url;
 
-use super::{ClientInnerOptions, ClientOptions};
+use super::ClientOptions;
 use crate::config::Config;
 use crate::retry::Standard as StandardRetryer;
 use crate::signer::{SignerV1, SignerV4};
@@ -68,21 +66,15 @@ pub fn resolve_retryer(_config: &Config, client_options: &mut ClientOptions) {
 /// client options. If an HTTP client is not already set in the
 /// `client_options`, a new HTTP client is created and set using the provided
 /// transport configuration.
-pub fn resolve_http_client(
-    config: &Config,
-    client_options: &mut ClientOptions,
-    #[allow(unused)] inner_options: &mut ClientInnerOptions,
-) {
+pub fn resolve_http_client(config: &Config, client_options: &mut ClientOptions) {
     if client_options.http_client.is_some() {
         return;
     }
 
-    let mut transport_config = TransportConfig {
+    let transport_config = TransportConfig {
         connect_timeout: config.connect_timeout,
         read_write_timeout: config.read_write_timeout,
         enabled_redirect: config.enabled_redirect,
-        post_write: Some(Vec::new()),
-        post_read: Some(Vec::new()),
         insecure_skip_verify: config.insecure_skip_verify,
         use_env_proxy: config.proxy_from_environment,
         all_proxy: config
@@ -242,11 +234,7 @@ mod tests {
             ..Default::default()
         };
 
-        resolve_http_client(
-            &config,
-            &mut client_options,
-            &mut ClientInnerOptions::default(),
-        );
+        resolve_http_client(&config, &mut client_options);
 
         assert!(client_options.http_client.is_some());
     }
@@ -256,11 +244,7 @@ mod tests {
         let config = Config::default();
         let mut client_options = ClientOptions::default();
 
-        resolve_http_client(
-            &config,
-            &mut client_options,
-            &mut ClientInnerOptions::default(),
-        );
+        resolve_http_client(&config, &mut client_options);
 
         assert!(client_options.http_client.is_some());
     }

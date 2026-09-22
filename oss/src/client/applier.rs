@@ -90,13 +90,6 @@ pub(super) fn apply_operation_opt(
     base_options.response_handlers = handlers;
 }
 
-#[allow(unused)]
-pub(crate) fn apply_operation_context() {
-    unimplemented!(
-        "Set context of OpReadWriteTimeout which is used by the dialer. Since there is no context \
-         in Rust, use Config::read_write_timeout instead."
-    );
-}
 
 /// Applies the operation metadata to the base options.
 ///
