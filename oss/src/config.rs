@@ -1,3 +1,4 @@
+use std::net::IpAddr;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -6,7 +7,7 @@ use crate::log::{LogLevel, LogPrinter};
 use crate::retry::Retryer;
 use crate::{SignatureVersionType, ENV_OSS_SDK_LOG_LEVEL};
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Config {
     pub region: Option<String>,
     pub endpoint: Option<String>,
@@ -18,6 +19,8 @@ pub struct Config {
     pub use_cname: Option<bool>,
     pub connect_timeout: Option<Duration>,
     pub read_write_timeout: Option<Duration>,
+    /// Maximum number of idle connections kept per host.
+    pub max_connections: Option<usize>,
     pub insecure_skip_verify: Option<bool>,
     pub enabled_redirect: Option<bool>,
     pub proxy_host: Option<String>,
@@ -33,10 +36,23 @@ pub struct Config {
     pub use_dual_stack_endpoint: Option<bool>,
     pub use_accelerate_endpoint: Option<bool>,
     pub use_internal_endpoint: Option<bool>,
+    /// Cloud box ID. When set, it becomes the region and switches signing to
+    /// the cloud box product.
+    pub cloud_box_id: Option<String>,
+    /// Derives the cloud box ID from a cloud box endpoint.
+    pub enable_auto_detect_cloud_box_id: Option<bool>,
+    /// Account ID. Products such as vectors and agentic buckets address a
+    /// bucket by a name derived from it.
+    pub account_id: Option<String>,
     pub disable_upload_crc64_check: Option<bool>,
     pub disable_download_crc64_check: Option<bool>,
     pub additional_headers: Vec<String>,
+    /// Headers sent with every request, unless the operation sets the same
+    /// header itself.
+    pub default_request_headers: Vec<(String, String)>,
     pub user_agent: Option<String>,
+    /// Local address outgoing connections are bound to.
+    pub bind_address: Option<IpAddr>,
 }
 
 impl Config {
@@ -109,6 +125,11 @@ impl Config {
         self
     }
 
+    pub fn with_max_connections(mut self, max_connections: usize) -> Self {
+        self.max_connections = Some(max_connections);
+        self
+    }
+
     pub fn with_insecure_skip_verify(mut self, insecure_skip_verify: bool) -> Self {
         self.insecure_skip_verify = Some(insecure_skip_verify);
         self
@@ -174,6 +195,24 @@ impl Config {
         self
     }
 
+    pub fn with_cloud_box_id(mut self, cloud_box_id: &str) -> Self {
+        self.cloud_box_id = Some(cloud_box_id.to_string());
+        self
+    }
+
+    pub fn with_enable_auto_detect_cloud_box_id(
+        mut self,
+        enable_auto_detect_cloud_box_id: bool,
+    ) -> Self {
+        self.enable_auto_detect_cloud_box_id = Some(enable_auto_detect_cloud_box_id);
+        self
+    }
+
+    pub fn with_account_id(mut self, account_id: &str) -> Self {
+        self.account_id = Some(account_id.to_string());
+        self
+    }
+
     pub fn with_disable_upload_crc64_check(mut self, disable_upload_crc64_check: bool) -> Self {
         self.disable_upload_crc64_check = Some(disable_upload_crc64_check);
         self
@@ -186,6 +225,19 @@ impl Config {
 
     pub fn with_additional_headers(mut self, additional_headers: Vec<String>) -> Self {
         self.additional_headers = additional_headers;
+        self
+    }
+
+    pub fn with_default_request_headers(
+        mut self,
+        default_request_headers: Vec<(String, String)>,
+    ) -> Self {
+        self.default_request_headers = default_request_headers;
+        self
+    }
+
+    pub fn with_bind_address(mut self, bind_address: IpAddr) -> Self {
+        self.bind_address = Some(bind_address);
         self
     }
 
@@ -225,10 +277,14 @@ mod tests {
         assert!(config.use_dual_stack_endpoint.is_none());
         assert!(config.use_accelerate_endpoint.is_none());
         assert!(config.use_internal_endpoint.is_none());
+        assert!(config.cloud_box_id.is_none());
+        assert!(config.enable_auto_detect_cloud_box_id.is_none());
         assert!(config.disable_upload_crc64_check.is_none());
         assert!(config.disable_download_crc64_check.is_none());
         assert!(config.additional_headers.is_empty());
+        assert!(config.default_request_headers.is_empty());
         assert!(config.user_agent.is_none());
+        assert!(config.bind_address.is_none());
     }
 
     #[test]
@@ -295,6 +351,12 @@ mod tests {
     fn test_with_connect_timeout() {
         let config = Config::new().with_connect_timeout(Duration::from_secs(30));
         assert_eq!(config.connect_timeout, Some(Duration::from_secs(30)));
+    }
+
+    #[test]
+    fn test_with_max_connections() {
+        let config = Config::new().with_max_connections(64);
+        assert_eq!(config.max_connections, Some(64));
     }
 
     #[test]
@@ -408,5 +470,22 @@ mod tests {
         let config = Config::new().with_user_agent("MyApp/1.0");
         assert_eq!(config.user_agent, Some("MyApp/1.0".to_string()));
         // Add assertions for other fields
+    }
+
+    #[test]
+    fn test_with_default_request_headers() {
+        let config = Config::new()
+            .with_default_request_headers(vec![("x-custom".to_string(), "value".to_string())]);
+        assert_eq!(
+            config.default_request_headers,
+            vec![("x-custom".to_string(), "value".to_string())]
+        );
+    }
+
+    #[test]
+    fn test_with_bind_address() {
+        let address: IpAddr = "10.0.0.5".parse().unwrap();
+        let config = Config::new().with_bind_address(address);
+        assert_eq!(config.bind_address, Some(address));
     }
 }

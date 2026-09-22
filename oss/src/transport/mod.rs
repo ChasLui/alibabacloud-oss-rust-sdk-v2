@@ -1,5 +1,6 @@
 mod http;
 
+use std::net::IpAddr;
 use std::time::Duration;
 
 use reqwest::tls;
@@ -43,6 +44,8 @@ pub struct TransportConfig {
     /// Indicates whether to use the proxy specified in the environment
     /// variables. Only valid when `all_proxy` is not set.
     pub use_env_proxy: Option<bool>,
+    /// Local address outgoing connections are bound to.
+    pub bind_address: Option<IpAddr>,
 }
 
 impl Default for TransportConfig {
@@ -58,6 +61,7 @@ impl Default for TransportConfig {
             tls_min_version: None,
             all_proxy: None,
             use_env_proxy: Some(true),
+            bind_address: None,
         }
     }
 }
@@ -96,6 +100,9 @@ impl TransportConfig {
         if let Some(http_proxy_env) = other.use_env_proxy {
             self.use_env_proxy = Some(http_proxy_env);
         }
+        if let Some(bind_address) = other.bind_address {
+            self.bind_address = Some(bind_address);
+        }
     }
 }
 
@@ -119,6 +126,7 @@ mod tests {
             tls_min_version: Some(tls::Version::TLS_1_3),
             all_proxy: Some(Url::parse("http://proxy.example.com").unwrap()),
             use_env_proxy: Some(false),
+            bind_address: Some("10.0.0.5".parse().unwrap()),
         };
 
         // Merge config2 into config1
@@ -141,5 +149,6 @@ mod tests {
             Some(Url::parse("http://proxy.example.com").unwrap())
         );
         assert_eq!(config1.use_env_proxy, Some(false));
+        assert_eq!(config1.bind_address, Some("10.0.0.5".parse().unwrap()));
     }
 }

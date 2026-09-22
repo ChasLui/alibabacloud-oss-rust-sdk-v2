@@ -79,6 +79,10 @@ pub fn new_http_client_builder(
         }
     }
 
+    if let Some(bind_address) = config.bind_address {
+        builder = builder.local_address(bind_address);
+    }
+
     for modifier in transport_modifiers {
         modifier(&mut builder);
     }

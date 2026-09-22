@@ -169,6 +169,10 @@ pub const OP_META_KEY_REQUEST_BODY_TRACKER: &str = "opm-request-body-tracker";
 pub const OP_META_KEY_PROGRESS_TRACKER: &str = "opm-progress-tracker";
 pub const OP_META_KEY_RESPONSE_PROGRESS_TRACKER: &str = "opm-response-progress-tracker";
 
+/// Marks a request whose `bucket` carries a bucket ARN rather than a name, so
+/// the input is validated as an ARN. Mirrors Go's `OpMetaKeyIsBucketArn`.
+pub const OP_META_KEY_IS_BUCKET_ARN: &str = "opm-is-bucket-arn";
+
 // Environment variables
 pub const ENV_OSS_SDK_LOG_LEVEL: &str = "OSS_SDK_LOG_LEVEL";
 pub const ENV_OSS_ACCESS_KEY_ID: &str = "OSS_ACCESS_KEY_ID";

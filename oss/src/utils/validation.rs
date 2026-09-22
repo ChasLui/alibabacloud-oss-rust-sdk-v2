@@ -43,6 +43,45 @@ pub(crate) fn is_valid_object_name(object_name: &str) -> bool {
     !object_name.is_empty()
 }
 
+/// Whether `account_id` is a non-empty run of digits.
+pub(crate) fn is_valid_account_id(account_id: &str) -> bool {
+    !account_id.is_empty() && account_id.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+/// Validates that `bucket` is a bucket ARN, i.e.
+/// `acs:{service}:{region}:{account_id}:bucket:{name}`. Mirrors Go's
+/// `AssertValidateArnBucket`.
+pub(crate) fn assert_validate_arn_bucket(
+    bucket: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let parsed = crate::arn::Arn::parse(bucket)?;
+
+    let account_id = parsed.account_id.as_deref().unwrap_or_default();
+    if account_id.is_empty() {
+        return Err("OperationInput.bucket does not contain account id".into());
+    }
+    if !is_valid_account_id(account_id) {
+        return Err(format!(
+            "OperationInput.bucket contains invalid account id: {}",
+            account_id
+        )
+        .into());
+    }
+
+    let resource = &parsed.arn_resource;
+    if resource.resource_type.as_deref() != Some("bucket")
+        || resource.resource.trim().is_empty()
+        || resource.qualifier.is_some()
+    {
+        return Err(format!("operationInput.bucket is not bucket arn, got {}", bucket).into());
+    }
+    if !is_valid_bucket_name(&resource.resource) {
+        return Err(format!("bucket resource is invalid, got {}", bucket).into());
+    }
+
+    Ok(())
+}
+
 #[allow(unused)]
 pub(crate) fn is_valid_range(r: &str) -> bool {
     parse_range(r).is_ok()
@@ -130,5 +169,35 @@ mod tests {
 
         assert!(!is_valid_copy_directive(""));
         assert!(!is_valid_copy_directive("invalid"));
+    }
+
+    #[test]
+    fn test_is_valid_account_id() {
+        assert!(is_valid_account_id("1234567890"));
+
+        assert!(!is_valid_account_id(""));
+        assert!(!is_valid_account_id("123abc"));
+    }
+
+    #[test]
+    fn test_assert_validate_arn_bucket() {
+        assert!(
+            assert_validate_arn_bucket("acs:oss:cn-hangzhou:1234567890:bucket:my-bucket").is_ok()
+        );
+
+        // No account id.
+        assert!(assert_validate_arn_bucket("acs:oss:cn-hangzhou::bucket:my-bucket").is_err());
+        // Account id must be digits.
+        assert!(assert_validate_arn_bucket("acs:oss:cn-hangzhou:abc:bucket:my-bucket").is_err());
+        // Resource must be a bucket.
+        assert!(
+            assert_validate_arn_bucket("acs:oss:cn-hangzhou:123:object:my-bucket/key").is_err()
+        );
+        // A qualifier is not allowed on a bucket resource.
+        assert!(
+            assert_validate_arn_bucket("acs:oss:cn-hangzhou:123:bucket:my-bucket:table/x").is_err()
+        );
+        // Not an ARN at all.
+        assert!(assert_validate_arn_bucket("my-bucket").is_err());
     }
 }

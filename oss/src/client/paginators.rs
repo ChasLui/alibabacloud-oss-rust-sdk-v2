@@ -10,6 +10,10 @@ use crate::api::object::{
     ListMultipartUploadsRequest, ListMultipartUploadsResult, ListPartsRequest, ListPartsResult,
 };
 use crate::api::service::{ListBucketsRequest, ListBucketsResult};
+use crate::api::vectors::{
+    ListVectorBucketsRequest, ListVectorBucketsResult, ListVectorIndexesRequest,
+    ListVectorIndexesResult, ListVectorsRequest, ListVectorsResult,
+};
 use crate::client::Client;
 
 /// Paginates over the pages of a list operation.
@@ -170,6 +174,53 @@ impl_paginator!(
     }
 );
 
+impl_paginator!(
+    ListVectorBucketsPaginator,
+    ListVectorBucketsRequest,
+    ListVectorBucketsResult,
+    list_vector_buckets,
+    max_field = max_keys,
+    encoding = none,
+    by_ref = ref_,
+    truncated = |r| r.is_truncated,
+    advance = |this, result| {
+        this.request.marker = result.next_marker.clone();
+    }
+);
+
+impl_paginator!(
+    ListVectorIndexesPaginator,
+    ListVectorIndexesRequest,
+    ListVectorIndexesResult,
+    list_vector_indexes,
+    max_field = max_results,
+    encoding = none,
+    by_ref = ref_,
+    truncated = |r| has_token(&r.next_token),
+    advance = |this, result| {
+        this.request.next_token = result.next_token.clone();
+    }
+);
+
+impl_paginator!(
+    ListVectorsPaginator,
+    ListVectorsRequest,
+    ListVectorsResult,
+    list_vectors,
+    max_field = max_results,
+    encoding = none,
+    by_ref = ref_,
+    truncated = |r| has_token(&r.next_token),
+    advance = |this, result| {
+        this.request.next_token = result.next_token.clone();
+    }
+);
+
+/// Token-paginated listings end when the service stops handing out a token.
+fn has_token(token: &Option<String>) -> bool {
+    token.as_deref().map_or(false, |token| !token.is_empty())
+}
+
 impl Client {
     /// Creates a paginator for [Client::list_objects].
     pub fn list_objects_paginator(&self, request: ListObjectsRequest) -> ListObjectsPaginator<'_> {
@@ -245,6 +296,45 @@ impl Client {
             done: false,
         }
     }
+
+    /// Creates a paginator for [Client::list_vector_buckets].
+    pub fn list_vector_buckets_paginator(
+        &self,
+        request: ListVectorBucketsRequest,
+    ) -> ListVectorBucketsPaginator<'_> {
+        ListVectorBucketsPaginator {
+            client: self,
+            request,
+            limit: None,
+            first_page: true,
+            done: false,
+        }
+    }
+
+    /// Creates a paginator for [Client::list_vector_indexes].
+    pub fn list_vector_indexes_paginator(
+        &self,
+        request: ListVectorIndexesRequest,
+    ) -> ListVectorIndexesPaginator<'_> {
+        ListVectorIndexesPaginator {
+            client: self,
+            request,
+            limit: None,
+            first_page: true,
+            done: false,
+        }
+    }
+
+    /// Creates a paginator for [Client::list_vectors].
+    pub fn list_vectors_paginator(&self, request: ListVectorsRequest) -> ListVectorsPaginator<'_> {
+        ListVectorsPaginator {
+            client: self,
+            request,
+            limit: None,
+            first_page: true,
+            done: false,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -267,6 +357,14 @@ mod tests {
                 )))
                 .with_signature_version(SignatureVersionType::V4),
         )
+    }
+
+    #[test]
+    fn test_has_token() {
+        assert!(has_token(&Some("t-1".to_string())));
+        // The service signals the end by returning no token, or an empty one.
+        assert!(!has_token(&None));
+        assert!(!has_token(&Some(String::new())));
     }
 
     #[test]

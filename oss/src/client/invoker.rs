@@ -9,10 +9,14 @@ use super::{apply_operation_metadata, apply_operation_opt, Client, ClientOptions
 use crate::credential::AnonymousCredentialsProvider;
 use crate::retry::DEFAULT_MAX_ATTEMPTS;
 use crate::signer::{SigningContext, SIGN_TIME, SUB_RESOURCE};
-use crate::utils::{build_url, header_map_to_hash_map, is_valid_endpoint, sleep_with_context};
+use crate::utils::{
+    assert_validate_arn_bucket, build_url, header_map_to_hash_map, is_valid_endpoint,
+    sleep_with_context,
+};
 use crate::{
     AuthMethodType, BodyStream, BodyTracker, ClientError, OperationInput, OperationMetadata,
     OperationOutput, ServiceError, HEADER_OSS_DATE, HTTP_HEADER_USER_AGENT,
+    OP_META_KEY_IS_BUCKET_ARN,
 };
 
 impl Client {
@@ -220,7 +224,13 @@ impl Client {
         let client = reqwest::Client::new();
 
         // 提前获取需要在后面使用的值，避免在移动input后访问
-        let input_bucket = input.bucket.clone();
+        // A product may address a bucket by a derived name; that name is what
+        // the request is signed with.
+        let resolver = options.and_then(|o| o.bucket_name_resolver.clone());
+        let input_bucket = match (resolver, input.bucket.as_ref()) {
+            (Some(resolver), Some(_)) => Some(resolver.build_bucket_name(&input)?),
+            _ => input.bucket.clone(),
+        };
         let input_key = input.key.clone();
 
         // Validate client options and input parameters to catch client errors
@@ -253,6 +263,17 @@ impl Client {
                     )),
                 };
                 return Err(Box::new(client_error));
+            }
+
+            // Some products pass a bucket ARN instead of a bucket name.
+            let is_bucket_arn = input
+                .op_metadata
+                .get(OP_META_KEY_IS_BUCKET_ARN)
+                .and_then(|value| value.downcast_ref::<bool>())
+                .copied()
+                .unwrap_or(false);
+            if is_bucket_arn {
+                assert_validate_arn_bucket(bucket)?;
             }
         }
 
@@ -329,8 +350,15 @@ impl Client {
 
         // 为了避免部分移动，在创建 URL 前先提取需要的值
         let method = input.method.clone(); // 复制或克隆 method
-        let (host, path) = build_url(&input, options.as_ref().expect("Options not set")); // 使用引用
-        let mut url = format!("{}://{}{}", endpoint.scheme(), host, path);
+        let url_options = options.as_ref().expect("Options not set");
+        let mut url = match &url_options.endpoint_provider {
+            // A product with its own addressing rules builds the whole URL.
+            Some(provider) => provider.build_url(&input)?,
+            None => {
+                let (host, path) = build_url(&input, url_options); // 使用引用
+                format!("{}://{}{}", endpoint.scheme(), host, path)
+            }
+        };
 
         // Queries
         if !input.parameters.is_empty() {
@@ -358,6 +386,19 @@ impl Client {
             // 使用引用
             request_builder = request_builder.header(k, v);
         }
+
+        // Default request headers fill in only what the operation left unset.
+        let default_headers = &options.expect("Options not set").default_request_headers;
+        for (k, v) in default_headers {
+            if !input
+                .headers
+                .keys()
+                .any(|existing| existing.eq_ignore_ascii_case(k))
+            {
+                request_builder = request_builder.header(k, v);
+            }
+        }
+
         request_builder =
             request_builder.header(HTTP_HEADER_USER_AGENT, &self.inner_options.user_agent);
 
@@ -1248,6 +1289,238 @@ mod tests {
             err.to_string().contains("region is not set"),
             "unexpected error: {}",
             err
+        );
+    }
+
+    /// `Config::default_request_headers` must reach the request, and a header
+    /// the operation sets itself must win: the default only fills the gaps and
+    /// never appends a duplicate.
+    #[tokio::test]
+    async fn test_default_request_headers_fill_only_unset_headers() {
+        let client = Client::new(
+            &Config::default()
+                .with_endpoint("https://oss-cn-hangzhou.aliyuncs.com")
+                .with_region("cn-hangzhou")
+                .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
+                    "test-ak",
+                    "test-sk",
+                    &[],
+                )))
+                .with_signature_version(SignatureVersionType::V1)
+                .with_default_request_headers(vec![
+                    ("x-sdk-default".to_string(), "from-config".to_string()),
+                    ("x-op-owned".to_string(), "from-config".to_string()),
+                    // Empty keys and values cannot be set on a request, so they
+                    // are dropped instead of panicking.
+                    (String::new(), "no-key".to_string()),
+                    ("x-empty-value".to_string(), String::new()),
+                ]),
+        );
+
+        let input = OperationInput {
+            op_name: "GetBucketInfo".to_string(),
+            method: http::Method::GET,
+            bucket: Some("test-bucket".to_string()),
+            headers: [("x-op-owned".to_string(), "from-operation".to_string())]
+                .into_iter()
+                .collect(),
+            ..Default::default()
+        };
+
+        let context = client
+            .build_signing_context(input, Some(&client.options))
+            .await
+            .expect("signing context");
+        let request = context.request.expect("request");
+        let headers = request.headers();
+
+        assert_eq!(
+            headers.get("x-sdk-default").map(|v| v.to_str().unwrap()),
+            Some("from-config"),
+            "an unset header must come from the config"
+        );
+        assert_eq!(
+            headers.get("x-op-owned").map(|v| v.to_str().unwrap()),
+            Some("from-operation"),
+            "the operation's own header must win over the config"
+        );
+        assert_eq!(
+            headers.get_all("x-op-owned").iter().count(),
+            1,
+            "the default must not be appended on top of the operation's header"
+        );
+        assert!(
+            !headers.contains_key("x-empty-value"),
+            "a default header with an empty value must be dropped"
+        );
+    }
+
+    /// `Config::bind_address` must reach the socket layer: an address this host
+    /// owns is usable, one it does not own fails the connection.
+    #[tokio::test]
+    async fn test_bind_address_applies_to_outgoing_connections() {
+        let mut server = mockito::Server::new_async().await;
+        let ok = server
+            .mock("GET", mockito::Matcher::Any)
+            .with_status(200)
+            .with_body("")
+            .expect(1)
+            .create_async()
+            .await;
+
+        let input = OperationInput {
+            op_name: "GetBucketInfo".to_string(),
+            method: http::Method::GET,
+            bucket: Some("test-bucket".to_string()),
+            ..Default::default()
+        };
+
+        // 127.0.0.1 is owned by the host, so binding succeeds and the request
+        // still reaches the mock server.
+        let bound = Client::new(
+            &Config::default()
+                .with_endpoint(server.url().as_str())
+                .with_region("cn-hangzhou")
+                .with_bind_address("127.0.0.1".parse().unwrap())
+                .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
+                    "test-ak",
+                    "test-sk",
+                    &[],
+                )))
+                .with_signature_version(SignatureVersionType::V1)
+                .with_log_level(LogLevel::Off)
+                .with_retryer(Rc::new(crate::retry::NopRetryer::new())),
+        );
+        bound
+            .invoke_operation_inner(input.clone(), vec![])
+            .await
+            .expect("a loopback bind address must not break the request");
+        ok.assert_async().await;
+
+        // An address this host does not own cannot be bound, so the connection
+        // never leaves the client.
+        let unbound = Client::new(
+            &Config::default()
+                .with_endpoint(server.url().as_str())
+                .with_region("cn-hangzhou")
+                .with_bind_address("10.255.255.1".parse().unwrap())
+                .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
+                    "test-ak",
+                    "test-sk",
+                    &[],
+                )))
+                .with_signature_version(SignatureVersionType::V1)
+                .with_log_level(LogLevel::Off)
+                .with_retryer(Rc::new(crate::retry::NopRetryer::new())),
+        );
+        assert!(
+            unbound.invoke_operation_inner(input, vec![]).await.is_err(),
+            "binding to an address the host does not own must fail"
+        );
+    }
+
+    /// A product's bucket name resolver must replace the name the request is
+    /// signed with, while the URL keeps using the name from the request.
+    #[tokio::test]
+    async fn test_bucket_name_resolver_rewrites_the_signing_bucket() {
+        struct Resolver;
+
+        impl crate::client::BucketNameResolver for Resolver {
+            fn build_bucket_name(
+                &self,
+                input: &OperationInput,
+            ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+                Ok(format!(
+                    "{}-123-cn-hangzhou-ab-apsr",
+                    input.bucket.clone().unwrap_or_default()
+                ))
+            }
+        }
+
+        let mut client = Client::new(
+            &Config::default()
+                .with_endpoint("https://oss-cn-hangzhou.aliyuncs.com")
+                .with_region("cn-hangzhou")
+                .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
+                    "test-ak",
+                    "test-sk",
+                    &[],
+                )))
+                .with_signature_version(SignatureVersionType::V1),
+        );
+        client.options_mut().bucket_name_resolver = Some(Rc::new(Resolver));
+
+        let input = OperationInput {
+            op_name: "GetBucketInfo".to_string(),
+            method: http::Method::GET,
+            bucket: Some("short".to_string()),
+            ..Default::default()
+        };
+
+        let context = client
+            .build_signing_context(input, Some(&client.options))
+            .await
+            .expect("signing context");
+
+        assert_eq!(
+            context.bucket.as_deref(),
+            Some("short-123-cn-hangzhou-ab-apsr"),
+            "the resolver's name is what gets signed"
+        );
+        assert_eq!(
+            context.request.expect("request").url().host_str(),
+            Some("short.oss-cn-hangzhou.aliyuncs.com"),
+            "the URL still addresses the bucket from the request"
+        );
+    }
+
+    /// A product's endpoint provider must replace the whole request URL.
+    #[tokio::test]
+    async fn test_endpoint_provider_builds_the_request_url() {
+        struct Provider;
+
+        impl crate::client::EndpointProvider for Provider {
+            fn build_url(
+                &self,
+                input: &OperationInput,
+            ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+                Ok(format!(
+                    "https://{}-alias-ab-apsr.example.com/{}",
+                    input.bucket.clone().unwrap_or_default(),
+                    input.key.clone().unwrap_or_default()
+                ))
+            }
+        }
+
+        let mut client = Client::new(
+            &Config::default()
+                .with_endpoint("https://oss-cn-hangzhou.aliyuncs.com")
+                .with_region("cn-hangzhou")
+                .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
+                    "test-ak",
+                    "test-sk",
+                    &[],
+                )))
+                .with_signature_version(SignatureVersionType::V1),
+        );
+        client.options_mut().endpoint_provider = Some(Rc::new(Provider));
+
+        let input = OperationInput {
+            op_name: "GetObject".to_string(),
+            method: http::Method::GET,
+            bucket: Some("short".to_string()),
+            key: Some("k".to_string()),
+            ..Default::default()
+        };
+
+        let context = client
+            .build_signing_context(input, Some(&client.options))
+            .await
+            .expect("signing context");
+
+        assert_eq!(
+            context.request.expect("request").url().as_str(),
+            "https://short-alias-ab-apsr.example.com/k"
         );
     }
 

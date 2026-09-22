@@ -62,6 +62,9 @@ pub const CHECKPOINT_MAGIC: &str = "92611BED-89E2-46B6-89E5-72F273D4B0A3";
 // Product for signing
 pub const DEFAULT_PRODUCT: &str = "oss";
 
+// Product of cloud box for signing
+pub const CLOUD_BOX_PRODUCT: &str = "oss-cloudbox";
+
 // The URL's scheme, default is https
 pub const DEFAULT_ENDPOINT_SCHEME: &str = "https";
 

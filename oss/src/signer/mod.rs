@@ -1,5 +1,7 @@
+pub mod tables_v4;
 pub mod v1;
 pub mod v4;
+pub mod vectors_v4;
 
 pub use v1::*;
 pub use v4::*;

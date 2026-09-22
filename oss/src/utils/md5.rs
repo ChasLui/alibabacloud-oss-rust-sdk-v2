@@ -68,10 +68,19 @@ pub fn update_content_md5(
                 md5_b64.parse().unwrap(),
             );
         }
+    } else {
+        // No body at all: match the Go SDK, which signs the empty-body MD5.
+        input.headers.insert(
+            HTTP_HEADER_CONTENT_MD5.to_string(),
+            EMPTY_BODY_MD5.parse().unwrap(),
+        );
     }
 
     Ok(())
 }
+
+/// base64(md5("")) — what the service expects for a request with no body.
+const EMPTY_BODY_MD5: &str = "1B2M2Y8AsgTpgAmY7PhCfg==";
 
 #[cfg(test)]
 mod tests {
@@ -96,13 +105,9 @@ mod tests {
     }
 
     #[test]
-    fn test_update_content_md5_without_body() {
-        // let mut input = OperationInput::default();
-
-        let content = "";
-
+    fn test_update_content_md5_with_empty_text_body() {
         let mut input = OperationInput {
-            body: Some(BodyContent::from_text(content.to_string(), None)),
+            body: Some(BodyContent::from_text(String::new(), None)),
             ..Default::default()
         };
 
@@ -111,6 +116,19 @@ mod tests {
         assert_eq!(
             input.headers.get(HTTP_HEADER_CONTENT_MD5).unwrap(),
             "1B2M2Y8AsgTpgAmY7PhCfg=="
+        );
+    }
+
+    #[test]
+    fn test_update_content_md5_without_body() {
+        // No body at all: the empty-body MD5 is still signed, like the Go SDK.
+        let mut input = OperationInput::default();
+
+        update_content_md5(&mut input).unwrap();
+
+        assert_eq!(
+            input.headers.get(HTTP_HEADER_CONTENT_MD5).unwrap(),
+            EMPTY_BODY_MD5
         );
     }
 }

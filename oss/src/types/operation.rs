@@ -418,12 +418,20 @@ impl OperationInput {
     ///
     /// Returns an error if any of the input fields are invalid.
     pub fn validate(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        if self
-            .bucket
-            .as_ref()
-            .map_or(false, |b| !is_valid_bucket_name(b))
-        {
-            return Err("input.bucket is invalid".into());
+        if let Some(bucket) = &self.bucket {
+            // Some products address a bucket by ARN; those validate as an ARN
+            // rather than as a name. Mirrors Go's `validateInput`.
+            let is_bucket_arn = self
+                .op_metadata
+                .get(crate::OP_META_KEY_IS_BUCKET_ARN)
+                .and_then(|value| value.downcast_ref::<bool>())
+                .copied()
+                .unwrap_or(false);
+            if is_bucket_arn {
+                crate::utils::assert_validate_arn_bucket(bucket)?;
+            } else if !is_valid_bucket_name(bucket) {
+                return Err("input.bucket is invalid".into());
+            }
         }
         if self
             .key

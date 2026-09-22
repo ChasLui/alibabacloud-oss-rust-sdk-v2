@@ -4,6 +4,7 @@ mod copier;
 mod downloader;
 mod encryption;
 mod error_handler;
+mod extension;
 mod filelike;
 mod filelike_writeonly;
 mod invoker;
@@ -29,6 +30,7 @@ pub use self::copier::*;
 pub use self::downloader::*;
 pub use self::encryption::*;
 pub use self::error_handler::*;
+pub use self::extension::*;
 pub use self::filelike::*;
 pub use self::filelike_writeonly::*;
 pub use self::options::*;
@@ -182,6 +184,30 @@ pub enum OssResponse<'a> {
 // }
 
 impl Client {
+    /// Mutable access to the resolved client options.
+    ///
+    /// Products whose addressing rules differ from OSS's use this after
+    /// [`Client::new`] to install a [`BucketNameResolver`] or an
+    /// [`EndpointProvider`].
+    pub fn options_mut(&mut self) -> &mut ClientOptions {
+        &mut self.options
+    }
+
+    /// Creates a client for a configuration and then applies `option_modifiers`
+    /// on top of the resolved options.
+    #[allow(clippy::type_complexity)] // boxed closures are the point: they
+                                      // capture the product's provider
+    pub fn new_with_options(
+        config: &Config,
+        option_modifiers: Vec<Box<dyn Fn(&mut ClientOptions)>>,
+    ) -> Self {
+        let mut client = Client::new(config);
+        for modifier in option_modifiers {
+            modifier(&mut client.options);
+        }
+        client
+    }
+
     pub fn new(config: &Config) -> Self {
         let mut options = ClientOptions {
             product: DEFAULT_PRODUCT.to_string(),
@@ -192,6 +218,16 @@ impl Client {
             http_client: config.http_client.clone(),
             feature_flags: FeatureFlagsType::DEFAULT,
             additional_headers: config.additional_headers.clone(),
+            // Empty keys or values would panic when the header is set on the
+            // request, so they are dropped here, once. Mirrors Go's
+            // `resolveDefaultRequestHeaders`.
+            default_request_headers: config
+                .default_request_headers
+                .iter()
+                .filter(|(key, value)| !key.is_empty() && !value.is_empty())
+                .cloned()
+                .collect(),
+            account_id: config.account_id.clone(),
             ..Default::default()
         };
 
@@ -214,6 +250,7 @@ impl Client {
         resolve_signer(config, &mut options);
         resolve_url_style(config, &mut options);
         resolve_feature_flags(config, &mut options);
+        resolve_cloud_box(config, &mut options);
 
         // TODO add opt functions
 

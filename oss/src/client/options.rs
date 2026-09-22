@@ -6,7 +6,7 @@ use std::time::Duration;
 use chrono::TimeDelta;
 use url::Url;
 
-use crate::client::OssResponse;
+use crate::client::{BucketNameResolver, EndpointProvider, OssResponse};
 use crate::credential::CredentialsProvider;
 use crate::log::Logger;
 use crate::retry::Retryer;
@@ -49,6 +49,19 @@ pub struct ClientOptions {
     pub upload_bandwidth_limiter: Option<Arc<crate::utils::BwTokenBucket>>,
     pub auth_method: Option<AuthMethodType>,
     pub additional_headers: Vec<String>,
+    /// Headers sent with every request the client makes.
+    ///
+    /// An operation that sets the same header itself wins, so this only fills
+    /// in what the operation left unset. Mirrors Go's
+    /// `Config.DefaultRequestHeaders`.
+    pub default_request_headers: Vec<(String, String)>,
+    /// Rewrites the bucket name a request is signed with. Used by products
+    /// whose buckets are addressed by a derived name.
+    pub bucket_name_resolver: Option<Rc<dyn BucketNameResolver>>,
+    /// Builds the request URL for products with their own addressing rules.
+    pub endpoint_provider: Option<Rc<dyn EndpointProvider>>,
+    /// Account ID, required by products that address buckets per account.
+    pub account_id: Option<String>,
 }
 
 pub fn op_read_write_timeout(value: Duration) -> impl Fn(&mut ClientOptions) {

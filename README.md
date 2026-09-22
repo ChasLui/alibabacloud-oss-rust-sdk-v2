@@ -49,7 +49,7 @@ This SDK provides a comprehensive set of APIs for interacting with Alibaba Cloud
 - **Client-Side Encryption**: `EncryptionClient` — AES-CTR envelope encryption with an RSA master key, including ranged reads and multipart uploads
 - **Bandwidth Limits**: `with_upload_bandwidth_limit` / `with_download_bandwidth_limit` — token-bucket pacing on the body streams
 - **Pre-signed URLs**: `Client::presign` with V4/V1 signing for upload, download, and multipart workflows
-- **Paginators**: Ergonomic page-by-page iteration for all six list operations, with URL-decoded keys
+- **Paginators**: Ergonomic page-by-page iteration for every list operation — core, vector, agentic, table and data process — with URL-decoded keys
 - **Comprehensive Testing**: Extensive integration tests with automatic resource cleanup
 - **Flexible Configuration**: Support for various authentication methods
 - **Robust Error Handling**: Custom error types and retry mechanisms
@@ -189,6 +189,26 @@ let config = Config::default()
     // retryer is supplied explicitly.
     .with_retryer(Rc::new(Standard::new().with_max_attempts(5)))
     .with_log_level(LogLevel::Debug);
+```
+
+Additional client-level options:
+
+```rust
+let config = Config::default()
+    // Sent with every request, unless the operation sets the same header.
+    .with_default_request_headers(vec![("x-sdk".to_string(), "rust".to_string())])
+    // Bind outgoing connections to a local address.
+    .with_bind_address("10.0.0.5".parse().expect("valid address"))
+    // A cloud box is addressed by its ID rather than by a region; the product
+    // used for signing follows.
+    .with_cloud_box_id("cb-12345")
+    // Derive the cloud box ID from a `*.oss-cloudbox.aliyuncs.com` endpoint.
+    .with_enable_auto_detect_cloud_box_id(true)
+    // Required by products that address a bucket per account, such as vector
+    // and agentic buckets.
+    .with_account_id("1234567890")
+    // Cap the idle connections kept per host (default 100).
+    .with_max_connections(64);
 ```
 
 ## Examples
@@ -365,6 +385,72 @@ All operations take a request struct and return a result struct. Most configurat
 - `create_access_point` / `get_access_point` / `delete_access_point` / `list_access_points`
 - `get_access_point_policy` / `put_access_point_policy` / `delete_access_point_policy`
 - `get_access_point_public_access_block` / `put_access_point_public_access_block` / `delete_access_point_public_access_block`
+
+### Vector APIs (19 operations)
+
+Vector buckets are addressed per account and signed through an ARN path. Build
+the client with `Client::new_vectors`; `Config::with_account_id` and
+`Config::with_region` are required and the endpoint defaults to
+`{region}.oss-vectors.aliyuncs.com`.
+
+- `put_vector_bucket` / `get_vector_bucket` / `delete_vector_bucket` / `list_vector_buckets`
+- `put_vector_index` / `get_vector_index` / `delete_vector_index` / `list_vector_indexes`
+- `put_vectors` / `get_vectors` / `delete_vectors` / `list_vectors` / `query_vectors` - vector CRUD and similarity search
+- Bucket policy and logging reuse the bucket operations: `put_bucket_policy`, `get_bucket_policy`, `delete_bucket_policy`, `put_bucket_logging`, `get_bucket_logging`, `delete_bucket_logging`
+
+### Agentic Bucket APIs (19 operations)
+
+Agentic buckets are addressed per account. Build the client with
+`Client::new_agentic`; every request's `bucket` is a prefix that the client
+expands to `{prefix}-{accountId}-{region}-ab-apsr` for both signing and the
+request host. `BucketSpaceHelper::to_bucket_name` expands a prefix for bucket
+spaces, which are addressed with a plain `Client`.
+
+- `create_agentic_bucket` / `get_agentic_bucket` / `delete_agentic_bucket` / `list_agentic_buckets`
+- `put_agentic_bucket_acl` / `get_agentic_bucket_acl`
+- `put_agentic_bucket_encryption` / `get_agentic_bucket_encryption` / `delete_agentic_bucket_encryption`
+- `put_agentic_bucket_policy` / `get_agentic_bucket_policy` / `delete_agentic_bucket_policy`
+- `put_agentic_bucket_public_access_block` / `get_agentic_bucket_public_access_block` / `delete_agentic_bucket_public_access_block`
+- `put_agentic_bucket_status` / `put_agentic_bucket_versioning` / `get_agentic_bucket_versioning`
+- `list_bucket_spaces`
+
+### Table APIs (30 operations)
+
+Table buckets are addressed by ARN. Build the client with `Client::new_tables`;
+the endpoint defaults to `{region}.oss-tables.aliyuncs.com` and requests are
+signed with `SignerTablesV4`.
+
+- `create_table_bucket` / `get_table_bucket` / `delete_table_bucket` / `list_table_buckets`
+- `put_table_bucket_policy` / `get_table_bucket_policy` / `delete_table_bucket_policy`
+- `put_table_bucket_encryption` / `get_table_bucket_encryption` / `delete_table_bucket_encryption`
+- `put_table_bucket_maintenance_configuration` / `get_table_bucket_maintenance_configuration`
+- `create_namespace` / `get_namespace` / `delete_namespace` / `list_namespaces`
+- `create_table` / `get_table` / `delete_table` / `list_tables` / `rename_table`
+- `get_table_policy` / `put_table_policy` / `delete_table_policy`
+- `get_table_encryption`
+- `get_table_maintenance_configuration` / `put_table_maintenance_configuration` / `get_table_maintenance_job_status`
+- `get_table_metadata_location` / `update_table_metadata_location`
+
+### Data Process APIs (19 operations)
+
+Build the client with `Client::new_data_process`. Operations that live on the
+bucket (the meta query family) are re-exported here rather than duplicated, so
+`api::dataprocess` exposes the same method set as the Go package.
+
+- `create_dataset` / `get_dataset` / `update_dataset` / `delete_dataset` / `list_datasets`
+- `create_smart_cluster` / `get_smart_cluster` / `update_smart_cluster` / `delete_smart_cluster` / `list_smart_clusters`
+- `put_data_pipeline_configuration` / `get_data_pipeline_configuration` / `delete_data_pipeline_configuration` / `list_data_pipeline_configurations`
+- `pause_data_pipeline` / `restart_data_pipeline`
+- `simple_query` / `semantic_query` - query with the Go SDK's XML body plus JSON query parameters
+- `delete_file_meta`
+- Re-exported from the bucket APIs: `do_meta_query`, `open_meta_query`, `close_meta_query`, `get_meta_query_status`
+
+### ARN
+
+`arn::Arn` parses, builds and compares Alibaba Cloud Resource Names, and
+`arn::ArnResource::ensure_bucket_resource` validates the `bucket:{name}` form.
+Products that address a bucket by ARN (table buckets) validate it on the way
+in, exactly like the Go SDK's `AssertValidateArnBucket`.
 
 ### Concurrent Transfers
 
@@ -689,7 +775,7 @@ let result = client.presign(&put_request, Some(&options)).await?;
 
 ### Paginators
 
-All six list operations have paginators that handle markers, continuation tokens, and URL decoding:
+Every list operation has a paginator that handles markers, continuation tokens, and URL decoding:
 
 ```rust
 let mut paginator = client.list_objects_v2_paginator(ListObjectsV2Request {
@@ -705,7 +791,7 @@ while let Some(page) = paginator.next_page().await? {   // None when exhausted
 // paginator.limit = Some(100);  // optional page-size override
 ```
 
-Available: `list_objects_paginator`, `list_objects_v2_paginator`, `list_object_versions_paginator`, `list_buckets_paginator`, `list_parts_paginator`, `list_multipart_uploads_paginator`.
+Available: `list_objects_paginator`, `list_objects_v2_paginator`, `list_object_versions_paginator`, `list_buckets_paginator`, `list_parts_paginator`, `list_multipart_uploads_paginator`, `list_vector_buckets_paginator`, `list_vector_indexes_paginator`, `list_vectors_paginator`, `list_agentic_buckets_paginator`, `list_bucket_spaces_paginator`, `list_table_buckets_paginator`, `list_namespaces_paginator`, `list_tables_paginator`, `list_datasets_paginator`, `list_smart_clusters_paginator`, `list_data_pipeline_configurations_paginator`.
 
 Notes:
 

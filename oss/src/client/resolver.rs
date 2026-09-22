@@ -17,7 +17,10 @@ use crate::utils::{
     add_endpoint_scheme, endpoint_from_region, is_valid_region, BwTokenBucket, EndpointType,
     DEFAULT_USER_AGENT,
 };
-use crate::{FeatureFlagsType, SignatureVersionType, UrlStyleType, DEFAULT_SIGNATURE_VERSION};
+use crate::{
+    FeatureFlagsType, SignatureVersionType, UrlStyleType, CLOUD_BOX_PRODUCT,
+    DEFAULT_SIGNATURE_VERSION,
+};
 
 /// Resolves the endpoint based on the provided configuration and updates the
 /// client options. If a custom endpoint is specified, it is used. Otherwise,
@@ -74,6 +77,7 @@ pub fn resolve_http_client(config: &Config, client_options: &mut ClientOptions) 
     let transport_config = TransportConfig {
         connect_timeout: config.connect_timeout,
         read_write_timeout: config.read_write_timeout,
+        max_connections: config.max_connections,
         enabled_redirect: config.enabled_redirect,
         insecure_skip_verify: config.insecure_skip_verify,
         use_env_proxy: config.proxy_from_environment,
@@ -81,6 +85,7 @@ pub fn resolve_http_client(config: &Config, client_options: &mut ClientOptions) 
             .proxy_host
             .as_ref()
             .map(|proxy_string| proxy_string.parse().expect("Invalid proxy string")),
+        bind_address: config.bind_address,
         ..Default::default()
     };
 
@@ -158,6 +163,47 @@ pub fn resolve_feature_flags(config: &Config, client_options: &mut ClientOptions
     if config.disable_upload_crc64_check.unwrap_or(false) {
         client_options.feature_flags &= !FeatureFlagsType::ENABLE_CRC64_CHECK_UPLOAD;
     }
+}
+
+/// Resolves the cloud box settings.
+///
+/// A cloud box is addressed by its ID instead of a region, and signs with the
+/// cloud box product. The ID can also be derived from the endpoint, which is
+/// the only place a cloud box deployment announces itself. Mirrors Go's
+/// `resolveCloudBox`.
+pub fn resolve_cloud_box(config: &Config, client_options: &mut ClientOptions) {
+    if let Some(cloud_box_id) = &config.cloud_box_id {
+        client_options.region = cloud_box_id.clone();
+        client_options.product = CLOUD_BOX_PRODUCT.to_string();
+        return;
+    }
+
+    if !config.enable_auto_detect_cloud_box_id.unwrap_or(false) {
+        return;
+    }
+
+    let Some(endpoint) = &client_options.endpoint else {
+        return;
+    };
+    let Some(host) = endpoint.host_str() else {
+        return;
+    };
+
+    // cb-***.{region}.oss-cloudbox.aliyuncs.com
+    // cb-***.{region}.oss-cloudbox-control.aliyuncs.com
+    if !(host.ends_with(".oss-cloudbox.aliyuncs.com")
+        || host.ends_with(".oss-cloudbox-control.aliyuncs.com"))
+    {
+        return;
+    }
+
+    let keys: Vec<&str> = host.split('.').collect();
+    if keys.len() != 5 || !keys[0].starts_with("cb-") {
+        return;
+    }
+
+    client_options.region = keys[0].to_string();
+    client_options.product = CLOUD_BOX_PRODUCT.to_string();
 }
 
 /// Builds the user agent string based on the provided configuration.
@@ -358,5 +404,47 @@ mod tests {
 
         assert!(user_agent.starts_with("alibabacloud-oss-sdk-rust-v2/"));
         assert!(user_agent.ends_with("/CustomAgent/1.0"));
+    }
+
+    #[test]
+    fn test_resolve_cloud_box_from_config() {
+        let config = Config::default().with_cloud_box_id("cb-12345");
+        let mut client_options = ClientOptions::default();
+
+        resolve_cloud_box(&config, &mut client_options);
+
+        assert_eq!(client_options.region, "cb-12345");
+        assert_eq!(client_options.product, CLOUD_BOX_PRODUCT);
+    }
+
+    #[test]
+    fn test_resolve_cloud_box_detected_from_endpoint() {
+        let config = Config::default().with_enable_auto_detect_cloud_box_id(true);
+        let mut client_options = ClientOptions {
+            endpoint: Some(
+                Url::parse("https://cb-12345.cn-hangzhou.oss-cloudbox.aliyuncs.com").unwrap(),
+            ),
+            ..Default::default()
+        };
+
+        resolve_cloud_box(&config, &mut client_options);
+
+        assert_eq!(client_options.region, "cb-12345");
+        assert_eq!(client_options.product, CLOUD_BOX_PRODUCT);
+    }
+
+    #[test]
+    fn test_resolve_cloud_box_ignores_ordinary_endpoint() {
+        let config = Config::default().with_enable_auto_detect_cloud_box_id(true);
+        let mut client_options = ClientOptions {
+            endpoint: Some(Url::parse("https://oss-cn-hangzhou.aliyuncs.com").unwrap()),
+            product: crate::DEFAULT_PRODUCT.to_string(),
+            ..Default::default()
+        };
+
+        resolve_cloud_box(&config, &mut client_options);
+
+        assert_eq!(client_options.region, "");
+        assert_eq!(client_options.product, crate::DEFAULT_PRODUCT);
     }
 }

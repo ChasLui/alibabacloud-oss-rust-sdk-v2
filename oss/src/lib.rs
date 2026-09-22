@@ -1,4 +1,5 @@
 pub mod api;
+pub mod arn;
 pub mod client;
 pub mod config;
 pub mod credential;
