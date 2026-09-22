@@ -35,7 +35,7 @@ pub struct UploadPartRequest {
     pub content_md5: Option<String>,
 
     /// Progress callback function
-    pub progress_fn: Option<Box<dyn Fn(i64, i64)>>,
+    pub progress_fn: Option<Box<dyn Fn(i64, i64) + Send + Sync>>,
 
     /// To indicate that the requester is aware that the request and data
     /// download will incur costs
@@ -119,7 +119,7 @@ impl Client {
     /// ```
     pub async fn upload_part(
         &self,
-        request: UploadPartRequest,
+        mut request: UploadPartRequest,
     ) -> Result<UploadPartResult, Box<dyn std::error::Error + Send + Sync>> {
         let headers = request.header_map();
         let queries = request.query_map();
@@ -151,6 +151,16 @@ impl Client {
 
         // Client-side CRC64 check over the bytes actually sent. Mirrors Go
         // `Client.UploadPart`'s `c.addCrcCheck`.
+        if let Some(progress_fn) = request.progress_fn.take() {
+            let total = input
+                .body
+                .as_ref()
+                .and_then(|body| body.content_length())
+                .map(|len| len as i64)
+                .unwrap_or(0);
+            crate::utils::add_progress_tracker(&mut input, progress_fn, total);
+        }
+
         add_crc64_check(
             &mut input,
             0,

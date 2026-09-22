@@ -102,7 +102,7 @@ pub struct GetObjectRequest {
     pub traffic_limit: Option<u64>,
 
     /// Progress callback function
-    pub progress_fn: Option<Box<dyn Fn(i64, i64)>>,
+    pub progress_fn: Option<Box<dyn Fn(i64, i64) + Send + Sync>>,
 
     /// Image processing parameters
     #[field(type = "query", rename = "x-oss-process")]
@@ -316,7 +316,7 @@ impl Client {
     /// ```
     pub async fn get_object(
         &self,
-        request: GetObjectRequest,
+        mut request: GetObjectRequest,
     ) -> Result<GetObjectResult, Box<dyn std::error::Error + Send + Sync>> {
         let mut input = OperationInput {
             op_name: "GetObject".to_string(),
@@ -332,6 +332,10 @@ impl Client {
             request.query_map(),
             vec![update_content_md5],
         )?;
+
+        if let Some(progress_fn) = request.progress_fn.take() {
+            crate::utils::add_response_progress_tracker(&mut input, progress_fn);
+        }
 
         let output = self.invoke_operation(input, vec![]).await?;
 
@@ -459,6 +463,243 @@ impl Client {
         }
 
         Ok(result)
+    }
+
+    /// Downloads the object into a local file, reconnecting where it stopped.
+    ///
+    /// Compared to [`Client::get_object_to_file`], this:
+    ///
+    /// 1. Buffers writes when `write_buffer_size` is set, so a large object
+    ///    costs fewer write syscalls. `None` writes each chunk straight
+    ///    through.
+    /// 2. Reconnects from the byte it stopped at when the connection drops, so
+    ///    an unstable link does not restart the download. Each reconnect
+    ///    re-requests only the bytes that are still missing.
+    ///
+    /// A reconnect refuses to continue if the object's ETag changed: the file
+    /// would otherwise be a splice of two different objects, which is worse
+    /// than a failed download. Mirrors Go `Client.GetObjectToFileV2`.
+    ///
+    /// # Arguments
+    ///
+    /// * `request` - The `GetObjectRequest` describing the object to download.
+    /// * `file_path` - Where the object is written. An existing file is
+    ///   truncated; the parent directory must exist.
+    /// * `write_buffer_size` - Bytes to buffer before writing through, or
+    ///   `None` to write each chunk as it arrives.
+    pub async fn get_object_to_file_v2(
+        &self,
+        mut request: GetObjectRequest,
+        file_path: impl AsRef<std::path::Path>,
+        write_buffer_size: Option<usize>,
+    ) -> Result<GetObjectResult, Box<dyn std::error::Error + Send + Sync>> {
+        let file_path = file_path.as_ref();
+
+        // Where the caller wants the download to start, and how much of it. A
+        // count of zero means "to the end of the object".
+        let requested = match request.range.as_deref() {
+            Some(range) => Some(crate::utils::parse_range(range).map_err(
+                |e| -> Box<dyn std::error::Error + Send + Sync> { e.to_string().into() },
+            )?),
+            None => None,
+        };
+        let start = requested.as_ref().map(|range| range.offset).unwrap_or(0);
+        let requested_count = requested.as_ref().map(|range| range.count).unwrap_or(0);
+
+        // A ranged download sees a slice of the object, so the whole-object
+        // CRC cannot be checked against it.
+        let check_crc = self
+            .options
+            .feature_flags
+            .contains(crate::FeatureFlagsType::ENABLE_CRC64_CHECK_DOWNLOAD)
+            && request.range.is_none();
+
+        // The callback reports the whole download rather than one attempt, so
+        // it is taken out of the request before the loop starts rebuilding it.
+        let progress_fn = request.progress_fn.take();
+
+        let file = tokio::fs::File::create(file_path).await?;
+        let mut writer: Box<dyn tokio::io::AsyncWrite + Unpin + Send> = match write_buffer_size {
+            Some(size) if size > 0 => Box::new(tokio::io::BufWriter::with_capacity(size, file)),
+            _ => Box::new(file),
+        };
+
+        let mut offset = start;
+        let mut transferred: i64 = 0;
+        let mut crc = crate::utils::Crc64::new(0);
+        let mut first: Option<GetObjectResult> = None;
+        let mut etag: Option<String> = None;
+        let mut total: i64 = -1;
+
+        loop {
+            // What is left of the caller's range, counted from where this
+            // attempt picks up.
+            let remaining = if requested_count > 0 {
+                requested_count - (offset - start)
+            } else {
+                0
+            };
+            if requested_count > 0 && remaining <= 0 {
+                break;
+            }
+
+            // A whole-object download carries no Range header at all, which is
+            // what keeps its response a 200 rather than a 206.
+            let range_header = if offset == 0 && remaining == 0 {
+                None
+            } else if remaining > 0 {
+                Some(format!("bytes={}-{}", offset, offset + remaining - 1))
+            } else {
+                Some(format!("bytes={}-", offset))
+            };
+
+            let mut input = OperationInput {
+                op_name: "GetObject".to_string(),
+                method: http::Method::GET,
+                bucket: Some(request.bucket.clone()),
+                key: Some(request.key.clone()),
+                ..Default::default()
+            };
+            let mut headers = request.header_map();
+            match &range_header {
+                Some(range) => {
+                    headers.insert("Range".to_string(), range.clone());
+                    // `standard` stops the server answering an out-of-range
+                    // request with the whole object, which would append bytes
+                    // the caller never asked for.
+                    headers.insert("x-oss-range-behavior".to_string(), "standard".to_string());
+                }
+                None => {
+                    headers.remove("Range");
+                    headers.remove("x-oss-range-behavior");
+                }
+            }
+            modify_request(
+                &mut input,
+                headers,
+                request.query_map(),
+                vec![update_content_md5],
+            )?;
+
+            let output = self.invoke_operation(input, vec![]).await?;
+            let mut result = GetObjectResult::default();
+            result.update_result(&output);
+
+            // Where the response actually starts, and how large the object is.
+            let (response_start, response_total) = match result.content_range.as_deref() {
+                Some(content_range) => {
+                    let (from, _, total) =
+                        crate::utils::parse_content_range(content_range).map_err(
+                            |e| -> Box<dyn std::error::Error + Send + Sync> { e.to_string().into() },
+                        )?;
+                    (from, total)
+                }
+                None => (
+                    0,
+                    result.content_length.map(|len| len as i64).unwrap_or(-1),
+                ),
+            };
+            if response_start != offset {
+                return Err(format!(
+                    "range get returned the wrong offset: asked for {}, got {}",
+                    offset, response_start
+                )
+                .into());
+            }
+
+            match first {
+                None => {
+                    // The first response fixes the object's identity and size.
+                    etag = result.etag.clone();
+                    total = response_total;
+                    first = Some(result);
+                }
+                Some(_) => {
+                    // A reconnect that lands on a different object would write
+                    // a file made of two of them.
+                    if result.etag != etag {
+                        return Err(format!(
+                            "source object changed during the download: expected etag {:?}, got {:?}",
+                            etag, result.etag
+                        )
+                        .into());
+                    }
+                }
+            }
+
+            let body = output
+                .body
+                .ok_or_else(|| -> Box<dyn std::error::Error + Send + Sync> {
+                    "GetObject returned no body".into()
+                })?;
+            let mut body = std::pin::pin!(body);
+            let before = offset;
+            let mut interrupted = false;
+
+            while let Some(chunk) = body.next().await {
+                let chunk = match chunk {
+                    Ok(chunk) => chunk,
+                    Err(_) => {
+                        // The connection dropped mid-body. Whatever arrived is
+                        // already on its way to disk, so the next attempt only
+                        // asks for what is missing.
+                        interrupted = true;
+                        break;
+                    }
+                };
+                if check_crc {
+                    crc.write(&chunk)
+                        .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
+                            e.to_string().into()
+                        })?;
+                }
+                tokio::io::AsyncWriteExt::write_all(&mut writer, &chunk).await?;
+                offset += chunk.len() as i64;
+                transferred += chunk.len() as i64;
+                if let Some(progress_fn) = &progress_fn {
+                    progress_fn(transferred, total);
+                }
+            }
+
+            if !interrupted {
+                break;
+            }
+            if offset == before {
+                // A reconnect that moves nothing would spin forever.
+                return Err(format!("download stalled at byte {}", offset).into());
+            }
+        }
+
+        tokio::io::AsyncWriteExt::flush(&mut writer).await?;
+
+        // A body that ends early would leave a truncated file behind, so the
+        // byte count is checked rather than assumed.
+        let expected = if requested_count > 0 {
+            requested_count
+        } else if total > 0 {
+            total - start
+        } else {
+            -1
+        };
+        if expected >= 0 && offset - start != expected {
+            return Err(format!(
+                "download ended after {} of {} bytes",
+                offset - start,
+                expected
+            )
+            .into());
+        }
+
+        let first = first.ok_or_else(|| -> Box<dyn std::error::Error + Send + Sync> {
+            "download made no request".into()
+        })?;
+
+        if check_crc {
+            crate::utils::check_crc64(crc.sum64(), first.hash_crc64.as_deref())
+                .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.into() })?;
+        }
+
+        Ok(first)
     }
 }
 

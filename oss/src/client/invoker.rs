@@ -130,26 +130,40 @@ impl Client {
         // let request_clone = request.try_clone().expect("Unable to clone request");
         
         if status.is_success() {
+            // Read before `bytes_stream` consumes the response.
+            let content_length = response.content_length();
             let stream = response.bytes_stream();
-            let body = match self.options.download_bandwidth_limiter.clone() {
-                Some(limiter) => {
-                    let paced = futures_util::stream::unfold(
-                        (stream, limiter),
-                        |(mut stream, limiter)| async move {
-                            match futures_util::StreamExt::next(&mut stream).await {
-                                Some(item) => {
-                                    if let Ok(ref chunk) = item {
+            let progress = crate::utils::take_response_progress_tracker(&input_clone);
+            if let Some(ref progress) = progress {
+                // The size of a download is only known once the response is in.
+                if let Some(total) = content_length {
+                    crate::utils::set_total(progress, total as i64);
+                }
+            }
+            let limiter = self.options.download_bandwidth_limiter.clone();
+            let body = if limiter.is_some() || progress.is_some() {
+                let paced = futures_util::stream::unfold(
+                    (stream, limiter, progress),
+                    |(mut stream, limiter, progress)| async move {
+                        match futures_util::StreamExt::next(&mut stream).await {
+                            Some(item) => {
+                                if let Ok(ref chunk) = item {
+                                    if let Some(limiter) = &limiter {
                                         limiter.limit_bandwidth(chunk.len()).await;
                                     }
-                                    Some((item, (stream, limiter)))
+                                    if let Some(progress) = &progress {
+                                        crate::utils::update_response_progress(progress, chunk);
+                                    }
                                 }
-                                None => None,
+                                Some((item, (stream, limiter, progress)))
                             }
-                        },
-                    );
-                    Some(Box::pin(paced) as BodyStream)
-                }
-                None => Some(Box::pin(stream) as BodyStream),
+                            None => None,
+                        }
+                    },
+                );
+                Some(Box::pin(paced) as BodyStream)
+            } else {
+                Some(Box::pin(stream) as BodyStream)
             };
             Ok(OperationOutput {
                 input: Some(Rc::new(input_clone)),  // 使用之前克隆的完整input
@@ -314,7 +328,7 @@ impl Client {
             // Trackers observe the bytes actually sent, which is how
             // integrity checks (CRC64) see the request body. Registered by
             // `utils::add_crc64_check` under `OP_META_KEY_REQUEST_BODY_TRACKER`.
-            let trackers: Vec<Arc<dyn BodyTracker>> = input
+            let mut trackers: Vec<Arc<dyn BodyTracker>> = input
                 .op_metadata
                 .values(crate::OP_META_KEY_REQUEST_BODY_TRACKER)
                 .into_iter()
@@ -322,6 +336,16 @@ impl Client {
                 .filter_map(|v| v.clone().downcast::<crate::Crc64Tracker>().ok())
                 .map(|v| Arc::new((*v).clone()) as Arc<dyn BodyTracker>)
                 .collect();
+
+            // The progress callback observes the same bytes, so it is attached
+            // as one more tracker rather than a parallel path.
+            if let Some(progress) = input
+                .op_metadata
+                .get(crate::OP_META_KEY_PROGRESS_TRACKER)
+                .and_then(|v| v.downcast_ref::<crate::utils::ProgressTracker>())
+            {
+                trackers.push(progress.handle());
+            }
 
             let body = content
                 .into_reqwest_body_with_limit(

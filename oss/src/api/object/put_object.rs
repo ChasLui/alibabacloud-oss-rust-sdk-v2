@@ -104,7 +104,7 @@ pub struct PutObjectRequest {
                                                            * runtime */
 
     /// Progress callback function
-    pub progress_fn: Option<Box<dyn Fn(i64, i64)>>,
+    pub progress_fn: Option<Box<dyn Fn(i64, i64) + Send + Sync>>,
 
     /// To indicate that the requester is aware that the request and data
     /// download will incur costs
@@ -218,6 +218,18 @@ impl Client {
                 .feature_flags
                 .contains(FeatureFlagsType::ENABLE_CRC64_CHECK_UPLOAD),
         );
+
+        // The callback was declared on the request but never called; wiring it
+        // here is what makes it report anything at all.
+        if let Some(progress_fn) = request.progress_fn.take() {
+            let total = input
+                .body
+                .as_ref()
+                .and_then(|body| body.content_length())
+                .map(|len| len as i64)
+                .unwrap_or(0);
+            crate::utils::add_progress_tracker(&mut input, progress_fn, total);
+        }
 
         let mut output = self.invoke_operation(input, vec![]).await?;
 

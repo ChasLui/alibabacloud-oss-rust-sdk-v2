@@ -166,6 +166,8 @@ impl AuthMethodType {
 // OperationMetadata Keys
 pub const OP_META_KEY_RESPONSE_HANDLER: &str = "opm-response-handler";
 pub const OP_META_KEY_REQUEST_BODY_TRACKER: &str = "opm-request-body-tracker";
+pub const OP_META_KEY_PROGRESS_TRACKER: &str = "opm-progress-tracker";
+pub const OP_META_KEY_RESPONSE_PROGRESS_TRACKER: &str = "opm-response-progress-tracker";
 
 // Environment variables
 pub const ENV_OSS_SDK_LOG_LEVEL: &str = "OSS_SDK_LOG_LEVEL";

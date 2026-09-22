@@ -16,6 +16,7 @@ Rust SDK for [Alibaba Cloud Object Storage Service (OSS)](https://www.alibabaclo
   - [File-Like Handles](#file-like-handles)
   - [Client-Side Encryption](#client-side-encryption)
   - [Bandwidth Limits](#bandwidth-limits)
+  - [Progress Reporting](#progress-reporting)
   - [Presigning](#presigning)
   - [Paginators](#paginators)
 
@@ -470,6 +471,60 @@ Notes:
 - **Uploads trust the service, not the checkpoint.** The checkpoint records only the upload ID; which parts exist is read back with `ListParts`, so a part the service never accepted is uploaded again. Only a run of full parts from part 1 is adopted — a short part in the middle would leave a hole.
 - **A stale checkpoint is discarded, not resumed.** A checkpoint whose object, size, modification time, or part size does not match the transfer at hand is removed and the transfer starts fresh.
 - **The checkpoint is removed only after the object exists.** A crash between completion and removal resumes an upload that is already done rather than losing the fact that it was.
+
+A single-request download can resume too, without a checkpoint file:
+
+```rust
+let result = client
+    .get_object_to_file_v2(
+        GetObjectRequest {
+            bucket: "my-bucket".to_string(),
+            key: "large.bin".to_string(),
+            ..Default::default()
+        },
+        "/local/large.bin",
+        Some(64 * 1024), // write buffer; None writes each chunk through
+    )
+    .await?;
+```
+
+- **It resumes within the request, not across processes.** A dropped connection re-requests only the bytes still missing, so an unstable link does not restart the transfer. Nothing is written to disk to make that work, which also means a resumed attempt after a restart starts over.
+- **A changed object stops the download.** Each reconnect compares the ETag: continuing would write a file made of two versions of the object.
+- **The byte count is checked, not assumed.** A body that ends early fails rather than leaving a truncated file that looks complete.
+- Reach for this over `download_file_with_checkpoint` when the object is moderate and one connection is enough; reach for the latter when it is large enough to want parallel parts and cross-process resume.
+
+### Progress Reporting
+
+`progress_fn` on `PutObjectRequest`, `UploadPartRequest` and `GetObjectRequest` is called as bytes move, with `(transferred, total)`:
+
+```rust
+use std::sync::{Arc, Mutex};
+
+let seen = Arc::new(Mutex::new(0i64));
+let sink = seen.clone();
+let progress = Box::new(move |transferred: i64, total: i64| {
+    *sink.lock().unwrap() = transferred;
+    // `total` is 0 when the size is not known up front.
+    if total > 0 {
+        println!("{transferred}/{total}");
+    }
+});
+
+client
+    .put_object(PutObjectRequest {
+        bucket: "my-bucket".to_string(),
+        key: "large.bin".to_string(),
+        body: Some(BodyContent::from_file_path("/local/large.bin", size, None).await?),
+        progress_fn: Some(progress),
+        ..Default::default()
+    })
+    .await?;
+```
+
+- **`total` is the whole transfer.** For an upload it is the body's length; for a download it is the response's `Content-Length`. It is `0` when the size is not known when the request is built.
+- **The count is cumulative, and a retry restarts it.** A retried body reports from zero again, so a progress bar never runs past its total.
+- **A download reports as its body is read.** The callback fires when the stream is consumed, so a caller who never reads the body sees no progress.
+- The callback must be `Send + Sync`, because it rides the body stream.
 
 ### Server-Side Copy
 

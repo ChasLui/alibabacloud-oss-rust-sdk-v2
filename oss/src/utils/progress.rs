@@ -1,124 +1,184 @@
-use std::io::{self, Write};
+//! Transfer progress reporting.
+//!
+//! The callback declared on `PutObjectRequest`, `UploadPartRequest` and
+//! `GetObjectRequest` was previously never invoked: a caller could set one and
+//! simply never hear from it. It is wired through the same body-tracking path
+//! the CRC64 checks use, which is the only place the SDK sees every byte.
 
-/// Type alias for the progress function.
-#[allow(unused)]
-pub(crate) type ProgressFunc = fn(increment: i64, transferred: i64, total: i64);
+use std::any::Any;
+use std::rc::Rc;
+use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::Arc;
 
-/// Struct that tracks the progress of a write operation.
-#[allow(unused)]
+use crate::constants::{OP_META_KEY_PROGRESS_TRACKER, OP_META_KEY_RESPONSE_PROGRESS_TRACKER};
+use crate::types::operation::{BodyTracker, OperationInput};
+
+/// Reports transferred bytes to a caller-supplied callback.
+///
+/// The counters live behind an `Arc` so a handle can be registered in
+/// `OperationMetadata` (which stores `Rc`) while another rides the body stream,
+/// which requires `Send`.
 pub(crate) struct ProgressTracker {
-    progress: ProgressFunc,
-    written: i64,
-    last_written: i64,
-    total: i64,
+    inner: Arc<ProgressInner>,
 }
 
-#[allow(unused)]
+pub(crate) struct ProgressInner {
+    /// Called with `(transferred, total)` after each chunk.
+    callback: Box<dyn Fn(i64, i64) + Send + Sync>,
+    transferred: AtomicI64,
+    /// The size of the transfer, or 0 while it is still unknown.
+    total: AtomicI64,
+}
+
 impl ProgressTracker {
-    /// Creates a new `ProgressTracker` instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `progress` - The progress function to be called during the write
-    ///   operation.
-    /// * `total` - The total number of bytes to be written.
-    pub(crate) fn new(progress: ProgressFunc, total: i64) -> Self {
+    fn new(callback: Box<dyn Fn(i64, i64) + Send + Sync>, total: i64) -> Self {
         ProgressTracker {
-            progress,
-            written: 0,
-            last_written: 0,
-            total,
+            inner: Arc::new(ProgressInner {
+                callback,
+                transferred: AtomicI64::new(0),
+                total: AtomicI64::new(total),
+            }),
         }
-    }
-
-    /// Resets the progress tracker by setting the written bytes to zero.
-    pub(crate) fn reset(&mut self) {
-        self.last_written = self.written;
-        self.written = 0;
     }
 }
 
-impl Write for ProgressTracker {
-    /// Writes the contents of `buf` to the underlying writer and updates the
-    /// progress.
+impl ProgressTracker {
+    /// A handle that can ride a `Send` body stream.
     ///
-    /// # Arguments
-    ///
-    /// * `buf` - The buffer containing the data to be written.
-    ///
-    /// # Returns
-    ///
-    /// The number of bytes written.
-    ///
-    /// # Errors
-    ///
-    /// This function will return an `io::Error` if the underlying writer
-    /// encounters an error.
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let n = buf.len();
-        self.written += n as i64;
-        if self.written > self.last_written {
-            (self.progress)(n as i64, self.written, self.total);
-        }
-        Ok(n)
+    /// The tracker itself cannot be `Clone` (its callback is a `Box<dyn Fn>`),
+    /// but the state behind it can be shared.
+    pub(crate) fn handle(&self) -> Arc<dyn BodyTracker> {
+        Arc::new(ProgressTracker {
+            inner: self.inner.clone(),
+        })
     }
+}
 
-    /// Flushes the underlying writer.
-    ///
-    /// # Errors
-    ///
-    /// This function will return an `io::Error` if the underlying writer
-    /// encounters an error.
-    fn flush(&mut self) -> io::Result<()> {
+impl BodyTracker for ProgressTracker {
+    fn update(&self, chunk: &[u8]) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let transferred = self
+            .inner
+            .transferred
+            .fetch_add(chunk.len() as i64, Ordering::Relaxed)
+            + chunk.len() as i64;
+        (self.inner.callback)(transferred, self.inner.total.load(Ordering::Relaxed));
         Ok(())
     }
+
+    fn reset(&self) {
+        // A retried body starts over, so the count does too: a caller drawing a
+        // progress bar would otherwise watch it run past 100%.
+        self.inner.transferred.store(0, Ordering::Relaxed);
+    }
+}
+
+/// Attaches `callback` to `input` so it reports the bytes of a request body.
+///
+/// `total` is what the callback receives as the second argument; pass 0 when
+/// the size is not known in advance.
+pub(crate) fn add_progress_tracker(
+    input: &mut OperationInput,
+    callback: Box<dyn Fn(i64, i64) + Send + Sync>,
+    total: i64,
+) {
+    let tracker = Rc::new(ProgressTracker::new(callback, total));
+    input
+        .op_metadata
+        .set(OP_META_KEY_PROGRESS_TRACKER, tracker as Rc<dyn Any>);
+}
+
+/// Attaches `callback` to `input` so it reports the bytes of a response body.
+///
+/// A download's size is only known once the response arrives, so the callback
+/// is handed the `Content-Length` of that response as its total.
+pub(crate) fn add_response_progress_tracker(
+    input: &mut OperationInput,
+    callback: Box<dyn Fn(i64, i64) + Send + Sync>,
+) {
+    let tracker = Rc::new(ProgressTracker::new(callback, 0));
+    input.op_metadata.set(
+        OP_META_KEY_RESPONSE_PROGRESS_TRACKER,
+        tracker as Rc<dyn Any>,
+    );
+}
+
+/// Takes the response-side tracker out of `input`, if one was registered.
+///
+/// Returns a handle that can ride a `Send` stream. Its total is filled in from
+/// the response's `Content-Length` by [`set_total`] before the stream is built.
+pub(crate) fn take_response_progress_tracker(input: &OperationInput) -> Option<Arc<ProgressInner>> {
+    input
+        .op_metadata
+        .values(OP_META_KEY_RESPONSE_PROGRESS_TRACKER)
+        .into_iter()
+        .flatten()
+        .find_map(|value| value.clone().downcast::<ProgressTracker>().ok())
+        .map(|tracker| tracker.inner.clone())
+}
+
+/// Records the size of a response so the callback can report a percentage.
+pub(crate) fn set_total(inner: &ProgressInner, total: i64) {
+    inner.total.store(total, Ordering::Relaxed);
+}
+
+/// Feeds a chunk to a response-side tracker.
+pub(crate) fn update_response_progress(inner: &ProgressInner, chunk: &[u8]) {
+    let transferred = inner
+        .transferred
+        .fetch_add(chunk.len() as i64, Ordering::Relaxed)
+        + chunk.len() as i64;
+    (inner.callback)(transferred, inner.total.load(Ordering::Relaxed));
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
 
-    fn dummy_progress_func(_: i64, _: i64, _: i64) {}
-
-    #[test]
-    fn test_write_updates_written() {
-        let mut progress = ProgressTracker::new(dummy_progress_func, 100);
-        let buf = [0u8; 10];
-        let _ = progress.write(&buf).unwrap();
-        assert_eq!(progress.written, 10);
+    /// Records every callback invocation as `(transferred, total)`.
+    fn recorder() -> (Box<dyn Fn(i64, i64) + Send + Sync>, Arc<Mutex<Vec<(i64, i64)>>>) {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let sink = seen.clone();
+        let callback = Box::new(move |transferred: i64, total: i64| {
+            sink.lock().expect("lock").push((transferred, total));
+        });
+        (callback, seen)
     }
 
     #[test]
-    fn test_write_calls_progress_func() {
-        let mut progress = ProgressTracker::new(dummy_progress_func, 100);
-        let buf = [0u8; 10];
-        let _ = progress.write(&buf).unwrap();
-        assert_eq!(progress.last_written, 0);
-        assert_eq!(progress.written, 10);
+    fn reports_cumulative_bytes() {
+        let (callback, seen) = recorder();
+        let tracker = ProgressTracker::new(callback, 100);
+
+        tracker.update(&[0u8; 10]).expect("update");
+        tracker.update(&[0u8; 5]).expect("update");
+
+        assert_eq!(*seen.lock().expect("lock"), vec![(10, 100), (15, 100)]);
     }
 
     #[test]
-    fn test_write_does_not_call_progress_func_if_written_not_greater_than_last_written() {
-        let mut progress = ProgressTracker::new(dummy_progress_func, 100);
-        let buf = [0u8; 5];
-        let _ = progress.write(&buf).unwrap();
-        assert_eq!(progress.last_written, 0);
-        assert_eq!(progress.written, 5);
+    fn a_retried_body_restarts_the_count() {
+        let (callback, seen) = recorder();
+        let tracker = ProgressTracker::new(callback, 100);
+
+        tracker.update(&[0u8; 10]).expect("update");
+        tracker.reset();
+        tracker.update(&[0u8; 10]).expect("update");
+
+        // Without the reset the caller would see 10 then 20 against a total of
+        // 100, and a retry would look like progress it did not make.
+        assert_eq!(*seen.lock().expect("lock"), vec![(10, 100), (10, 100)]);
     }
 
     #[test]
-    fn test_reset_resets_written() {
-        let mut progress = ProgressTracker::new(dummy_progress_func, 100);
-        let buf = [0u8; 10];
-        let _ = progress.write(&buf).unwrap();
-        progress.reset();
-        assert_eq!(progress.last_written, 10);
-        assert_eq!(progress.written, 0);
-    }
+    fn a_response_total_is_filled_in_before_the_stream_runs() {
+        let (callback, seen) = recorder();
+        let tracker = ProgressTracker::new(callback, 0);
+        let inner = tracker.inner.clone();
 
-    #[test]
-    fn test_flush_does_not_return_error() {
-        let mut progress = ProgressTracker::new(dummy_progress_func, 100);
-        assert!(progress.flush().is_ok());
+        set_total(&inner, 4096);
+        update_response_progress(&inner, &[0u8; 1024]);
+
+        assert_eq!(*seen.lock().expect("lock"), vec![(1024, 4096)]);
     }
 }
