@@ -1,7 +1,18 @@
 use std::collections::HashMap;
 
-use alibabacloud_oss_sdk_rust_v2::OperationOutput;
 use alibabacloud_oss_sdk_rust_v2_api_model::OssResultModel;
+
+/// The shape `update_result` reads from.
+///
+/// The macro names `OperationOutput` from the caller's scope rather than from a
+/// crate of its own, so the test only needs a type with the two fields the
+/// generated code touches. Depending on the SDK crate here would make this
+/// crate's tests depend on its own consumer.
+#[derive(Debug, Default)]
+pub struct OperationOutput {
+    pub status: http::StatusCode,
+    pub headers: HashMap<String, String>,
+}
 
 #[derive(Debug, Default)]
 pub struct ResultCommon {
