@@ -8,43 +8,44 @@ mod filelike;
 mod filelike_writeonly;
 mod invoker;
 mod options;
-mod resolver;
 mod paginators;
 mod presign;
+mod resolver;
 mod uploader;
 
+use std::pin::Pin;
+use std::rc::Rc;
+use std::task::{Context, Poll};
+
+use bytes::Bytes;
+use futures_util::{Stream, StreamExt};
+use http::{HeaderMap, StatusCode};
+use log::error;
+use reqwest::Response;
+
+use self::applier::*;
 pub use self::checkpoint::*;
 pub use self::copier::*;
 pub use self::downloader::*;
 pub use self::encryption::*;
+pub use self::error_handler::*;
 pub use self::filelike::*;
 pub use self::filelike_writeonly::*;
+pub use self::options::*;
 pub use self::paginators::*;
 pub use self::presign::*;
-pub use self::uploader::*;
-
-use std::rc::Rc;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::{Context, Poll};
-use futures_util::Stream;
-use futures_util::StreamExt;
-use bytes::Bytes;
-use futures_core::stream::BoxStream;
-use http::{HeaderMap, StatusCode};
-use reqwest::Response;
-use self::applier::*;
-pub use self::error_handler::*;
-pub use self::options::*;
 pub use self::resolver::*;
+pub use self::uploader::*;
 use crate::config::Config;
 use crate::log::{StandardLogPrinter, StandardLogger};
 use crate::{FeatureFlagsType, DEFAULT_PRODUCT};
-use crate::{OperationInput, OperationOutput};
-use log::{debug, error};
-use log::warn;
-// pub type ByteStream = BoxStream<'static, Result<bytes::Bytes, Box<dyn std::error::Error + Send + Sync>>>;
-pub struct ByteStream(Pin<Box<dyn Stream<Item = Result<Bytes, Box<dyn std::error::Error + Send + Sync>>> + Send>>);
+// pub type ByteStream = BoxStream<'static, Result<bytes::Bytes, Box<dyn
+// std::error::Error + Send + Sync>>>;
+#[allow(clippy::type_complexity)] // nested boxing is intentional: stream errors
+                                  // are erased
+pub struct ByteStream(
+    Pin<Box<dyn Stream<Item = Result<Bytes, Box<dyn std::error::Error + Send + Sync>>> + Send>>,
+);
 // SAFETY: ByteStream is never polled concurrently.
 // The underlying stream is only accessed via &mut during poll,
 // and reqwest guarantees sequential polling.
@@ -68,38 +69,15 @@ impl ByteStream {
 }
 
 // 定义一个通用 trait 用于从包含 body 流的结构中读取数据
+#[allow(async_fn_in_trait)] // impls are concrete types; no `dyn` + `Send` bound
+                            // is needed
 pub trait BodyDataReader {
-    /// 读取 body 流中的所有数据并返回字符串
-    // async fn get_all_data(&mut self) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    //     // 读取流并
-    //     if let Some(mut body_stream) = self.take_body() {
-    //         let mut full_data = Vec::new();
-    //
-    //         // 使用 futures_util::StreamExt 来处理流
-    //         while let Some(chunk_result) = body_stream.next().await {
-    //             let chunk = chunk_result?;
-    //             full_data.extend_from_slice(&chunk);
-    //             // let a =1 ;
-    //         }
-    //
-    //         let result = String::from_utf8(full_data)?;
-    //         Ok(result)
-    //     } else {
-    //         // 没有body数据的情况
-    //         Ok(String::new())
-    //     }
-    // }
-
-
-
+    /// 读取 body 流中的所有数据并返回字节数组
     async fn get_all_data(&mut self) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
         if let Some(mut body_stream) = self.take_body() {
             let mut full_data = Vec::new();
 
-            let  mut myloop=1;
-            while let Some(chunk_result) = body_stream.next(). await {
-                debug!(" reading body chunk......{}\n",myloop);
-                myloop=myloop+1;
+            while let Some(chunk_result) = body_stream.next().await {
                 match chunk_result {
                     Ok(chunk) => full_data.extend_from_slice(&chunk),
                     Err(e) => {
@@ -108,27 +86,27 @@ pub trait BodyDataReader {
                     }
                 }
             }
-            print!(" reading body chunk......end");
 
-            Ok(full_data) // ✅ 直接返回原始字节
+            Ok(full_data)
         } else {
-            Ok(Vec::new()) // 空 body 返回空 Vec
+            Ok(Vec::new())
         }
     }
 
-
     /// 获取 body 流，如果有的话
     fn take_body(&mut self) -> Option<BodyStream>;
-
 
     /// set body 流，如果有的话
     fn set_body(&mut self, body: Option<BodyStream>);
 
     /// 尝试获取 body 流中的下一个字节块，用于流式处理
     /// 返回 Result<Option<Bytes>, Error>，其中 None 表示流结束
-    /// 默认实现会尝试从流中获取下一个字节块，但一旦流被消费，就无法通过此方法继续访问
-    /// 因此，在调用 try_next 后，后续调用将返回 None，除非实现类提供自己的逻辑来管理状态
-    async fn try_next(&mut self) -> Result<Option<Bytes>, Box<dyn std::error::Error + Send + Sync>> {
+    /// 默认实现会尝试从流中获取下一个字节块，但一旦流被消费，
+    /// 就无法通过此方法继续访问 因此，在调用 try_next 后，后续调用将返回
+    /// None，除非实现类提供自己的逻辑来管理状态
+    async fn try_next(
+        &mut self,
+    ) -> Result<Option<Bytes>, Box<dyn std::error::Error + Send + Sync>> {
         // 获取 body 流并从中获取下一块数据
         // 注意：由于 take_body 会消费流，我们需要实现类自行处理状态管理
         // 默认实现仅适用于一次性读取
@@ -217,7 +195,7 @@ impl Client {
             ..Default::default()
         };
 
-        let mut inner_options = ClientInnerOptions {
+        let inner_options = ClientInnerOptions {
             logger: Some(Rc::new(StandardLogger::new(
                 config
                     .log_printer

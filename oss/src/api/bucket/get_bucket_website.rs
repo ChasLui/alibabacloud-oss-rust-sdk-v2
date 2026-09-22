@@ -1,13 +1,11 @@
-use crate::HTTP_HEADER_CONTENT_TYPE;
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::Deserialize;
 
 use super::put_bucket_website::{ErrorDocument, IndexDocument, RoutingRules};
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-use crate::{OperationInput, OperationOutput};
+use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct GetBucketWebsiteRequest {
@@ -120,7 +118,9 @@ mod tests {
         ErrorDocument, IndexDocument, PutBucketWebsiteRequest, WebsiteConfiguration,
     };
     use super::*;
-    use crate::api::bucket::{CreateBucketRequest, DeleteBucketRequest, DeleteBucketWebsiteRequest};
+    use crate::api::bucket::{
+        CreateBucketRequest, DeleteBucketRequest, DeleteBucketWebsiteRequest,
+    };
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::test_utils::{generate_unique_bucket_name, load_test_config};
@@ -134,7 +134,10 @@ mod tests {
             result.index_document.unwrap().suffix.as_deref(),
             Some("index.html")
         );
-        assert_eq!(result.error_document.unwrap().key.as_deref(), Some("error.html"));
+        assert_eq!(
+            result.error_document.unwrap().key.as_deref(),
+            Some("error.html")
+        );
         let rules = result.routing_rules.unwrap().routing_rules;
         assert_eq!(rules.len(), 1);
         assert_eq!(
@@ -200,7 +203,11 @@ mod tests {
                 ..Default::default()
             })
             .await;
-        assert!(result.is_ok(), "get_bucket_website failed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "get_bucket_website failed: {:?}",
+            result.err()
+        );
         assert_eq!(
             result.unwrap().index_document.unwrap().suffix.as_deref(),
             Some("index.html")

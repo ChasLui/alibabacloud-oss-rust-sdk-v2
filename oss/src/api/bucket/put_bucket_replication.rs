@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-use crate::{OperationOutput, BodyContent, OperationInput, HTTP_HEADER_CONTENT_TYPE};
+use crate::{BodyContent, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 /// The container that stores the data replication rules.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -27,17 +27,26 @@ pub struct ReplicationRule {
 
     /// The container that specifies other conditions used to filter the source
     /// objects that you want to replicate.
-    #[serde(rename = "SourceSelectionCriteria", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "SourceSelectionCriteria",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub source_selection_criteria: Option<ReplicationSourceSelectionCriteria>,
 
     /// The encryption configuration for the objects replicated to the
     /// destination bucket.
-    #[serde(rename = "EncryptionConfiguration", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "EncryptionConfiguration",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub encryption_configuration: Option<ReplicationEncryptionConfiguration>,
 
     /// Specifies whether to replicate historical data that exists before data
     /// replication is enabled. Valid values: enabled (default), disabled.
-    #[serde(rename = "HistoricalObjectReplication", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "HistoricalObjectReplication",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub historical_object_replication: Option<String>,
 
     /// The container that stores the status of the RTC feature.
@@ -86,7 +95,10 @@ pub struct ReplicationDestination {
 pub struct ReplicationSourceSelectionCriteria {
     /// The container that is used to filter the source objects that are
     /// encrypted by using SSE-KMS.
-    #[serde(rename = "SseKmsEncryptedObjects", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "SseKmsEncryptedObjects",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub sse_kms_encrypted_objects: Option<SseKmsEncryptedObjects>,
 }
 
@@ -285,8 +297,7 @@ mod tests {
             }],
         };
 
-        let xml =
-            quick_xml::se::to_string_with_root("ReplicationConfiguration", &config).unwrap();
+        let xml = quick_xml::se::to_string_with_root("ReplicationConfiguration", &config).unwrap();
         assert!(xml.contains("<ReplicationConfiguration>"));
         assert!(xml.contains("<Bucket>dest-bucket</Bucket>"));
         assert!(xml.contains("<Location>oss-cn-beijing</Location>"));
@@ -411,10 +422,9 @@ mod tests {
                     .delete_bucket_replication(
                         &crate::api::bucket::DeleteBucketReplicationRequest {
                             bucket: bucket_name.clone(),
-                            replication_rules:
-                                crate::api::bucket::ReplicationRules {
-                                    ids: vec![rule_id],
-                                },
+                            replication_rules: crate::api::bucket::ReplicationRules {
+                                ids: vec![rule_id],
+                            },
                             ..Default::default()
                         },
                     )

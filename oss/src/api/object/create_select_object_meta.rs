@@ -5,7 +5,6 @@ use serde::Serialize;
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-
 use crate::{BodyContent, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 const DATA_FRAME_TYPE: i32 = 8388609;
 const CONTINUOUS_FRAME_TYPE: i32 = 8388612;
@@ -138,8 +137,8 @@ fn build_meta_body(
                         &mut csv_input.quote_character,
                     ] {
                         if let Some(value) = field.as_mut() {
-                            *value = base64::engine::general_purpose::STANDARD
-                                .encode(value.as_bytes());
+                            *value =
+                                base64::engine::general_purpose::STANDARD.encode(value.as_bytes());
                         }
                     }
                 }
@@ -406,7 +405,11 @@ mod tests {
     fn test_parse_skips_data_frames() {
         let mut body = build_frame(DATA_FRAME_TYPE, 0, b"col1,col2\n1,2\n");
         body.extend(build_frame(CONTINUOUS_FRAME_TYPE, 15, b""));
-        body.extend(build_frame(META_END_FRAME_CSV_TYPE, 15, &csv_meta_payload(b"")));
+        body.extend(build_frame(
+            META_END_FRAME_CSV_TYPE,
+            15,
+            &csv_meta_payload(b""),
+        ));
 
         let mut result = CreateSelectObjectMetaResult::default();
         parse_meta_frames(&body, &mut result).unwrap();

@@ -84,14 +84,21 @@ impl Client {
             .op_metadata
             .set(SUB_RESOURCE, Rc::new(vec!["accessPointPolicy".to_string()]));
 
-        modify_request(&mut input, request.header_map(), request.query_map(), vec![])?;
+        modify_request(
+            &mut input,
+            request.header_map(),
+            request.query_map(),
+            vec![],
+        )?;
 
         let mut output = self.invoke_operation(input, vec![]).await?;
 
         // The response body is a plain JSON policy text, not XML.
         let body_data = output.get_all_data().await?;
-        let mut result = GetAccessPointPolicyResult::default();
-        result.body = Some(String::from_utf8_lossy(&body_data).into_owned());
+        let mut result = GetAccessPointPolicyResult {
+            body: Some(String::from_utf8_lossy(&body_data).into_owned()),
+            ..Default::default()
+        };
         result.update_result(&output);
 
         Ok(result)
@@ -103,7 +110,9 @@ mod tests {
     use std::rc::Rc;
 
     use super::super::create_access_point::tests::generate_access_point_name;
-    use super::super::create_access_point::{CreateAccessPointConfiguration, CreateAccessPointRequest};
+    use super::super::create_access_point::{
+        CreateAccessPointConfiguration, CreateAccessPointRequest,
+    };
     use super::super::delete_access_point::DeleteAccessPointRequest;
     use super::super::put_access_point_policy::PutAccessPointPolicyRequest;
     use super::*;
@@ -150,7 +159,9 @@ mod tests {
             .unwrap();
 
         let policy = format!(
-            "{{\"Version\":\"1\",\"Statement\":[{{\"Action\":[\"oss:PutObject\"],\"Effect\":\"Allow\",\"Principal\":[\"*\"],\"Resource\":[\"acs:oss:{}:*:accesspoint/{}/object/*\"]}}]}}",
+            "{{\"Version\":\"1\",\"Statement\":[{{\"Action\":[\"oss:PutObject\"],\"Effect\":\"\
+             Allow\",\"Principal\":[\"*\"],\"Resource\":[\"acs:oss:{}:*:accesspoint/{}/object/*\"\
+             ]}}]}}",
             config.region, ap_name
         );
         client

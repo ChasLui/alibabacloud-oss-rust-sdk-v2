@@ -11,8 +11,8 @@
 //! that silently produces a corrupt object:
 //!
 //! - A checkpoint is only trusted if it describes *this* transfer. The file
-//!   name is derived from the source, the destination, and the version, and
-//!   the payload carries a magic value plus an MD5 over its own fields, so a
+//!   name is derived from the source, the destination, and the version, and the
+//!   payload carries a magic value plus an MD5 over its own fields, so a
 //!   checkpoint left by a different object, a different destination, or a
 //!   truncated write is discarded rather than resumed from.
 //! - A download's progress stops at the first gap. Bytes are downloaded
@@ -27,15 +27,13 @@
 //! A resumed upload also re-reads each existing part's CRC and folds them, so
 //! the client's running checksum matches the bytes that are actually stored.
 
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
 use crate::api::object::{HeadObjectRequest, ListPartsRequest, PutObjectRequest};
 use crate::client::Client;
-use crate::utils::crc64_combine;
-use crate::utils::Crc64;
+use crate::utils::{crc64_combine, Crc64};
 use crate::{
     CHECKPOINT_FILE_SUFFIX_DOWNLOADER, CHECKPOINT_FILE_SUFFIX_UPLOADER, CHECKPOINT_MAGIC,
     DEFAULT_UPLOAD_PART_SIZE, MIN_PART_SIZE, TEMP_FILE_SUFFIX,
@@ -484,10 +482,9 @@ impl Client {
             let mut crc = Crc64::new(0);
             let data = tokio::fs::read(&file_path).await.unwrap_or_default();
             let limit = (resume_from as usize).min(data.len());
-            crc.write(&data[..limit])
-                .map_err(|err| -> Box<dyn std::error::Error + Send + Sync> {
-                    err.to_string().into()
-                })?;
+            crc.write(&data[..limit]).map_err(
+                |err| -> Box<dyn std::error::Error + Send + Sync> { err.to_string().into() },
+            )?;
             if crc.sum64() != resume_crc {
                 resume_from = 0;
                 resume_crc = 0;
@@ -509,7 +506,9 @@ impl Client {
             if checkpoint.use_temp_file && !temporary.exists() && file_path.exists() {
                 std::fs::rename(&file_path, &temporary)?;
             }
-            let existing = std::fs::metadata(&temporary).map(|meta| meta.len()).unwrap_or(0);
+            let existing = std::fs::metadata(&temporary)
+                .map(|meta| meta.len())
+                .unwrap_or(0);
             if existing < resume_from as u64 {
                 return Err(format!(
                     "checkpoint records {resume_from} bytes but only {existing} are present"
@@ -692,14 +691,19 @@ impl Client {
             if matches {
                 upload_id = Some(data.upload_info.upload_id);
             } else {
-                eprintln!("UL REJECT file_ok={} size_ok={} mtime_ok={} name_ok={} ps_ok={} id_ok={}",
+                eprintln!(
+                    "UL REJECT file_ok={} size_ok={} mtime_ok={} name_ok={} ps_ok={} id_ok={}",
                     data.file_path == file_path_string,
                     data.file_meta.size == total_size,
                     data.file_meta.last_modified == file_modified,
                     data.object_info.name == format!("oss://{}/{}", request.bucket, request.key),
                     data.part_size == part_size,
-                    !data.upload_info.upload_id.is_empty());
-                eprintln!("UL mtime cp={:?} actual={:?} size cp={} actual={}", data.file_meta.last_modified, file_modified, data.file_meta.size, total_size);
+                    !data.upload_info.upload_id.is_empty()
+                );
+                eprintln!(
+                    "UL mtime cp={:?} actual={:?} size cp={} actual={}",
+                    data.file_meta.last_modified, file_modified, data.file_meta.size, total_size
+                );
                 let _ = std::fs::remove_file(&checkpoint_path);
             }
         }
@@ -1191,7 +1195,7 @@ mod tests {
         // Seed a checkpoint claiming the first part is done.
         let checkpoint_path = transfer_checkpoint_path(
             dir.to_str().unwrap(),
-            &format!("oss://test-bucket/test-key\n\n"),
+            "oss://test-bucket/test-key\n\n",
             destination.to_str().unwrap(),
             false,
         );
@@ -1281,7 +1285,8 @@ mod tests {
             .match_query(mockito::Matcher::Regex("uploadId=up-resume".to_string()))
             .with_status(200)
             .with_body(format!(
-                "<ListPartsResult><IsTruncated>false</IsTruncated><Part><PartNumber>1</PartNumber><ETag>\"p1\"</ETag><Size>{part_size}</Size></Part></ListPartsResult>"
+                "<ListPartsResult><IsTruncated>false</IsTruncated><Part><PartNumber>1</\
+                 PartNumber><ETag>\"p1\"</ETag><Size>{part_size}</Size></Part></ListPartsResult>"
             ))
             .create_async()
             .await;
@@ -1308,7 +1313,10 @@ mod tests {
             .mock("POST", mockito::Matcher::Any)
             .match_query(mockito::Matcher::Regex("uploadId=up-resume".to_string()))
             .with_status(200)
-            .with_body("<CompleteMultipartUploadResult><ETag>\"final\"</ETag></CompleteMultipartUploadResult>")
+            .with_body(
+                "<CompleteMultipartUploadResult><ETag>\"final\"</ETag></\
+                 CompleteMultipartUploadResult>",
+            )
             .expect(1)
             .create_async()
             .await;
@@ -1396,7 +1404,10 @@ mod tests {
             .mock("POST", mockito::Matcher::Any)
             .match_query(mockito::Matcher::Regex("uploads".to_string()))
             .with_status(200)
-            .with_body("<InitiateMultipartUploadResult><UploadId>fresh</UploadId></InitiateMultipartUploadResult>")
+            .with_body(
+                "<InitiateMultipartUploadResult><UploadId>fresh</UploadId></\
+                 InitiateMultipartUploadResult>",
+            )
             .create_async()
             .await;
         server
@@ -1409,7 +1420,10 @@ mod tests {
             .mock("POST", mockito::Matcher::Any)
             .match_query(mockito::Matcher::Regex("uploadId=fresh".to_string()))
             .with_status(200)
-            .with_body("<CompleteMultipartUploadResult><ETag>\"done\"</ETag></CompleteMultipartUploadResult>")
+            .with_body(
+                "<CompleteMultipartUploadResult><ETag>\"done\"</ETag></\
+                 CompleteMultipartUploadResult>",
+            )
             .create_async()
             .await;
 

@@ -35,8 +35,8 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `request` - The `PutBucketInventoryRequest` containing the bucket name,
-    ///   the inventory name and the inventory configuration.
+    /// * `request` - The `PutBucketInventoryRequest` containing the bucket
+    ///   name, the inventory name and the inventory configuration.
     ///
     /// # Examples
     ///
@@ -112,8 +112,10 @@ impl Client {
             Rc::new(vec!["inventory".to_string(), "inventoryId".to_string()]),
         );
 
-        let xml_body =
-            quick_xml::se::to_string_with_root("InventoryConfiguration", &request.inventory_configuration)?;
+        let xml_body = quick_xml::se::to_string_with_root(
+            "InventoryConfiguration",
+            &request.inventory_configuration,
+        )?;
         input.body = Some(BodyContent::from_text(xml_body, None));
 
         modify_request(
@@ -135,7 +137,9 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::bucket::{InventoryDestination, InventoryOSSBucketDestination, InventorySchedule};
+    use crate::api::bucket::{
+        InventoryDestination, InventoryOSSBucketDestination, InventorySchedule,
+    };
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::test_utils::load_test_config;
@@ -195,7 +199,10 @@ mod tests {
             })
             .await;
         if let Err(error) = &result {
-            eprintln!("put_bucket_inventory rejected (may lack a RAM role): {}", error);
+            eprintln!(
+                "put_bucket_inventory rejected (may lack a RAM role): {}",
+                error
+            );
             return;
         }
 

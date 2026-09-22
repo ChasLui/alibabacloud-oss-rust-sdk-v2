@@ -4,9 +4,7 @@ use super::delete_bucket_encryption::ServerSideEncryptionRule;
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-use crate::{
-    BodyContent, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE,
-};
+use crate::{BodyContent, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct PutBucketEncryptionRequest {
@@ -140,7 +138,10 @@ mod tests {
         let parsed: ServerSideEncryptionRule = quick_xml::de::from_str(&xml).unwrap();
         let default_rule = parsed.apply_server_side_encryption_by_default.unwrap();
         assert_eq!(default_rule.sse_algorithm.as_deref(), Some("KMS"));
-        assert_eq!(default_rule.kms_master_key_id.as_deref(), Some("key-id-123"));
+        assert_eq!(
+            default_rule.kms_master_key_id.as_deref(),
+            Some("key-id-123")
+        );
         assert_eq!(default_rule.kms_data_encryption.as_deref(), Some("SM4"));
     }
 

@@ -71,7 +71,8 @@ impl Client {
     pub async fn put_access_point_public_access_block(
         &self,
         request: &PutAccessPointPublicAccessBlockRequest,
-    ) -> Result<PutAccessPointPublicAccessBlockResult, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<PutAccessPointPublicAccessBlockResult, Box<dyn std::error::Error + Send + Sync>>
+    {
         let mut input = OperationInput {
             op_name: "PutAccessPointPublicAccessBlock".to_string(),
             method: http::Method::PUT,
@@ -117,7 +118,9 @@ mod tests {
     use std::rc::Rc;
 
     use super::super::create_access_point::tests::generate_access_point_name;
-    use super::super::create_access_point::{CreateAccessPointConfiguration, CreateAccessPointRequest};
+    use super::super::create_access_point::{
+        CreateAccessPointConfiguration, CreateAccessPointRequest,
+    };
     use super::super::delete_access_point::DeleteAccessPointRequest;
     use super::*;
     use crate::config::Config;
@@ -130,8 +133,8 @@ mod tests {
         let config = PublicAccessBlockConfiguration {
             block_public_access: Some(true),
         };
-        let xml = quick_xml::se::to_string_with_root("PublicAccessBlockConfiguration", &config)
-            .unwrap();
+        let xml =
+            quick_xml::se::to_string_with_root("PublicAccessBlockConfiguration", &config).unwrap();
         let parsed: PublicAccessBlockConfiguration = quick_xml::de::from_str(&xml).unwrap();
         assert_eq!(parsed.block_public_access, Some(true));
     }

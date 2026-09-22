@@ -2,7 +2,6 @@ use std::rc::Rc;
 
 use super::{try_convert_service_error, ClientOptions, OssResponse, ResponseHandlers};
 use crate::{OperationInput, OP_META_KEY_RESPONSE_HANDLER};
-use log::debug;
 
 /// Applies the operation options to the base options.
 ///
@@ -55,19 +54,18 @@ pub(super) fn apply_operation_opt(
         |response: &OssResponse| -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             match &response {
                 OssResponse::SucResponse(_) => {
-                    Ok(())/* resp: &Response */
+                    Ok(()) /* resp: &Response */
                 }
-                OssResponse::ErrResponse {..} => {
-                    // debug!("Response failed with status: {}", response.status());
+                OssResponse::ErrResponse { .. } => {
+                    // debug!("Response failed with status: {}",
+                    // response.status());
                     try_convert_service_error(response)
-
                 }
             }
 
-
             // Only log the error, don't interrupt the flow
-            // The actual error handling will be done in send_request based on status code
-            // if !response.status().is_success() {
+            // The actual error handling will be done in send_request based on
+            // status code if !response.status().is_success() {
             //     debug!("Response failed with status: {}", response.status());
             //     // crate::client::try_convert_service_error(response);
             // }
@@ -89,7 +87,6 @@ pub(super) fn apply_operation_opt(
     handlers.extend(modified_options.response_handlers.iter().cloned());
     base_options.response_handlers = handlers;
 }
-
 
 /// Applies the operation metadata to the base options.
 ///
@@ -121,7 +118,6 @@ mod tests {
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
-    use crate::test_utils::load_test_config;
 
     #[tokio::test]
     async fn test_service_error_403() {

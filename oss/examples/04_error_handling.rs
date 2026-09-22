@@ -1,26 +1,28 @@
-//! Error Handling Example - Demonstrates how to properly handle errors in OSS SDK
-//! 
+//! Error Handling Example - Demonstrates how to properly handle errors in OSS
+//! SDK
+//!
 //! Features include:
 //! - Capture and handle common errors
 //! - Retry mechanisms
 //! - Error classification and custom error handling
-//! 
+//!
 //! Run command:
 //! ```bash
 //! cargo run --example 04_error_handling
 //! ```
 
-use alibabacloud_oss_sdk_rust_v2::{
-    api::object::{GetObjectRequest, PutObjectRequest},
-    client::Client,
-    config::Config,
-    credential::providers::StaticCredentialsProvider,
-    BodyContent,
-};
 use std::rc::Rc;
+
+use alibabacloud_oss_sdk_rust_v2::api::object::{GetObjectRequest, PutObjectRequest};
+use alibabacloud_oss_sdk_rust_v2::client::Client;
+use alibabacloud_oss_sdk_rust_v2::config::Config;
+use alibabacloud_oss_sdk_rust_v2::credential::providers::StaticCredentialsProvider;
+use alibabacloud_oss_sdk_rust_v2::BodyContent;
 
 /// Custom error type
 #[derive(Debug)]
+#[allow(dead_code)] // the example shows the full error taxonomy, not only the
+                    // variants it exercises
 enum OssAppError {
     NotFound(String),
     PermissionDenied(String),
@@ -45,16 +47,16 @@ impl std::error::Error for OssAppError {}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let access_key_id = std::env::var("ACCESS_KEY_ID")
-        .unwrap_or_else(|_| "your-access-key-id".to_string());
-    let access_key_secret = std::env::var("ACCESS_KEY_SECRET")
-        .unwrap_or_else(|_| "your-access-key-secret".to_string());
+    let access_key_id =
+        std::env::var("ACCESS_KEY_ID").unwrap_or_else(|_| "your-access-key-id".to_string());
+    let access_key_secret =
+        std::env::var("ACCESS_KEY_SECRET").unwrap_or_else(|_| "your-access-key-secret".to_string());
     let region = std::env::var("OSS_REGION").unwrap_or_else(|_| "cn-hangzhou".to_string());
     let bucket = std::env::var("OSS_BUCKET").unwrap_or_else(|_| "your-bucket-name".to_string());
 
     println!("OSS Error Handling Example");
     println!("===========================================");
-    
+
     let config = Config::default()
         .with_region(&region)
         .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
@@ -81,14 +83,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => {
             println!("   Captured error: {}", e);
-            
+
             // Check if it's a 404 error
             let error_str = e.to_string();
             if error_str.contains("404") || error_str.contains("NoSuchKey") {
                 println!("   This is a 404 error - object does not exist");
-                
+
                 // Convert to custom error type
-                let app_error = OssAppError::NotFound(format!("Object '{}' does not exist", non_existent_key));
+                let app_error =
+                    OssAppError::NotFound(format!("Object '{}' does not exist", non_existent_key));
                 println!("   Application layer error: {}", app_error);
             }
         }
@@ -96,7 +99,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Example 2: Handle invalid input error
     println!("\n2. Handle Invalid Input");
-    
+
     // Try to upload empty content to invalid path
     let invalid_key = ""; // Empty object name is invalid
     let put_request = PutObjectRequest {
@@ -113,7 +116,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => {
             println!("   Captured error: {}", e);
             println!("   This is an invalid input error");
-            
+
             let app_error = OssAppError::InvalidInput("Object name cannot be empty".to_string());
             println!("   Application suggestion: {}", app_error);
         }
@@ -121,25 +124,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Example 3: Use Result wrapper for error transformation
     println!("\n3. Error Wrapping and Propagation");
-    
+
     fn upload_with_validation(
-        client: &Client,
+        _client: &Client,
         bucket: String,
         key: String,
         content: String,
     ) -> Result<String, OssAppError> {
         // Validate input
         if key.is_empty() {
-            return Err(OssAppError::InvalidInput("Object key cannot be empty".to_string()));
-        }
-        
-        if content.is_empty() {
-            return Err(OssAppError::InvalidInput("Content cannot be empty".to_string()));
+            return Err(OssAppError::InvalidInput(
+                "Object key cannot be empty".to_string(),
+            ));
         }
 
-        // Here we return a Result that will be completed in the future, we need to handle it in async context
-        // For demonstration, we directly return Ok
-        Ok(format!("Validation passed, preparing to upload: {}/{}", bucket, key))
+        if content.is_empty() {
+            return Err(OssAppError::InvalidInput(
+                "Content cannot be empty".to_string(),
+            ));
+        }
+
+        // Here we return a Result that will be completed in the future, we need
+        // to handle it in async context For demonstration, we directly
+        // return Ok
+        Ok(format!(
+            "Validation passed, preparing to upload: {}/{}",
+            bucket, key
+        ))
     }
 
     match upload_with_validation(
@@ -154,21 +165,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Example 4: Retry logic example
     println!("\n4. Retry Strategy Example");
-    println!("   SDK has built-in automatic retry mechanism, can be adjusted through configuration:");
+    println!(
+        "   SDK has built-in automatic retry mechanism, can be adjusted through configuration:"
+    );
     println!("      - Maximum retry attempts");
     println!("      - Retry delay");
     println!("      - Retryable error types");
-    
+
     // Configuration example (not actually executed)
     println!("\n   Configuration example code:");
-    println!(r#"   let config = Config::default()
+    println!(
+        r#"   let config = Config::default()
        .with_retry_max_attempts(3)           // Maximum 3 retries
        .with_retry_initial_interval(1.0)     // Initial interval 1 second
-       .with_retry_max_interval(60.0);       // Maximum interval 60 seconds"#);
+       .with_retry_max_interval(60.0);       // Maximum interval 60 seconds"#
+    );
 
     // Example 5: Graceful error recovery
     println!("\n5. Graceful Error Recovery Strategy");
-    
+
     let test_keys = vec![
         "examples/error-handling/existing-object.txt",
         "examples/error-handling/non-existing-1.txt",
@@ -180,7 +195,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for key in test_keys {
         print!("   Processing {}: ", key);
-        
+
         let get_request = GetObjectRequest {
             bucket: bucket.clone(),
             key: key.to_string(),
@@ -195,8 +210,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Err(e) => {
                 println!("Failed ({})", e);
                 failure_count += 1;
-                
-                // Can continue processing next instead of aborting entire program
+
+                // Can continue processing next instead of aborting entire
+                // program
                 continue;
             }
         }

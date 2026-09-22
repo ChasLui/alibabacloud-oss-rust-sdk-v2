@@ -26,4 +26,10 @@ fn main() {
         }
     }
     // }
+
+    // `coverage_nightly` gates `#[coverage(off)]` on `sleep_with_context`, so
+    // that coverage tooling does not attribute the sleep's wall-clock time
+    // to the caller. Declaring the cfg keeps `unexpected_cfgs` quiet on
+    // stable toolchains.
+    println!("cargo:rustc-check-cfg=cfg(coverage_nightly)");
 }

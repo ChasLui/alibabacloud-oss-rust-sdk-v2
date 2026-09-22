@@ -39,7 +39,6 @@ impl ProcessCredentialsProvider {
     /// If the command is empty, an error is returned.
     /// The command is executed with a timeout, and if it succeeds, the output
     /// is returned. If the command times out, an error is returned.
-
     async fn execute_process(&self) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
         if self.args.is_empty() {
             return Err("Command must not be empty".into());
@@ -56,7 +55,7 @@ impl ProcessCredentialsProvider {
         } else {
             "-c"
         })
-        .arg(&self.args.join(" "))
+        .arg(self.args.join(" "))
         .envs(std::env::vars())
         .stdout(Stdio::piped())
         .spawn()?;

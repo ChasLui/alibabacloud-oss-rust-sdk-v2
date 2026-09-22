@@ -3,6 +3,7 @@ use std::rc::Rc;
 use std::str::FromStr;
 #[allow(unused_imports)]
 use std::sync::Arc;
+
 #[allow(unused_imports)]
 use url::Url;
 
@@ -10,7 +11,6 @@ use super::ClientOptions;
 use crate::config::Config;
 use crate::retry::Standard as StandardRetryer;
 use crate::signer::{SignerV1, SignerV4};
-
 use crate::transport::{self, TransportConfig};
 #[allow(unused_imports)]
 use crate::utils::{
@@ -102,7 +102,8 @@ pub fn resolve_bandwidth_limit(config: &Config, client_options: &mut ClientOptio
         client_options.upload_bandwidth_limiter = Some(Arc::new(BwTokenBucket::new(limit * 1024)));
     }
     if let Some(limit) = config.download_bandwidth_limit.filter(|limit| *limit > 0) {
-        client_options.download_bandwidth_limiter = Some(Arc::new(BwTokenBucket::new(limit * 1024)));
+        client_options.download_bandwidth_limiter =
+            Some(Arc::new(BwTokenBucket::new(limit * 1024)));
     }
 }
 
@@ -307,7 +308,8 @@ mod tests {
         let config = Config::default().with_endpoint("https://192.168.0.1");
         let mut client_options = ClientOptions::default();
 
-        resolve_endpoint(&config, &mut client_options); // resolve endpoint first
+        resolve_endpoint(&config, &mut client_options); // resolve endpoint
+                                                        // first
         resolve_url_style(&config, &mut client_options);
 
         assert_eq!(client_options.url_style, UrlStyleType::Path);

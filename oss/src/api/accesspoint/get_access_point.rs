@@ -3,15 +3,13 @@ use std::rc::Rc;
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::Deserialize;
 
+use super::create_access_point::AccessPointVpcConfiguration;
 use crate::api::service::PublicAccessBlockConfiguration;
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::signer::SUB_RESOURCE;
 use crate::utils::{modify_request, update_content_length, update_content_md5};
 use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
-
-use super::create_access_point::AccessPointVpcConfiguration;
 
 /// The container that stores the endpoints of the access point.
 #[derive(Debug, Default, Deserialize)]
@@ -63,7 +61,8 @@ pub struct GetAccessPointResult {
     #[serde(rename = "Bucket", skip_serializing_if = "Option::is_none")]
     pub bucket: Option<String>,
 
-    /// The ID of the Alibaba Cloud account for which the access point is configured.
+    /// The ID of the Alibaba Cloud account for which the access point is
+    /// configured.
     #[serde(rename = "AccountId", skip_serializing_if = "Option::is_none")]
     pub account_id: Option<String>,
 
@@ -83,7 +82,10 @@ pub struct GetAccessPointResult {
     pub access_point_status: Option<String>,
 
     /// The container that stores the Block Public Access configurations.
-    #[serde(rename = "PublicAccessBlockConfiguration", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "PublicAccessBlockConfiguration",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub public_access_block_configuration: Option<PublicAccessBlockConfiguration>,
 
     #[serde(skip)]
@@ -95,8 +97,8 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `request` - The `GetAccessPointRequest` containing the bucket name
-    ///   and the access point name.
+    /// * `request` - The `GetAccessPointRequest` containing the bucket name and
+    ///   the access point name.
     ///
     /// # Examples
     ///
@@ -169,13 +171,15 @@ mod tests {
     use std::rc::Rc;
 
     use super::super::create_access_point::tests::generate_access_point_name;
-    use super::super::create_access_point::{CreateAccessPointConfiguration, CreateAccessPointRequest};
+    use super::super::create_access_point::{
+        CreateAccessPointConfiguration, CreateAccessPointRequest,
+    };
     use super::super::delete_access_point::DeleteAccessPointRequest;
     use super::*;
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
-    use crate::SignatureVersionType;
     use crate::test_utils::load_test_config;
+    use crate::SignatureVersionType;
 
     #[test]
     fn test_get_access_point_result_deserialize() {
@@ -266,7 +270,11 @@ mod tests {
                 ..Default::default()
             })
             .await;
-        assert!(result.is_ok(), "get_access_point failed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "get_access_point failed: {:?}",
+            result.err()
+        );
         assert_eq!(
             result.unwrap().access_point_name.as_deref(),
             Some(ap_name.as_str())

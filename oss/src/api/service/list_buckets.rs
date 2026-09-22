@@ -6,11 +6,9 @@ use urlencoding;
 
 use crate::api::bucket::{BucketProperties, Owner};
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{bucket_properties_de, modify_request, update_content_md5};
 use crate::{OperationInput, OperationOutput, DEFAULT_CONTENT_TYPE, HTTP_HEADER_CONTENT_TYPE};
-use crate::client::BodyDataReader;
-
 
 #[derive(Debug, Default, Clone, OssRequestModel)]
 pub struct ListBucketsRequest {
@@ -146,7 +144,9 @@ impl Client {
         };
 
         // Set encoding-type=url by default
-        input.parameters.insert("encoding-type".to_string(), "url".to_string());
+        input
+            .parameters
+            .insert("encoding-type".to_string(), "url".to_string());
 
         modify_request(
             &mut input,
@@ -159,8 +159,7 @@ impl Client {
 
         let body_bytes = output.get_all_data().await?;
         let body_data = String::from_utf8_lossy(&body_bytes).into_owned();
-        let mut result: ListBucketsResult =
-            quick_xml::de::from_str(&body_data)?;
+        let mut result: ListBucketsResult = quick_xml::de::from_str(&body_data)?;
 
         result.update_result(&output);
         decode_result(&mut result);
@@ -174,12 +173,17 @@ impl Client {
 /// encoded; decoding `next_marker` matters for pagination, which feeds it
 /// back as the next request's `marker`.
 fn decode_result(result: &mut ListBucketsResult) {
-    for field in [&mut result.prefix, &mut result.marker, &mut result.next_marker] {
-        if let Some(value) = field {
-            *value = urlencoding::decode(value)
-                .unwrap_or_else(|_| std::borrow::Cow::Borrowed(value.as_str()))
-                .into_owned();
-        }
+    for value in [
+        &mut result.prefix,
+        &mut result.marker,
+        &mut result.next_marker,
+    ]
+    .into_iter()
+    .flatten()
+    {
+        *value = urlencoding::decode(value)
+            .unwrap_or(std::borrow::Cow::Borrowed(value.as_str()))
+            .into_owned();
     }
 }
 
@@ -191,8 +195,8 @@ mod tests {
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
+    use crate::test_utils::load_test_config;
     use crate::SignatureVersionType;
-    use crate::test_utils::{load_test_config, TestConfig};
 
     /// `next_marker`/`prefix`/`marker` must be decoded so that pagination
     /// feeds a decoded marker back into the next request.
@@ -231,7 +235,10 @@ mod tests {
             ..Default::default()
         };
         let queries = request.query_map();
-        assert_eq!(queries.get("tagging").map(String::as_str), Some("k1=v1&k2=v2"));
+        assert_eq!(
+            queries.get("tagging").map(String::as_str),
+            Some("k1=v1&k2=v2")
+        );
     }
 
     #[tokio::test]
@@ -260,11 +267,11 @@ mod tests {
         match client.list_buckets(&ListBucketsRequest::default()).await {
             Ok(output) => {
                 println!("{:?}", output);
-                
+
                 // Print a human-friendly summary of the buckets
                 println!("\n--- Human-Friendly Bucket Summary ---");
                 println!("Total buckets found: {}", output.buckets.len());
-                
+
                 for (index, bucket) in output.buckets.iter().enumerate() {
                     println!(
                         "{}. Bucket Name: {}, Location: {}, Creation Date: {:?}",
@@ -274,13 +281,18 @@ mod tests {
                         bucket.creation_date
                     );
                 }
-                
+
                 if let Some(owner) = &output.owner {
-                    println!("Owner: {} ({})", 
-                        owner.display_name.as_ref().unwrap_or(&"<unknown>".to_string()),
-                        owner.id.as_ref().unwrap_or(&"<unknown>".to_string()));
+                    println!(
+                        "Owner: {} ({})",
+                        owner
+                            .display_name
+                            .as_ref()
+                            .unwrap_or(&"<unknown>".to_string()),
+                        owner.id.as_ref().unwrap_or(&"<unknown>".to_string())
+                    );
                 }
-            },
+            }
             Err(err) => panic!("Invoke operation failed: {:?}", err),
         }
     }

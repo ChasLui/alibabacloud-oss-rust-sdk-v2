@@ -53,8 +53,8 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `request` - The `GetSymlinkRequest` containing the bucket name and
-    ///   the symbolic link name.
+    /// * `request` - The `GetSymlinkRequest` containing the bucket name and the
+    ///   symbolic link name.
     ///
     /// # Examples
     ///
@@ -177,7 +177,10 @@ mod tests {
             })
             .await;
         assert!(result.is_ok(), "get_symlink failed: {:?}", result.err());
-        assert_eq!(result.unwrap().target.as_deref(), Some(target_name.as_str()));
+        assert_eq!(
+            result.unwrap().target.as_deref(),
+            Some(target_name.as_str())
+        );
 
         // Clean up
         let _ = client

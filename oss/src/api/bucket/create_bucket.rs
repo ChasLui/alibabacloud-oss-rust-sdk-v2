@@ -4,9 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-use crate::{
-    BodyContent, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE,
-};
+use crate::{BodyContent, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 /// The container of the bucket configuration sent as the request body.
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -30,7 +28,8 @@ pub struct CreateBucketRequest {
     pub acl: Option<String>,
 
     /// The container of the bucket configuration sent as the request body.
-    /// `None` sends no body, matching the Go SDK's nil `CreateBucketConfiguration`.
+    /// `None` sends no body, matching the Go SDK's nil
+    /// `CreateBucketConfiguration`.
     pub create_bucket_configuration: Option<CreateBucketConfiguration>,
 
     /// The ID of the resource group.
@@ -58,16 +57,18 @@ pub struct CreateBucketResult {
 impl Client {
     /// Creates a new bucket.
     ///
-    /// This method sends a PUT request to create a new bucket with the specified name and properties.
+    /// This method sends a PUT request to create a new bucket with the
+    /// specified name and properties.
     ///
     /// # Arguments
     ///
-    /// * `request` - The `CreateBucketRequest` containing the bucket name and properties to create.
+    /// * `request` - The `CreateBucketRequest` containing the bucket name and
+    ///   properties to create.
     ///
     /// # Returns
     ///
-    /// Returns a `Result` containing the `CreateBucketResult` if the creation is
-    /// successful, or an error if it fails. Note that:
+    /// Returns a `Result` containing the `CreateBucketResult` if the creation
+    /// is successful, or an error if it fails. Note that:
     /// - Bucket names must be globally unique across all users of OSS
     /// - Bucket names must conform to specific naming rules
     /// - Creating a bucket that already exists will return an error
@@ -116,8 +117,7 @@ impl Client {
         };
 
         if let Some(config) = &request.create_bucket_configuration {
-            let xml_body =
-                quick_xml::se::to_string_with_root("CreateBucketConfiguration", config)?;
+            let xml_body = quick_xml::se::to_string_with_root("CreateBucketConfiguration", config)?;
             input.body = Some(BodyContent::from_text(xml_body, None));
         }
 
@@ -147,8 +147,8 @@ mod tests {
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
+    use crate::test_utils::{generate_unique_bucket_name, load_test_config};
     use crate::SignatureVersionType;
-    use crate::test_utils::{load_test_config, TestConfig, generate_unique_bucket_name};
 
     #[tokio::test]
     #[serial_test::serial]
@@ -185,7 +185,7 @@ mod tests {
             Ok(result) => {
                 println!("Bucket created successfully: {:?}", result);
                 assert_eq!(result.common.status, http::StatusCode::OK);
-                
+
                 // Clean up: delete the bucket
                 let delete_request = DeleteBucketRequest {
                     bucket: bucket_name.clone(),

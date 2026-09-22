@@ -37,8 +37,9 @@ pub struct OpenMetaQueryResult {
 
 impl Client {
     /// Enables metadata management for a bucket. After you enable the metadata
-    /// management feature for a bucket, OSS creates a metadata index library for
-    /// the bucket and creates metadata indexes for all objects in the bucket.
+    /// management feature for a bucket, OSS creates a metadata index library
+    /// for the bucket and creates metadata indexes for all objects in the
+    /// bucket.
     ///
     /// # Arguments
     ///
@@ -146,7 +147,9 @@ mod tests {
 
         // Clean up
         let _ = client
-            .close_meta_query(&crate::api::bucket::CloseMetaQueryRequest::new(&config.bucket))
+            .close_meta_query(&crate::api::bucket::CloseMetaQueryRequest::new(
+                &config.bucket,
+            ))
             .await;
     }
 }

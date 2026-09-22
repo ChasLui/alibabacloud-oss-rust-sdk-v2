@@ -10,14 +10,13 @@
 //! any order. [`crc64_combine`] folds the per-part checksums back into the
 //! whole-object value, which is then compared against the response header.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use futures_util::StreamExt;
 
 use crate::api::object::{GetObjectRequest, HeadObjectRequest};
 use crate::client::Client;
-use crate::utils::crc64_combine;
-use crate::utils::Crc64;
+use crate::utils::{crc64_combine, Crc64};
 use crate::{DEFAULT_DOWNLOAD_PARALLEL, DEFAULT_DOWNLOAD_PART_SIZE};
 
 /// Options for [`Client::download_file`].
@@ -306,6 +305,7 @@ fn parse_range(
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
     use std::rc::Rc;
 
     use super::*;
@@ -570,7 +570,6 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
-
     /// Conditional headers must reach the server on every part. A downloader
     /// that dropped `if_match` when splitting would silently fetch an object
     /// the caller asked to guard against.
@@ -594,7 +593,10 @@ mod tests {
             mocks.push(
                 server
                     .mock("GET", mockito::Matcher::Any)
-                    .match_header("range", format!("bytes={}-{}", offset, offset + size - 1).as_str())
+                    .match_header(
+                        "range",
+                        format!("bytes={}-{}", offset, offset + size - 1).as_str(),
+                    )
                     .match_header("if-match", "\"guard\"")
                     .with_status(206)
                     .with_header("content-length", &size.to_string())

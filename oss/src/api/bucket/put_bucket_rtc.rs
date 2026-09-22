@@ -5,7 +5,7 @@ use super::put_bucket_replication::ReplicationTimeControl;
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-use crate::{OperationOutput, BodyContent, OperationInput, HTTP_HEADER_CONTENT_TYPE};
+use crate::{BodyContent, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 /// The container of the RTC configuration.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]

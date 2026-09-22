@@ -87,7 +87,10 @@ impl Client {
     ///
     /// match client.put_user_defined_log_fields_config(&request).await {
     ///     Ok(result) => {
-    ///         println!("User defined log fields updated: {:?}", result.common.status);
+    ///         println!(
+    ///             "User defined log fields updated: {:?}",
+    ///             result.common.status
+    ///         );
     ///     }
     ///     Err(error) => {
     ///         eprintln!("Failed to put user defined log fields config: {}", error);

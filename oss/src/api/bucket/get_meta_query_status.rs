@@ -4,11 +4,10 @@ use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 
 use super::close_meta_query::MetaQueryStatus;
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::signer::SUB_RESOURCE;
 use crate::utils::{modify_request, update_content_length};
-use crate::{OperationOutput, OperationInput, HTTP_HEADER_CONTENT_TYPE};
+use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct GetMetaQueryStatusRequest {
@@ -41,7 +40,8 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `request` - The `GetMetaQueryStatusRequest` containing the bucket name.
+    /// * `request` - The `GetMetaQueryStatusRequest` containing the bucket
+    ///   name.
     ///
     /// # Examples
     ///
@@ -161,7 +161,10 @@ mod tests {
             .get_meta_query_status(&GetMetaQueryStatusRequest::new(&config.bucket))
             .await;
         if let Err(error) = &result {
-            eprintln!("get_meta_query_status rejected (meta query may not be open): {}", error);
+            eprintln!(
+                "get_meta_query_status rejected (meta query may not be open): {}",
+                error
+            );
         }
     }
 }

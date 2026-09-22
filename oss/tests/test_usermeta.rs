@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 
 use alibabacloud_oss_sdk_rust_v2::api::object::{
-    GetObjectResult, HeadObjectRequest, HeadObjectResult, PutObjectRequest, PutSymlinkRequest,
+    GetObjectResult, HeadObjectResult, PutObjectRequest, PutSymlinkRequest,
 };
 
 /// Request side: map entries become individual `x-oss-meta-<key>` headers.
@@ -23,8 +23,14 @@ fn put_object_metadata_expands_to_meta_headers() {
     ]);
 
     let headers = request.header_map();
-    assert_eq!(headers.get("x-oss-meta-author").map(String::as_str), Some("alice"));
-    assert_eq!(headers.get("x-oss-meta-version").map(String::as_str), Some("1.0"));
+    assert_eq!(
+        headers.get("x-oss-meta-author").map(String::as_str),
+        Some("alice")
+    );
+    assert_eq!(
+        headers.get("x-oss-meta-version").map(String::as_str),
+        Some("1.0")
+    );
     // the bare map name must not leak into the headers
     assert!(!headers.contains_key("metadata"));
 }
@@ -42,7 +48,10 @@ fn put_symlink_metadata_expands_to_meta_headers() {
     request.metadata = HashMap::from([("tag".to_string(), "blue".to_string())]);
 
     let headers = request.header_map();
-    assert_eq!(headers.get("x-oss-meta-tag").map(String::as_str), Some("blue"));
+    assert_eq!(
+        headers.get("x-oss-meta-tag").map(String::as_str),
+        Some("blue")
+    );
 }
 
 /// Result side: every `x-oss-meta-*` response header lands in the map under the
@@ -56,8 +65,14 @@ fn head_object_result_captures_meta_headers() {
         ("ETag".to_string(), "\"abc\"".to_string()),
     ])));
 
-    assert_eq!(result.metadata.get("author").map(String::as_str), Some("alice"));
-    assert_eq!(result.metadata.get("version").map(String::as_str), Some("1.0"));
+    assert_eq!(
+        result.metadata.get("author").map(String::as_str),
+        Some("alice")
+    );
+    assert_eq!(
+        result.metadata.get("version").map(String::as_str),
+        Some("1.0")
+    );
     // non-meta headers are not captured
     assert_eq!(result.metadata.len(), 2);
 }
@@ -65,15 +80,20 @@ fn head_object_result_captures_meta_headers() {
 #[test]
 fn get_object_result_captures_meta_headers() {
     let mut result = GetObjectResult::default();
-    result.update_result(&mock_output(HashMap::from([
-        ("x-oss-meta-owner".to_string(), "bob".to_string()),
-    ])));
+    result.update_result(&mock_output(HashMap::from([(
+        "x-oss-meta-owner".to_string(),
+        "bob".to_string(),
+    )])));
 
-    assert_eq!(result.metadata.get("owner").map(String::as_str), Some("bob"));
+    assert_eq!(
+        result.metadata.get("owner").map(String::as_str),
+        Some("bob")
+    );
 }
 
 fn mock_output(headers: HashMap<String, String>) -> alibabacloud_oss_sdk_rust_v2::OperationOutput {
-    let mut output = alibabacloud_oss_sdk_rust_v2::OperationOutput::default();
-    output.headers = headers;
-    output
+    alibabacloud_oss_sdk_rust_v2::OperationOutput {
+        headers,
+        ..Default::default()
+    }
 }

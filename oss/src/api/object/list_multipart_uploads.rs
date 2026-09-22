@@ -1,14 +1,11 @@
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
-use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use urlencoding;
 
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::modify_request;
 use crate::{OperationInput, OperationOutput};
-use crate::client::BodyDataReader;
-
 
 #[derive(Debug, Default, Clone, OssRequestModel)]
 pub struct ListMultipartUploadsRequest {
@@ -112,7 +109,7 @@ pub struct MultipartUpload {
 
     /// The time when the multipart upload was initiated.
     #[serde(rename = "Initiated", skip_serializing_if = "Option::is_none")]
-    pub initiated: Option<String>,  // Changed from DateTime<Utc> to String for now
+    pub initiated: Option<String>, // Changed from DateTime<Utc> to String for now
 }
 
 impl Client {
@@ -125,8 +122,8 @@ impl Client {
     /// # Arguments
     ///
     /// * `request` - The `ListMultipartUploadsRequest` containing the necessary
-    ///   information for listing multipart uploads, including bucket and optional
-    ///   filtering parameters.
+    ///   information for listing multipart uploads, including bucket and
+    ///   optional filtering parameters.
     ///
     /// # Returns
     ///
@@ -153,8 +150,10 @@ impl Client {
     ///     Ok(result) => {
     ///         println!("Found {} in-progress uploads", result.uploads.len());
     ///         for upload in result.uploads {
-    ///             println!("Upload ID: {}, Key: {}, Initiated: {:?}", 
-    ///                      upload.upload_id, upload.key, upload.initiated);
+    ///             println!(
+    ///                 "Upload ID: {}, Key: {}, Initiated: {:?}",
+    ///                 upload.upload_id, upload.key, upload.initiated
+    ///             );
     ///         }
     ///     }
     ///     Err(error) => {
@@ -171,7 +170,7 @@ impl Client {
             op_name: "ListMultipartUploads".to_string(),
             method: http::Method::GET,
             bucket: Some(request.bucket.clone()),
-            parameters: [("uploads", ""), ("encoding-type", "url")]  // This is required to indicate multipart uploads listing and to enable URL encoding
+            parameters: [("uploads", ""), ("encoding-type", "url")] // This is required to indicate multipart uploads listing and to enable URL encoding
                 .iter()
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect(),
@@ -194,7 +193,7 @@ impl Client {
 
         // Update the common fields from the response
         result.update_result(&output);
-        
+
         // Decode URL-encoded response fields. Mirrors Go `unmarshalEncodeType`
         // for ListMultipartUploadsResult: key marker, next key marker, prefix,
         // delimiter, and each upload key.
@@ -204,17 +203,18 @@ impl Client {
             .map(|v| v.eq_ignore_ascii_case("url"))
             .unwrap_or(false);
         if is_url_encoding {
-            for field in [
+            for value in [
                 &mut result.key_marker,
                 &mut result.next_key_marker,
                 &mut result.prefix,
                 &mut result.delimiter,
-            ] {
-                if let Some(value) = field {
-                    *value = urlencoding::decode(value)
-                        .unwrap_or_else(|_| std::borrow::Cow::Borrowed(value.as_str()))
-                        .into_owned();
-                }
+            ]
+            .into_iter()
+            .flatten()
+            {
+                *value = urlencoding::decode(value)
+                    .unwrap_or(std::borrow::Cow::Borrowed(value.as_str()))
+                    .into_owned();
             }
 
             for upload in &mut result.uploads {
@@ -223,7 +223,7 @@ impl Client {
                     .to_string();
             }
         }
-        
+
         Ok(result)
     }
 }
@@ -231,22 +231,16 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use std::rc::Rc;
-    use std::sync::{Arc, Mutex};
-    use std::io::Cursor;
 
     use super::*;
     use crate::api::object::{
-        InitiateMultipartUploadRequest, 
-        UploadPartRequest, 
-        CompleteMultipartUploadRequest, 
-        CompleteMultipartUploadPart,
-        AbortMultipartUploadRequest,
+        AbortMultipartUploadRequest, InitiateMultipartUploadRequest, UploadPartRequest,
     };
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
+    use crate::test_utils::load_test_config;
     use crate::SignatureVersionType;
-    use crate::test_utils::{load_test_config, TestConfig};
 
     #[tokio::test]
     #[serial_test::serial]
@@ -282,10 +276,12 @@ mod tests {
                 println!("Found {} in-progress uploads", result.uploads.len());
                 println!("Bucket: {:?}", result.bucket);
                 println!("Is Truncated: {:?}", result.is_truncated);
-                
+
                 for upload in result.uploads {
-                    println!("Upload ID: {}, Key: {}, Initiated: {:?}", 
-                             upload.upload_id, upload.key, upload.initiated);
+                    println!(
+                        "Upload ID: {}, Key: {}, Initiated: {:?}",
+                        upload.upload_id, upload.key, upload.initiated
+                    );
                 }
             }
             Err(err) => panic!("List multipart uploads failed: {:?}", err),
@@ -325,17 +321,22 @@ mod tests {
 
         match client.list_multipart_uploads(&request).await {
             Ok(result) => {
-                println!("Found {} in-progress uploads with prefix 'test'", result.uploads.len());
-                
+                println!(
+                    "Found {} in-progress uploads with prefix 'test'",
+                    result.uploads.len()
+                );
+
                 for upload in result.uploads {
-                    println!("Upload ID: {}, Key: {}, Initiated: {:?}", 
-                             upload.upload_id, upload.key, upload.initiated);
+                    println!(
+                        "Upload ID: {}, Key: {}, Initiated: {:?}",
+                        upload.upload_id, upload.key, upload.initiated
+                    );
                 }
             }
             Err(err) => panic!("List multipart uploads with filters failed: {:?}", err),
         }
     }
-    
+
     #[tokio::test]
     #[serial_test::serial]
     async fn test_comprehensive_multipart_operations_workflow() {
@@ -358,13 +359,15 @@ mod tests {
                 .with_signature_version(SignatureVersionType::V4)
                 .with_log_level(LogLevel::Debug),
         );
-        
+
         // Generate a unique object name for this test
-        let object_name = format!("test-comprehensive-multipart-{}", 
-                                  std::time::SystemTime::now()
-                                      .duration_since(std::time::UNIX_EPOCH)
-                                      .unwrap()
-                                      .as_millis());
+        let object_name = format!(
+            "test-comprehensive-multipart-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+        );
 
         // Step 1: Initiate multipart upload
         let initiate_request = InitiateMultipartUploadRequest {
@@ -378,7 +381,9 @@ mod tests {
             .await
             .expect("Initiate multipart upload should succeed");
 
-        let upload_id = initiate_result.upload_id.expect("UploadId should be present");
+        let upload_id = initiate_result
+            .upload_id
+            .expect("UploadId should be present");
         println!("Step 1: Multipart upload initiated with ID: {}", upload_id);
 
         // Step 2: Verify the upload is listed
@@ -390,14 +395,19 @@ mod tests {
             .await
             .expect("List multipart uploads should succeed");
 
-        let found_upload = list_before_upload.uploads.iter().any(|upload| {
-            upload.upload_id == upload_id
-        });
-        assert!(found_upload, "The initiated upload should appear in the list");
+        let found_upload = list_before_upload
+            .uploads
+            .iter()
+            .any(|upload| upload.upload_id == upload_id);
+        assert!(
+            found_upload,
+            "The initiated upload should appear in the list"
+        );
         println!("Step 2: Verified upload exists in multipart uploads list");
 
-        // Step 3: Upload a small part (we won't actually complete the upload to keep the test simple)
-        // We'll just test the workflow and then abort it
+        // Step 3: Upload a small part (we won't actually complete the upload to
+        // keep the test simple) We'll just test the workflow and then
+        // abort it
         let part_data = b"test part data for comprehensive workflow";
         let upload_part_request = UploadPartRequest {
             bucket: config.bucket.to_string(),
@@ -408,14 +418,12 @@ mod tests {
             ..Default::default()
         };
 
-        let upload_part_result = client
-            .upload_part(upload_part_request)
-            .await;
-        
+        let upload_part_result = client.upload_part(upload_part_request).await;
+
         match upload_part_result {
             Ok(part_result) => {
                 println!("Uploaded part with ETag: {:?}", part_result.etag);
-                
+
                 // Step 4: List parts to verify the uploaded part
                 let list_parts_request = crate::api::object::ListPartsRequest {
                     bucket: config.bucket.to_string(),
@@ -427,12 +435,16 @@ mod tests {
                 match client.list_parts(&list_parts_request).await {
                     Ok(parts_result) => {
                         println!("Found {} parts in the upload", parts_result.parts.len());
-                    },
+                    }
                     Err(err) => {
-                        eprintln!("Could not list parts (this might be expected if part hasn't been committed): {:?}", err);
+                        eprintln!(
+                            "Could not list parts (this might be expected if part hasn't been \
+                             committed): {:?}",
+                            err
+                        );
                     }
                 }
-            },
+            }
             Err(err) => {
                 eprintln!("Part upload failed (might be OK for this test): {:?}", err);
             }
@@ -447,10 +459,14 @@ mod tests {
             .await
             .expect("List multipart uploads should succeed after part upload");
 
-        let still_exists = list_after_part.uploads.iter().any(|upload| {
-            upload.upload_id == upload_id
-        });
-        assert!(still_exists, "The upload should still exist after part upload");
+        let still_exists = list_after_part
+            .uploads
+            .iter()
+            .any(|upload| upload.upload_id == upload_id);
+        assert!(
+            still_exists,
+            "The upload should still exist after part upload"
+        );
         println!("Step 5: Confirmed upload still exists after part upload");
 
         // Step 6: Test abort functionality to clean up
@@ -475,10 +491,14 @@ mod tests {
             .await
             .expect("List multipart uploads should succeed after abort");
 
-        let no_longer_exists = !list_after_abort.uploads.iter().any(|upload| {
-            upload.upload_id == upload_id
-        });
-        assert!(no_longer_exists, "The upload should no longer exist after abort");
+        let no_longer_exists = !list_after_abort
+            .uploads
+            .iter()
+            .any(|upload| upload.upload_id == upload_id);
+        assert!(
+            no_longer_exists,
+            "The upload should no longer exist after abort"
+        );
         println!("Step 7: Verified upload no longer exists after abort (resources cleaned up)");
 
         println!("Comprehensive multipart operations workflow test completed successfully!");

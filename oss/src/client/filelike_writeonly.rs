@@ -9,15 +9,15 @@
 //! signatures:
 //!
 //! - Only whole parts are dispatched. A part that is still being buffered is
-//!   never sent, because the next write belongs in it; that also means the
-//!   last part is short, and it is dispatched by `close`.
-//! - Background failures are sticky. A worker that fails leaves the handle in
-//!   a failed state that every later call reports, so a caller cannot keep
+//!   never sent, because the next write belongs in it; that also means the last
+//!   part is short, and it is dispatched by `close`.
+//! - Background failures are sticky. A worker that fails leaves the handle in a
+//!   failed state that every later call reports, so a caller cannot keep
 //!   writing into an upload that is already doomed and get a silent success.
 //! - The durable position ([`WriteOnlyFile::stat_checkpoint`]) only advances
 //!   over a contiguous run of completed parts. A part that finished out of
-//!   order is uploaded but not yet durable, so a resume would have to
-//!   re-upload from the first gap.
+//!   order is uploaded but not yet durable, so a resume would have to re-upload
+//!   from the first gap.
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -30,8 +30,7 @@ use crate::api::object::{
     InitiateMultipartUploadRequest, PutObjectRequest, UploadPartRequest,
 };
 use crate::client::Client;
-use crate::utils::crc64_combine;
-use crate::utils::Crc64;
+use crate::utils::{crc64_combine, Crc64};
 use crate::{DEFAULT_UPLOAD_PARALLEL, DEFAULT_UPLOAD_PART_SIZE, MIN_PART_SIZE};
 
 /// Options for [`Client::open_write_only_file`].
@@ -376,37 +375,6 @@ impl WriteOnlyFile {
         Ok(())
     }
 
-    /// Takes one outcome if one is already available.
-    ///
-    /// Polling once and dropping the future leaves the uploads untouched; it
-    /// only reports outcomes that have already landed.
-    fn try_next_part(&mut self) -> Option<PartOutcome> {
-        use futures_util::FutureExt;
-        self.in_flight.next().now_or_never().flatten()
-    }
-
-    /// Consumes whatever part outcomes are already available.
-    ///
-    /// Polling stops as soon as nothing is ready, so a part still uploading
-    /// does not block the next write; only an outcome that has already landed
-    /// is acted on.
-    fn poll_completed_parts(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        while let Some(outcome) = self.try_next_part() {
-            match outcome {
-                (part_number, size, Ok((etag, crc64))) => {
-                    self.done_parts.insert(part_number, DonePart { etag, crc64, size });
-                    self.advance_contiguous();
-                }
-                (part_number, _size, Err(err)) => {
-                    let message = format!("upload part {part_number} failed: {err}");
-                    self.sticky_error = Some(message.clone());
-                    return Err(message.into());
-                }
-            }
-        }
-        Ok(())
-    }
-
     /// Advances the durable prefix over any run of completed parts.
     fn advance_contiguous(&mut self) {
         while self.done_parts.contains_key(&self.next_contiguous_part) {
@@ -638,7 +606,10 @@ mod tests {
             .mock("POST", mockito::Matcher::Any)
             .match_query(mockito::Matcher::Regex("uploads".to_string()))
             .with_status(200)
-            .with_body("<InitiateMultipartUploadResult><UploadId>up-1</UploadId></InitiateMultipartUploadResult>")
+            .with_body(
+                "<InitiateMultipartUploadResult><UploadId>up-1</UploadId></\
+                 InitiateMultipartUploadResult>",
+            )
             .expect(1)
             .create_async()
             .await;
@@ -663,7 +634,10 @@ mod tests {
             .mock("POST", mockito::Matcher::Any)
             .match_query(mockito::Matcher::Regex("uploadId=up-1".to_string()))
             .with_status(200)
-            .with_body("<CompleteMultipartUploadResult><ETag>\"final\"</ETag></CompleteMultipartUploadResult>")
+            .with_body(
+                "<CompleteMultipartUploadResult><ETag>\"final\"</ETag></\
+                 CompleteMultipartUploadResult>",
+            )
             .expect(1)
             .create_async()
             .await;
@@ -702,7 +676,10 @@ mod tests {
             .mock("POST", mockito::Matcher::Any)
             .match_query(mockito::Matcher::Regex("uploads".to_string()))
             .with_status(200)
-            .with_body("<InitiateMultipartUploadResult><UploadId>up-err</UploadId></InitiateMultipartUploadResult>")
+            .with_body(
+                "<InitiateMultipartUploadResult><UploadId>up-err</UploadId></\
+                 InitiateMultipartUploadResult>",
+            )
             .create_async()
             .await;
         server
@@ -745,7 +722,10 @@ mod tests {
             .mock("POST", mockito::Matcher::Any)
             .match_query(mockito::Matcher::Regex("uploads".to_string()))
             .with_status(200)
-            .with_body("<InitiateMultipartUploadResult><UploadId>up-fail</UploadId></InitiateMultipartUploadResult>")
+            .with_body(
+                "<InitiateMultipartUploadResult><UploadId>up-fail</UploadId></\
+                 InitiateMultipartUploadResult>",
+            )
             .create_async()
             .await;
         server
@@ -790,7 +770,10 @@ mod tests {
             .mock("POST", mockito::Matcher::Any)
             .match_query(mockito::Matcher::Regex("uploads".to_string()))
             .with_status(200)
-            .with_body("<InitiateMultipartUploadResult><UploadId>up-abort</UploadId></InitiateMultipartUploadResult>")
+            .with_body(
+                "<InitiateMultipartUploadResult><UploadId>up-abort</UploadId></\
+                 InitiateMultipartUploadResult>",
+            )
             .create_async()
             .await;
         server
@@ -839,7 +822,10 @@ mod tests {
             .mock("POST", mockito::Matcher::Any)
             .match_query(mockito::Matcher::Regex("uploads".to_string()))
             .with_status(200)
-            .with_body("<InitiateMultipartUploadResult><UploadId>up-gap</UploadId></InitiateMultipartUploadResult>")
+            .with_body(
+                "<InitiateMultipartUploadResult><UploadId>up-gap</UploadId></\
+                 InitiateMultipartUploadResult>",
+            )
             .create_async()
             .await;
         // Part 1 fails, part 2 succeeds: the prefix must stay empty.

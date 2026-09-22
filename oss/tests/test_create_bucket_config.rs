@@ -14,9 +14,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
-use alibabacloud_oss_sdk_rust_v2::api::bucket::{
-    CreateBucketConfiguration, CreateBucketRequest,
-};
+use alibabacloud_oss_sdk_rust_v2::api::bucket::{CreateBucketConfiguration, CreateBucketRequest};
 use alibabacloud_oss_sdk_rust_v2::client::Client;
 use alibabacloud_oss_sdk_rust_v2::config::Config;
 use alibabacloud_oss_sdk_rust_v2::credential::providers::StaticCredentialsProvider;
@@ -63,8 +61,7 @@ fn capture_wire(request: CreateBucketRequest) -> String {
             .with_signature_version(SignatureVersionType::V4);
         let client = Client::new(&config);
         let _ = client.create_bucket(&request).await;
-        rx.recv_timeout(Duration::from_secs(10))
-            .unwrap_or_default()
+        rx.recv_timeout(Duration::from_secs(10)).unwrap_or_default()
     })
 }
 

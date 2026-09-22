@@ -1,4 +1,3 @@
-use crate::HTTP_HEADER_CONTENT_TYPE;
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::Deserialize;
 
@@ -6,8 +5,7 @@ use super::delete_style::StyleInfo;
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-use crate::OperationInput;
-use crate::OperationOutput;
+use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct ListStyleRequest {
@@ -140,7 +138,10 @@ mod tests {
         let result: ListStyleResult = quick_xml::de::from_str(xml).unwrap();
         assert_eq!(result.styles.len(), 2);
         assert_eq!(result.styles[0].name.as_deref(), Some("style-1"));
-        assert_eq!(result.styles[1].content.as_deref(), Some("image/crop,w_200"));
+        assert_eq!(
+            result.styles[1].content.as_deref(),
+            Some("image/crop,w_200")
+        );
 
         // Empty list
         let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -184,7 +185,11 @@ mod tests {
                 ..Default::default()
             })
             .await;
-        assert!(put_result.is_ok(), "put_style failed: {:?}", put_result.err());
+        assert!(
+            put_result.is_ok(),
+            "put_style failed: {:?}",
+            put_result.err()
+        );
 
         let result = client
             .list_style(&ListStyleRequest::new(&config.bucket))

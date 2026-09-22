@@ -66,7 +66,10 @@ impl Client {
     /// let client = Client::new(&Config::default());
     /// let request = DoDataPipeLineActionRequest {
     ///     action: Some("my-action".to_string()),
-    ///     body: Some(BodyContent::from_text("<DataPipeline></DataPipeline>".to_string(), None)),
+    ///     body: Some(BodyContent::from_text(
+    ///         "<DataPipeline></DataPipeline>".to_string(),
+    ///         None,
+    ///     )),
     ///     ..Default::default()
     /// };
     ///
@@ -103,7 +106,12 @@ impl Client {
             ..Default::default()
         };
 
-        modify_request(&mut input, headers, queries, vec![update_content_md5, update_content_length])?;
+        modify_request(
+            &mut input,
+            headers,
+            queries,
+            vec![update_content_md5, update_content_length],
+        )?;
 
         let output = self.invoke_operation(input, vec![]).await?;
 

@@ -89,9 +89,10 @@ impl Client {
             ..Default::default()
         };
 
-        input
-            .op_metadata
-            .set(crate::signer::SUB_RESOURCE, std::rc::Rc::new(vec!["seal".to_string()]));
+        input.op_metadata.set(
+            crate::signer::SUB_RESOURCE,
+            std::rc::Rc::new(vec!["seal".to_string()]),
+        );
 
         modify_request(
             &mut input,
@@ -163,7 +164,11 @@ mod tests {
                 ..Default::default()
             })
             .await;
-        assert!(result.is_ok(), "seal_append_object failed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "seal_append_object failed: {:?}",
+            result.err()
+        );
 
         // Clean up
         let _ = client

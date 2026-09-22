@@ -5,11 +5,10 @@ use serde::Deserialize;
 
 use super::close_meta_query::{MetaQuery, MetaQueryAggregations, MetaQueryFiles};
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::signer::SUB_RESOURCE;
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-use crate::{OperationOutput, BodyContent, OperationInput, HTTP_HEADER_CONTENT_TYPE};
+use crate::{BodyContent, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct DoMetaQueryRequest {
@@ -53,8 +52,8 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `request` - The `DoMetaQueryRequest` containing the bucket name and the
-    ///   query conditions.
+    /// * `request` - The `DoMetaQueryRequest` containing the bucket name and
+    ///   the query conditions.
     ///
     /// # Examples
     ///
@@ -134,8 +133,8 @@ impl Client {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::close_meta_query::{MetaQueryAggregation, MetaQueryMediaTypes};
+    use super::*;
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::test_utils::load_test_config;
@@ -280,16 +279,22 @@ mod tests {
         assert_eq!(file.size, Some(120));
         assert_eq!(file.oss_tagging_count, Some(1));
         assert_eq!(
-            file.oss_tagging.as_ref().unwrap().taggings[0].key.as_deref(),
+            file.oss_tagging.as_ref().unwrap().taggings[0]
+                .key
+                .as_deref(),
             Some("owner")
         );
         assert_eq!(
-            file.oss_user_meta.as_ref().unwrap().user_metas[0].value.as_deref(),
+            file.oss_user_meta.as_ref().unwrap().user_metas[0]
+                .value
+                .as_deref(),
             Some("value1")
         );
         assert_eq!(file.duration, Some(10.5));
         assert_eq!(
-            file.video_streams.as_ref().unwrap().video_streams[0].codec_name.as_deref(),
+            file.video_streams.as_ref().unwrap().video_streams[0]
+                .codec_name
+                .as_deref(),
             Some("h264")
         );
         assert_eq!(
@@ -297,15 +302,26 @@ mod tests {
             Some(44100)
         );
         assert_eq!(
-            file.addresses.as_ref().unwrap().addresses[0].city.as_deref(),
+            file.addresses.as_ref().unwrap().addresses[0]
+                .city
+                .as_deref(),
             Some("Hangzhou")
         );
         assert_eq!(
-            file.subtitles.as_ref().unwrap().subtitles[0].language.as_deref(),
+            file.subtitles.as_ref().unwrap().subtitles[0]
+                .language
+                .as_deref(),
             Some("en")
         );
         assert_eq!(
-            file.insights.as_ref().unwrap().video.as_ref().unwrap().caption.as_deref(),
+            file.insights
+                .as_ref()
+                .unwrap()
+                .video
+                .as_ref()
+                .unwrap()
+                .caption
+                .as_deref(),
             Some("caption")
         );
         let aggs = result.aggregations.unwrap().aggregations;
@@ -346,14 +362,19 @@ mod tests {
                 bucket: config.bucket.clone(),
                 meta_query: MetaQuery {
                     max_results: Some(10),
-                    query: Some(r#"{"Field": "Size", "Value": "0", "Operation": "gte"}"#.to_string()),
+                    query: Some(
+                        r#"{"Field": "Size", "Value": "0", "Operation": "gte"}"#.to_string(),
+                    ),
                     ..Default::default()
                 },
                 ..Default::default()
             })
             .await;
         if let Err(error) = &result {
-            eprintln!("do_meta_query rejected (meta query may not be running): {}", error);
+            eprintln!(
+                "do_meta_query rejected (meta query may not be running): {}",
+                error
+            );
         }
     }
 }

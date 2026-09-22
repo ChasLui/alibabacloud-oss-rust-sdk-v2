@@ -4,11 +4,10 @@ use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 
 use super::delete_bucket_inventory::InventoryConfiguration;
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::signer::SUB_RESOURCE;
 use crate::utils::{modify_request, update_content_length};
-use crate::{OperationOutput, OperationInput, HTTP_HEADER_CONTENT_TYPE};
+use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct GetBucketInventoryRequest {
@@ -160,7 +159,13 @@ mod tests {
         assert_eq!(parsed.id.as_deref(), Some("report1"));
         assert_eq!(parsed.is_enabled, Some(true));
         assert_eq!(
-            parsed.destination.unwrap().oss_bucket_destination.unwrap().bucket.as_deref(),
+            parsed
+                .destination
+                .unwrap()
+                .oss_bucket_destination
+                .unwrap()
+                .bucket
+                .as_deref(),
             Some("acs:oss:::destination-bucket")
         );
         assert_eq!(parsed.schedule.unwrap().frequency.as_deref(), Some("Daily"));
@@ -199,7 +204,10 @@ mod tests {
             ))
             .await;
         if let Err(error) = &result {
-            eprintln!("get_bucket_inventory rejected (expected for missing inventory): {}", error);
+            eprintln!(
+                "get_bucket_inventory rejected (expected for missing inventory): {}",
+                error
+            );
         }
     }
 }

@@ -1,14 +1,12 @@
-use crate::HTTP_HEADER_CONTENT_TYPE;
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::Deserialize;
 
 use super::create_access_point_for_object_process::ObjectProcessConfiguration;
 use crate::api::service::PublicAccessBlockConfiguration;
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_md5};
-use crate::{OperationInput, OperationOutput};
+use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct GetAccessPointConfigForObjectProcessRequest {
@@ -25,16 +23,27 @@ pub struct GetAccessPointConfigForObjectProcessRequest {
 #[derive(Debug, Default, Deserialize, OssResultModel)]
 #[serde(rename = "GetAccessPointConfigForObjectProcessResult")]
 pub struct GetAccessPointConfigForObjectProcessResult {
-    /// The container that stores the processing information about the Object FC Access Point.
-    #[serde(rename = "ObjectProcessConfiguration", skip_serializing_if = "Option::is_none")]
+    /// The container that stores the processing information about the Object FC
+    /// Access Point.
+    #[serde(
+        rename = "ObjectProcessConfiguration",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub object_process_configuration: Option<ObjectProcessConfiguration>,
 
     /// Whether allow anonymous user to access this FC Access Point.
-    #[serde(rename = "AllowAnonymousAccessForObjectProcess", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "AllowAnonymousAccessForObjectProcess",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub allow_anonymous_access_for_object_process: Option<String>,
 
-    /// The container in which the Block Public Access configurations are stored.
-    #[serde(rename = "PublicAccessBlockConfiguration", skip_serializing_if = "Option::is_none")]
+    /// The container in which the Block Public Access configurations are
+    /// stored.
+    #[serde(
+        rename = "PublicAccessBlockConfiguration",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub public_access_block_configuration: Option<PublicAccessBlockConfiguration>,
 
     /// Common result fields
@@ -47,8 +56,8 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `request` - The `GetAccessPointConfigForObjectProcessRequest` containing
-    ///   the bucket name and the Object FC Access Point name.
+    /// * `request` - The `GetAccessPointConfigForObjectProcessRequest`
+    ///   containing the bucket name and the Object FC Access Point name.
     ///
     /// # Examples
     ///
@@ -211,7 +220,8 @@ mod tests {
             .await;
         if let Err(error) = &result {
             eprintln!(
-                "get_access_point_config_for_object_process rejected (access point may not exist): {}",
+                "get_access_point_config_for_object_process rejected (access point may not \
+                 exist): {}",
                 error
             );
         }

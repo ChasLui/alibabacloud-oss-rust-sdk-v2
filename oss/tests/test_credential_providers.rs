@@ -1,24 +1,22 @@
 // Integration tests for credential providers
 
+use std::time::{Duration, SystemTime};
+
 use alibabacloud_oss_sdk_rust_v2::credential::{
-    Credentials, CredentialsProvider, StaticCredentialsProvider, AnonymousCredentialsProvider,
+    AnonymousCredentialsProvider, Credentials, CredentialsProvider, StaticCredentialsProvider,
 };
-use std::time::{SystemTime, Duration};
 
 #[tokio::test]
 async fn test_static_credentials_provider_with_token() {
     let access_key_id = "test_access_key_id";
     let access_key_secret = "test_access_key_secret";
     let security_token = "test_security_token";
-    
-    let provider = StaticCredentialsProvider::new(
-        access_key_id,
-        access_key_secret,
-        &[security_token],
-    );
-    
+
+    let provider =
+        StaticCredentialsProvider::new(access_key_id, access_key_secret, &[security_token]);
+
     let credentials = provider.get_credentials().await.unwrap();
-    
+
     assert_eq!(credentials.access_key_id, access_key_id);
     assert_eq!(credentials.access_key_secret, access_key_secret);
     assert_eq!(credentials.security_token, security_token);
@@ -29,15 +27,11 @@ async fn test_static_credentials_provider_with_token() {
 async fn test_static_credentials_provider_without_token() {
     let access_key_id = "test_access_key_id";
     let access_key_secret = "test_access_key_secret";
-    
-    let provider = StaticCredentialsProvider::new(
-        access_key_id,
-        access_key_secret,
-        &[],
-    );
-    
+
+    let provider = StaticCredentialsProvider::new(access_key_id, access_key_secret, &[]);
+
     let credentials = provider.get_credentials().await.unwrap();
-    
+
     assert_eq!(credentials.access_key_id, access_key_id);
     assert_eq!(credentials.access_key_secret, access_key_secret);
     assert_eq!(credentials.security_token, "");
@@ -49,15 +43,11 @@ async fn test_static_credentials_provider_multiple_tokens() {
     let access_key_id = "test_access_key_id";
     let access_key_secret = "test_access_key_secret";
     let tokens = vec!["token1", "token2", "token3"];
-    
-    let provider = StaticCredentialsProvider::new(
-        access_key_id,
-        access_key_secret,
-        &tokens,
-    );
-    
+
+    let provider = StaticCredentialsProvider::new(access_key_id, access_key_secret, &tokens);
+
     let credentials = provider.get_credentials().await.unwrap();
-    
+
     // Should use the first token
     assert_eq!(credentials.security_token, "token1");
 }
@@ -65,9 +55,9 @@ async fn test_static_credentials_provider_multiple_tokens() {
 #[tokio::test]
 async fn test_anonymous_credentials_provider() {
     let provider = AnonymousCredentialsProvider::new();
-    
+
     let credentials = provider.get_credentials().await.unwrap();
-    
+
     assert_eq!(credentials.access_key_id, "");
     assert_eq!(credentials.access_key_secret, "");
     assert_eq!(credentials.security_token, "");
@@ -82,9 +72,9 @@ async fn test_credentials_clone() {
         security_token: "token".to_string(),
         expires: Some(SystemTime::now() + Duration::from_secs(3600)),
     };
-    
+
     let cloned = original.clone();
-    
+
     assert_eq!(original.access_key_id, cloned.access_key_id);
     assert_eq!(original.access_key_secret, cloned.access_key_secret);
     assert_eq!(original.security_token, cloned.security_token);
@@ -94,7 +84,7 @@ async fn test_credentials_clone() {
 #[tokio::test]
 async fn test_credentials_default() {
     let credentials = Credentials::default();
-    
+
     assert_eq!(credentials.access_key_id, "");
     assert_eq!(credentials.access_key_secret, "");
     assert_eq!(credentials.security_token, "");
@@ -112,7 +102,7 @@ async fn test_credentials_has_keys_variations() {
         ..Default::default()
     };
     assert!(creds1.has_keys());
-    
+
     // Only access key id
     let creds2 = Credentials {
         access_key_id: "ak".to_string(),
@@ -120,7 +110,7 @@ async fn test_credentials_has_keys_variations() {
         ..Default::default()
     };
     assert!(!creds2.has_keys());
-    
+
     // Only access key secret
     let creds3 = Credentials {
         access_key_id: "".to_string(),
@@ -128,7 +118,7 @@ async fn test_credentials_has_keys_variations() {
         ..Default::default()
     };
     assert!(!creds3.has_keys());
-    
+
     // Neither key
     let creds4 = Credentials::default();
     assert!(!creds4.has_keys());
@@ -142,14 +132,14 @@ async fn test_credentials_expired_edge_cases() {
         ..Default::default()
     };
     assert!(creds1.expired());
-    
+
     // 1 second in the future - not expired
     let creds2 = Credentials {
         expires: Some(SystemTime::now() + Duration::from_secs(1)),
         ..Default::default()
     };
     assert!(!creds2.expired());
-    
+
     // 1 second in the past - expired
     let creds3 = Credentials {
         expires: Some(SystemTime::now() - Duration::from_secs(1)),
@@ -166,13 +156,13 @@ async fn test_credentials_serialization_deserialization() {
         security_token: "test_token".to_string(),
         expires: Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1702784856)),
     };
-    
+
     // Serialize to JSON
     let json = serde_json::to_string(&original).unwrap();
-    
+
     // Deserialize from JSON
     let deserialized: Credentials = serde_json::from_str(&json).unwrap();
-    
+
     assert_eq!(original.access_key_id, deserialized.access_key_id);
     assert_eq!(original.access_key_secret, deserialized.access_key_secret);
     assert_eq!(original.security_token, deserialized.security_token);
@@ -187,21 +177,21 @@ async fn test_credentials_partial_eq() {
         security_token: "token".to_string(),
         expires: None,
     };
-    
+
     let creds2 = Credentials {
         access_key_id: "ak".to_string(),
         access_key_secret: "sk".to_string(),
         security_token: "token".to_string(),
         expires: None,
     };
-    
+
     let creds3 = Credentials {
         access_key_id: "different_ak".to_string(),
         access_key_secret: "sk".to_string(),
         security_token: "token".to_string(),
         expires: None,
     };
-    
+
     assert_eq!(creds1, creds2);
     assert_ne!(creds1, creds3);
 }

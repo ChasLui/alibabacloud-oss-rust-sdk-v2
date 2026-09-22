@@ -4,8 +4,7 @@ use serde::Deserialize;
 use super::CommonPrefix;
 use crate::api::object::ObjectProperties;
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_md5};
 use crate::{OperationInput, OperationOutput, DEFAULT_CONTENT_TYPE, HTTP_HEADER_CONTENT_TYPE};
 #[derive(Debug, Default, Clone, OssRequestModel)]
@@ -111,30 +110,31 @@ fn decode_result(result: &mut ListObjectsResult) {
         return;
     }
 
-    for field in [
+    for value in [
         &mut result.prefix,
         &mut result.marker,
         &mut result.delimiter,
         &mut result.next_marker,
-    ] {
-        if let Some(value) = field {
-            *value = urlencoding::decode(value)
-                .unwrap_or_else(|_| std::borrow::Cow::Borrowed(value.as_str()))
-                .into_owned();
-        }
+    ]
+    .into_iter()
+    .flatten()
+    {
+        *value = urlencoding::decode(value)
+            .unwrap_or(std::borrow::Cow::Borrowed(value.as_str()))
+            .into_owned();
     }
 
     for obj in &mut result.contents {
         if let Some(key) = &mut obj.key {
             *key = urlencoding::decode(key)
-                .unwrap_or_else(|_| std::borrow::Cow::Borrowed(key.as_str()))
+                .unwrap_or(std::borrow::Cow::Borrowed(key.as_str()))
                 .into_owned();
         }
     }
 
     for prefix in &mut result.common_prefixes {
         prefix.prefix = urlencoding::decode(&prefix.prefix)
-            .unwrap_or_else(|_| std::borrow::Cow::Borrowed(prefix.prefix.as_str()))
+            .unwrap_or(std::borrow::Cow::Borrowed(prefix.prefix.as_str()))
             .into_owned();
     }
 }
@@ -148,8 +148,8 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `request` - A reference to a `ListObjectsRequest` struct that
-    ///   contains the request parameters.
+    /// * `request` - A reference to a `ListObjectsRequest` struct that contains
+    ///   the request parameters.
     ///
     /// # Examples
     ///

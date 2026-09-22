@@ -49,10 +49,12 @@ mod tests {
     fn test_server_errors_are_retryable() {
         let retryable = HTTPStatusCodeRetryable;
         for status in [500, 502, 503, 504] {
-            let err = service_error_with_status(
-                http::StatusCode::from_u16(status).unwrap(),
+            let err = service_error_with_status(http::StatusCode::from_u16(status).unwrap());
+            assert!(
+                retryable.is_error_retryable(&err),
+                "{} must be retryable",
+                status
             );
-            assert!(retryable.is_error_retryable(&err), "{} must be retryable", status);
         }
     }
 
@@ -60,10 +62,12 @@ mod tests {
     fn test_selected_4xx_are_retryable() {
         let retryable = HTTPStatusCodeRetryable;
         for status in [401, 408, 429] {
-            let err = service_error_with_status(
-                http::StatusCode::from_u16(status).unwrap(),
+            let err = service_error_with_status(http::StatusCode::from_u16(status).unwrap());
+            assert!(
+                retryable.is_error_retryable(&err),
+                "{} must be retryable",
+                status
             );
-            assert!(retryable.is_error_retryable(&err), "{} must be retryable", status);
         }
     }
 
@@ -71,10 +75,12 @@ mod tests {
     fn test_other_4xx_are_not_retryable() {
         let retryable = HTTPStatusCodeRetryable;
         for status in [400, 403, 404, 409] {
-            let err = service_error_with_status(
-                http::StatusCode::from_u16(status).unwrap(),
+            let err = service_error_with_status(http::StatusCode::from_u16(status).unwrap());
+            assert!(
+                !retryable.is_error_retryable(&err),
+                "{} must not be retryable",
+                status
             );
-            assert!(!retryable.is_error_retryable(&err), "{} must not be retryable", status);
         }
     }
 

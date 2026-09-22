@@ -1,13 +1,11 @@
-use crate::HTTP_HEADER_CONTENT_TYPE;
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::Deserialize;
 
 use super::put_bucket_referer::{RefererBlacklist, RefererList};
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-use crate::{OperationInput, OperationOutput};
+use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct GetBucketRefererRequest {
@@ -26,7 +24,10 @@ pub struct GetBucketRefererResult {
 
     /// Indicates whether the query string in the URL is truncated when the
     /// Referer is matched.
-    #[serde(rename = "AllowTruncateQueryString", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "AllowTruncateQueryString",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub allow_truncate_query_string: Option<bool>,
 
     /// Indicates whether the path and parts that follow the path in the URL are
@@ -125,7 +126,9 @@ impl Client {
 mod tests {
     use std::rc::Rc;
 
-    use super::super::put_bucket_referer::{PutBucketRefererRequest, RefererConfiguration, RefererList};
+    use super::super::put_bucket_referer::{
+        PutBucketRefererRequest, RefererConfiguration, RefererList,
+    };
     use super::*;
     use crate::api::bucket::{CreateBucketRequest, DeleteBucketRequest};
     use crate::config::Config;
@@ -200,7 +203,11 @@ mod tests {
                 ..Default::default()
             })
             .await;
-        assert!(result.is_ok(), "get_bucket_referer failed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "get_bucket_referer failed: {:?}",
+            result.err()
+        );
         let result = result.unwrap();
         assert_eq!(result.allow_empty_referer, Some(true));
         assert_eq!(

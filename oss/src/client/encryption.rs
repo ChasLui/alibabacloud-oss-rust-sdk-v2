@@ -17,9 +17,9 @@
 //!   hand the caller plaintext it did not ask for.
 //! - Each part of a multipart upload is encrypted from a counter derived from
 //!   its own part number, so parts can be uploaded concurrently, retried, or
-//!   replaced without any of them depending on the others. That is also why
-//!   the part size must be a multiple of the block size: otherwise a part
-//!   boundary would fall inside a block and the counters would not line up.
+//!   replaced without any of them depending on the others. That is also why the
+//!   part size must be a multiple of the block size: otherwise a part boundary
+//!   would fall inside a block and the counters would not line up.
 //! - An object whose envelope cannot be unwrapped is an error, not a pass
 //!   through: the bytes would be ciphertext, and handing them to a caller who
 //!   asked for the object's contents would be worse than failing.
@@ -28,6 +28,7 @@ use std::collections::HashMap;
 
 use base64::engine::general_purpose;
 use base64::Engine;
+use futures_util::StreamExt;
 
 use crate::api::object::{
     AbortMultipartUploadRequest, AbortMultipartUploadResult, CompleteMultipartUploadRequest,
@@ -41,7 +42,6 @@ use crate::crypto::{
     adjust_range_start, envelope_from_headers, has_encrypted_header, headers as cse_headers,
     is_valid_content_alg, AesCtrCipher, ContentCipherBuilder, Envelope, MasterCipher,
 };
-use futures_util::StreamExt;
 
 /// The block size the cipher aligns to.
 const ALIGN_LEN: i64 = 16;
@@ -495,7 +495,10 @@ fn add_crypto_headers(
     cipher_data: &crate::crypto::CipherData,
 ) {
     if !cipher_data.mat_desc.is_empty() {
-        headers.insert(cse_headers::wire::MAT_DESC.to_string(), cipher_data.mat_desc.clone());
+        headers.insert(
+            cse_headers::wire::MAT_DESC.to_string(),
+            cipher_data.mat_desc.clone(),
+        );
     }
     headers.insert(
         cse_headers::wire::KEY.to_string(),
@@ -721,7 +724,8 @@ hO92gGc+4ajL
         let mut server = mockito::Server::new_async().await;
         let plaintext = b"secret contents";
 
-        // Capture the uploaded body so it can be shown to differ from the input.
+        // Capture the uploaded body so it can be shown to differ from the
+        // input.
         let put = server
             .mock("PUT", mockito::Matcher::Any)
             .match_header(
@@ -765,8 +769,10 @@ hO92gGc+4ajL
 
         // The server keeps whatever was uploaded and serves it back with the
         // same headers, which is what a real OSS does.
-        let stored: std::sync::Arc<std::sync::Mutex<(Vec<u8>, HashMap<String, String>)>> =
-            std::sync::Arc::new(std::sync::Mutex::new((Vec::new(), HashMap::new())));
+        let stored = std::sync::Arc::new(std::sync::Mutex::new((
+            Vec::<u8>::new(),
+            HashMap::<String, String>::new(),
+        )));
         let stored_put = stored.clone();
         server
             .mock("PUT", mockito::Matcher::Any)
@@ -994,7 +1000,10 @@ hO92gGc+4ajL
             .mock("POST", mockito::Matcher::Any)
             .match_query(mockito::Matcher::Regex("uploads".to_string()))
             .with_status(200)
-            .with_body("<InitiateMultipartUploadResult><UploadId>up-cse</UploadId></InitiateMultipartUploadResult>")
+            .with_body(
+                "<InitiateMultipartUploadResult><UploadId>up-cse</UploadId></\
+                 InitiateMultipartUploadResult>",
+            )
             .create_async()
             .await;
 

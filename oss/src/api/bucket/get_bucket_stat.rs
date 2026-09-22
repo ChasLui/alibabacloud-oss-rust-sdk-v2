@@ -2,8 +2,7 @@ use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::Deserialize;
 
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_length, update_content_md5};
 use crate::{OperationInput, OperationOutput, DEFAULT_CONTENT_TYPE, HTTP_HEADER_CONTENT_TYPE};
 
@@ -143,7 +142,10 @@ impl Client {
     ///
     /// match client.get_bucket_stat(&request).await {
     ///     Ok(result) => {
-    ///         println!("Storage: {} bytes, objects: {}", result.storage, result.object_count);
+    ///         println!(
+    ///             "Storage: {} bytes, objects: {}",
+    ///             result.storage, result.object_count
+    ///         );
     ///     }
     ///     Err(error) => {
     ///         eprintln!("Failed to get bucket stat: {}", error);
@@ -196,8 +198,8 @@ mod tests {
     use super::*;
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
-    use crate::SignatureVersionType;
     use crate::test_utils::load_test_config;
+    use crate::SignatureVersionType;
 
     #[test]
     fn test_bucket_stat_deserialize() {
@@ -251,7 +253,8 @@ mod tests {
 
     #[test]
     fn test_bucket_stat_deserialize_partial() {
-        // Missing elements fall back to zero, matching Go's non-pointer int64 fields.
+        // Missing elements fall back to zero, matching Go's non-pointer int64
+        // fields.
         let xml = r#"<BucketStat><Storage>10</Storage><ObjectCount>1</ObjectCount></BucketStat>"#;
         let result: GetBucketStatResult = quick_xml::de::from_str(xml).unwrap();
         assert_eq!(result.storage, 10);

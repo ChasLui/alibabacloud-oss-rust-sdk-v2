@@ -34,10 +34,11 @@ pub struct AbortMultipartUploadResult {
 impl Client {
     /// Aborts a multipart upload and deletes the corresponding part data.
     ///
-    /// This method sends a DELETE request with the upload ID parameter to cancel
-    /// a multipart upload event and delete the associated part data. This operation
-    /// is useful when you want to cancel an in-progress multipart upload and clean
-    /// up the uploaded parts to avoid storage charges.
+    /// This method sends a DELETE request with the upload ID parameter to
+    /// cancel a multipart upload event and delete the associated part data.
+    /// This operation is useful when you want to cancel an in-progress
+    /// multipart upload and clean up the uploaded parts to avoid storage
+    /// charges.
     ///
     /// # Arguments
     ///
@@ -48,8 +49,9 @@ impl Client {
     /// # Returns
     ///
     /// Returns a `Result` containing the `AbortMultipartUploadResult` if the
-    /// operation is successful, or an error if it fails. Note that if the upload
-    /// has already been completed, this operation will return a NoSuchUpload error.
+    /// operation is successful, or an error if it fails. Note that if the
+    /// upload has already been completed, this operation will return a
+    /// NoSuchUpload error.
     ///
     /// # Examples
     ///
@@ -119,8 +121,8 @@ mod tests {
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
+    use crate::test_utils::{generate_unique_object_name, load_test_config};
     use crate::SignatureVersionType;
-    use crate::test_utils::{load_test_config, TestConfig, generate_unique_object_name};
 
     #[tokio::test]
     #[serial_test::serial]
@@ -215,11 +217,17 @@ mod tests {
 
         match client.abort_multipart_upload(&abort_request).await {
             Ok(result) => {
-                println!("Unexpectedly aborted nonexistent multipart upload: {:?}", result);
+                println!(
+                    "Unexpectedly aborted nonexistent multipart upload: {:?}",
+                    result
+                );
             }
             Err(err) => {
                 // This is expected - the upload ID doesn't exist
-                println!("Failed to abort nonexistent multipart upload as expected: {:?}", err);
+                println!(
+                    "Failed to abort nonexistent multipart upload as expected: {:?}",
+                    err
+                );
             }
         }
     }

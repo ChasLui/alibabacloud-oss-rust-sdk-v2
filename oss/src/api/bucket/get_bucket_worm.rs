@@ -4,8 +4,7 @@ use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::{Deserialize, Serialize};
 
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::signer::SUB_RESOURCE;
 use crate::utils::{modify_request, update_content_length, update_content_md5};
 use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
@@ -22,14 +21,17 @@ pub struct WormConfiguration {
 
     /// The status of the retention policy. Valid values:
     /// - InProgress: indicates that the retention policy is in the InProgress
-    ///   state. By default, a retention policy is in the InProgress state
-    ///   after it is created. The policy remains in this state for 24 hours.
+    ///   state. By default, a retention policy is in the InProgress state after
+    ///   it is created. The policy remains in this state for 24 hours.
     /// - Locked: indicates that the retention policy is in the Locked state.
     #[serde(rename = "State", skip_serializing_if = "Option::is_none")]
     pub state: Option<String>,
 
     /// The number of days for which objects can be retained.
-    #[serde(rename = "RetentionPeriodInDays", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "RetentionPeriodInDays",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub retention_period_in_days: Option<i32>,
 
     /// The time at which the retention policy was created.
@@ -144,8 +146,8 @@ mod tests {
     use super::*;
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
-    use crate::SignatureVersionType;
     use crate::test_utils::load_test_config;
+    use crate::SignatureVersionType;
 
     #[test]
     fn test_worm_configuration_deserialize() {
@@ -201,10 +203,9 @@ mod tests {
         client
             .initiate_bucket_worm(&crate::api::bucket::InitiateBucketWormRequest {
                 bucket: bucket_name.clone(),
-                initiate_worm_configuration:
-                    crate::api::bucket::InitiateWormConfiguration {
-                        retention_period_in_days: Some(1),
-                    },
+                initiate_worm_configuration: crate::api::bucket::InitiateWormConfiguration {
+                    retention_period_in_days: Some(1),
+                },
                 ..Default::default()
             })
             .await

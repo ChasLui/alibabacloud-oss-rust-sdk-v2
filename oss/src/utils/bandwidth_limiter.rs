@@ -9,9 +9,9 @@
 //!
 //! - The limiter is a token bucket whose burst is a megabyte-scale window, not
 //!   one packet. Waiting per small chunk would add a scheduling round trip to
-//!   every read and cap throughput far below the configured rate; a window
-//!   lets a burst through and slows the average down, which is what a
-//!   bandwidth limit means.
+//!   every read and cap throughput far below the configured rate; a window lets
+//!   a burst through and slows the average down, which is what a bandwidth
+//!   limit means.
 //! - Waiting is asynchronous, because the stream runs on the caller's runtime.
 //!   A blocking sleep there stalls every other task that runtime is driving —
 //!   measurably, a download that should have taken seconds ran into its own

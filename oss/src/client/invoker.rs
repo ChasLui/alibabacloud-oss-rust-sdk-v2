@@ -11,8 +11,8 @@ use crate::retry::DEFAULT_MAX_ATTEMPTS;
 use crate::signer::{SigningContext, SIGN_TIME, SUB_RESOURCE};
 use crate::utils::{build_url, header_map_to_hash_map, is_valid_endpoint, sleep_with_context};
 use crate::{
-    AuthMethodType, BodyStream, BodyTracker, ClientError, HEADER_OSS_DATE, HTTP_HEADER_USER_AGENT,
-    OperationInput, OperationMetadata, OperationOutput, ServiceError,
+    AuthMethodType, BodyStream, BodyTracker, ClientError, OperationInput, OperationMetadata,
+    OperationOutput, ServiceError, HEADER_OSS_DATE, HTTP_HEADER_USER_AGENT,
 };
 
 impl Client {
@@ -64,19 +64,31 @@ impl Client {
         }
 
         apply_operation_opt(&mut options, &modified_options);
-        apply_operation_metadata(&input, &mut options);  // 使用 &input 而不是 input
-        // Go sets the operation's read/write timeout through a request context
-        // at this point. Rust has no such context: the timeout is applied when
-        // the HTTP client is built, from `Config::read_write_timeout`.
+        apply_operation_metadata(&input, &mut options); // 使用 &input 而不是
+                                                        // input
+                                                        // Go sets the
+                                                        // operation's
+                                                        // read/write timeout
+                                                        // through a request
+                                                        // context
+                                                        // at this point. Rust
+                                                        // has no such context:
+                                                        // the timeout is
+                                                        // applied when
+                                                        // the HTTP client is
+                                                        // built, from
+                                                        // `Config::read_write_timeout`.
+                                                        //
 
-        let request_result = self.send_request(input, Some(&options)).await;  // 传递所有权给send_request
+        let request_result = self.send_request(input, Some(&options)).await; // 传递所有权给send_request
 
         logger.info(
             format!(
-                "InvokeOperation End\ninput_op_name: {}\ninput_bucket: {:#?}\ninput_key: {:#?}\nResult<Output, Err>: {:#?}",
-                input_op_name,  // 使用预先保存的值
-                input_bucket,   // 使用预先保存的值
-                input_key,      // 使用预先保存的值
+                "InvokeOperation End\ninput_op_name: {}\ninput_bucket: {:#?}\ninput_key: \
+                 {:#?}\nResult<Output, Err>: {:#?}",
+                input_op_name, // 使用预先保存的值
+                input_bucket,  // 使用预先保存的值
+                input_key,     // 使用预先保存的值
                 request_result.as_ref()
             )
             .as_str(),
@@ -96,7 +108,7 @@ impl Client {
     ///   additional options for the client.
     async fn send_request(
         &self,
-        input: OperationInput,  // 接收所有权
+        input: OperationInput, // 接收所有权
         options: Option<&ClientOptions>,
     ) -> Result<OperationOutput, Box<dyn std::error::Error + Send + Sync>> {
         let logger = self.inner_options.logger.as_ref().expect("Logger not set");
@@ -107,30 +119,30 @@ impl Client {
         let input_key = input.key.clone();
         let input_clone = input.clone(); // 创建完整副本用于最终的OperationOutput
 
-        logger.info(format!("sendRequest Start:\ninput: {:#?}", &input).as_str());  // 使用引用
+        logger.info(format!("sendRequest Start:\ninput: {:#?}", &input).as_str()); // 使用引用
 
         // Send request
-        let response = self
-            .send_http_request(input, options)
-            .await?;
+        let response = self.send_http_request(input, options).await?;
 
         logger.info(
             format!(
-                "sendRequest End:\ninput_op_name: {}\ninput_bucket: {:#?}\ninput_key: {:#?}\nresponse: {:#?}",
-                input_op_name,  // 使用之前保存的值
-                input_bucket,   // 使用之前保存的值
-                input_key,      // 使用之前保存的值
+                "sendRequest End:\ninput_op_name: {}\ninput_bucket: {:#?}\ninput_key: \
+                 {:#?}\nresponse: {:#?}",
+                input_op_name, // 使用之前保存的值
+                input_bucket,  // 使用之前保存的值
+                input_key,     // 使用之前保存的值
                 &response
             )
             .as_str(),
         );
 
         let status = response.status();
-        
+
         // Clone headers before consuming the response for error handling
         let headers = header_map_to_hash_map(response.headers());
-        // let request_clone = request.try_clone().expect("Unable to clone request");
-        
+        // let request_clone = request.try_clone().expect("Unable to clone
+        // request");
+
         if status.is_success() {
             // Read before `bytes_stream` consumes the response.
             let content_length = response.content_length();
@@ -168,7 +180,7 @@ impl Client {
                 Some(Box::pin(stream) as BodyStream)
             };
             Ok(OperationOutput {
-                input: Some(Rc::new(input_clone)),  // 使用之前克隆的完整input
+                input: Some(Rc::new(input_clone)), // 使用之前克隆的完整input
                 status,
                 headers,
                 body,
@@ -178,7 +190,11 @@ impl Client {
             })
         } else {
             //will not go to here
-            Err("It will not go to here! All err status should return corresponding ServiceErr。Status must be success at this point。".into())
+            Err(
+                "It will not go to here! All err status should return corresponding \
+                 ServiceErr。Status must be success at this point。"
+                    .into(),
+            )
         }
     }
 
@@ -207,15 +223,19 @@ impl Client {
         let input_bucket = input.bucket.clone();
         let input_key = input.key.clone();
 
-        // Validate client options and input parameters to catch client errors early
+        // Validate client options and input parameters to catch client errors
+        // early
 
         // Check for invalid retry_max_attempts
         if let Some(max_attempts) = options.and_then(|o| o.retry_max_attempts) {
-            if max_attempts <= 0 {
+            if max_attempts == 0 {
                 let client_error = ClientError {
                     code: "InvalidParameter".to_string(),
                     message: "retry_max_attempts must be greater than zero".to_string(),
-                    err: Box::new(std::io::Error::new(std::io::ErrorKind::InvalidInput, "retry_max_attempts must be greater than zero")),
+                    err: Box::new(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "retry_max_attempts must be greater than zero",
+                    )),
                 };
                 return Err(Box::new(client_error));
             }
@@ -227,7 +247,10 @@ impl Client {
                 let client_error = ClientError {
                     code: "InvalidParameter".to_string(),
                     message: "bucket parameter cannot be empty".to_string(),
-                    err: Box::new(std::io::Error::new(std::io::ErrorKind::InvalidInput, "bucket parameter cannot be empty")),
+                    err: Box::new(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "bucket parameter cannot be empty",
+                    )),
                 };
                 return Err(Box::new(client_error));
             }
@@ -238,7 +261,10 @@ impl Client {
                 let client_error = ClientError {
                     code: "InvalidParameter".to_string(),
                     message: "key parameter cannot be empty".to_string(),
-                    err: Box::new(std::io::Error::new(std::io::ErrorKind::InvalidInput, "key parameter cannot be empty")),
+                    err: Box::new(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "key parameter cannot be empty",
+                    )),
                 };
                 return Err(Box::new(client_error));
             }
@@ -250,7 +276,10 @@ impl Client {
             let client_error = ClientError {
                 code: "InvalidConfiguration".to_string(),
                 message: "endpoint is not set".to_string(),
-                err: Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, "endpoint is not set")),
+                err: Box::new(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "endpoint is not set",
+                )),
             };
             return Err(Box::new(client_error));
         }
@@ -260,7 +289,10 @@ impl Client {
             let client_error = ClientError {
                 code: "InvalidConfiguration".to_string(),
                 message: format!("endpoint {} is invalid", endpoint),
-                err: Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, format!("endpoint {} is invalid", endpoint))),
+                err: Box::new(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("endpoint {} is invalid", endpoint),
+                )),
             };
             return Err(Box::new(client_error));
         }
@@ -268,15 +300,17 @@ impl Client {
         // Region validation - only required for V4 signature version
         let region = &options.as_ref().expect("Options not set").region;
 
-        // Determine if we're using V4 signature which requires region by checking the signer type
+        // Determine if we're using V4 signature which requires region by
+        // checking the signer type
         let current_signer = options
             .and_then(|opt| opt.signer.as_ref())
             .or(self.options.signer.as_ref());
 
         // Check if the current signer is a V4 signer
         let is_v4_signer = current_signer.map_or(false, |signer| {
-            // `type_id()` on `&dyn Signer` returns the trait object's own TypeId
-            // (std blanket impl), so it can never match SignerV4; use as_any() instead.
+            // `type_id()` on `&dyn Signer` returns the trait object's own
+            // TypeId (std blanket impl), so it can never match
+            // SignerV4; use as_any() instead.
             signer.as_ref().as_any().is::<crate::signer::v4::SignerV4>()
         });
 
@@ -285,14 +319,17 @@ impl Client {
             let client_error = ClientError {
                 code: "InvalidConfiguration".to_string(),
                 message: "region is not set (required for V4 signature)".to_string(),
-                err: Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, "region is not set (required for V4 signature)")),
+                err: Box::new(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "region is not set (required for V4 signature)",
+                )),
             };
             return Err(Box::new(client_error));
         }
 
         // 为了避免部分移动，在创建 URL 前先提取需要的值
-        let method = input.method.clone();  // 复制或克隆 method
-        let (host, path) = build_url(&input, options.as_ref().expect("Options not set"));  // 使用引用
+        let method = input.method.clone(); // 复制或克隆 method
+        let (host, path) = build_url(&input, options.as_ref().expect("Options not set")); // 使用引用
         let mut url = format!("{}://{}{}", endpoint.scheme(), host, path);
 
         // Queries
@@ -314,22 +351,25 @@ impl Client {
         }
 
         // New request
-        let mut request_builder = client.request(method, &url);  // 使用之前提取的 method
+        let mut request_builder = client.request(method, &url); // 使用之前提取的 method
 
         // Headers
-        for (k, v) in &input.headers {  // 使用引用
+        for (k, v) in &input.headers {
+            // 使用引用
             request_builder = request_builder.header(k, v);
         }
         request_builder =
             request_builder.header(HTTP_HEADER_USER_AGENT, &self.inner_options.user_agent);
 
         // Body
-        let body_content = input.body;  // 移动 body_content
+        let body_content = input.body; // 移动 body_content
 
-        if let Some(content) = body_content {  // 移动 content
+        if let Some(content) = body_content {
+            // 移动 content
             // Trackers observe the bytes actually sent, which is how
             // integrity checks (CRC64) see the request body. Registered by
-            // `utils::add_crc64_check` under `OP_META_KEY_REQUEST_BODY_TRACKER`.
+            // `utils::add_crc64_check` under
+            // `OP_META_KEY_REQUEST_BODY_TRACKER`.
             let mut trackers: Vec<Arc<dyn BodyTracker>> = input
                 .op_metadata
                 .values(crate::OP_META_KEY_REQUEST_BODY_TRACKER)
@@ -376,22 +416,19 @@ impl Client {
         {
             let datetime: DateTime<Utc> = date_str.parse().expect("Invalid date string");
             Some(datetime.into())
-        } else if let Some(sign_time) = input.op_metadata.get(SIGN_TIME) {
-            Some(
+        } else {
+            input.op_metadata.get(SIGN_TIME).map(|sign_time| {
                 *sign_time
                     .downcast_ref::<SystemTime>()
-                    .expect("Invalid sign time"),
-            )
-        } else {
-            None // 显式处理未匹配情况
+                    .expect("Invalid sign time")
+            })
         };
-
 
         let mut signing_context = SigningContext {
             product: Some(options.expect("Options not set").product.clone()),
             region: Some(options.expect("Options not set").region.clone()),
-            bucket: input_bucket.clone(),  // 使用克隆的值
-            key: input_key.clone(),  // 使用克隆的值
+            bucket: input_bucket.clone(), // 使用克隆的值
+            key: input_key.clone(),       // 使用克隆的值
             request: Some(request),
             sub_resource: sub_resource.clone(),
             auth_method_query: options
@@ -420,8 +457,8 @@ impl Client {
     /// # Arguments
     ///
     /// * `&self` - A reference to the current instance of the class.
-    /// * `input` - The [OperationInput] containing the details of the
-    ///   operation to be performed.
+    /// * `input` - The [OperationInput] containing the details of the operation
+    ///   to be performed.
     /// * `options` - An optional reference to [ClientOptions] which contains
     ///   additional options for the client.
     ///
@@ -493,9 +530,10 @@ impl Client {
                 }
             }
 
-            // Replayable bodies are rebuilt for every attempt; the final attempt (or a
-            // single-shot body) moves the body out, leaving headers and
-            // metadata — which carry the request-body trackers — intact.
+            // Replayable bodies are rebuilt for every attempt; the final
+            // attempt (or a single-shot body) moves the body out,
+            // leaving headers and metadata — which carry the
+            // request-body trackers — intact.
             let mut attempt_input = input.clone();
             attempt_input.body = if attempt < max_attempts && is_replayable {
                 // `OperationInput::clone` drops the body, so restore it.
@@ -548,13 +586,13 @@ impl Client {
     ///   `max_attempts` method of the `retryer` in the provided options, or the
     ///   [DEFAULT_MAX_ATTEMPTS] constant, in that order.
     pub(crate) fn retry_max_attempts(&self, options: Option<&ClientOptions>) -> u32 {
-        // Use the provided options if available, otherwise default to the client's
-        // options
+        // Use the provided options if available, otherwise default to the
+        // client's options
         let options = options.unwrap_or(&self.options);
 
         if let Some(retry_max_attempts) = options.retry_max_attempts {
-            if retry_max_attempts <= 0 {
-                return DEFAULT_MAX_ATTEMPTS; // Use default if set to 0 or negative
+            if retry_max_attempts == 0 {
+                return DEFAULT_MAX_ATTEMPTS; // Use default when set to 0
             }
             retry_max_attempts
         } else if let Some(ref retryer) = options.retryer {
@@ -570,7 +608,7 @@ impl Client {
     /// # Arguments
     ///
     /// * `&self` - A reference to the current instance of the class.
-    /// * [signing_ctx](file:///Users/zhouao/codespace/aliyun-oss-sdk-rust-v2/oss/src/signer.rs#L25-L58) - A mutable reference to [SigningContext] which contains
+    /// * `signing_ctx` - A mutable reference to [SigningContext] which contains
     ///   the details of the signing context.
     /// * `options` - An optional reference to [ClientOptions] which contains
     ///   additional options for the client.
@@ -616,10 +654,7 @@ impl Client {
             .as_str(),
         );
 
-        let request = signing_ctx
-            .request
-            .take()
-            .expect("Unable to clone request");
+        let request = signing_ctx.request.take().expect("Unable to clone request");
         let request_headers = request.headers().clone();
 
         let response = opts
@@ -637,10 +672,10 @@ impl Client {
             || is_callback_error(response.status(), &request_headers);
 
         if !is_error {
-            let ossRes = OssResponse::SucResponse(&response);
+            let oss_res = OssResponse::SucResponse(&response);
 
             for handler in &opts.response_handlers {
-                handler(&ossRes)?;
+                handler(&oss_res)?;
             }
 
             Ok(response)
@@ -651,7 +686,7 @@ impl Client {
             let url = response.url().to_string();
 
             let body = response.text().await?;
-            let ossRes2 = OssResponse::ErrResponse {
+            let oss_res2 = OssResponse::ErrResponse {
                 status,
                 body,
                 headers,
@@ -660,7 +695,7 @@ impl Client {
 
             // Response handlers
             for handler in &opts.response_handlers {
-                handler(&ossRes2)?;
+                handler(&oss_res2)?;
             }
 
             unreachable!("response handlers must convert error responses into a ServiceError")
@@ -689,7 +724,10 @@ impl Client {
 
         // Check credential provider
         if let Some(credentials_provider) = &opts.credentials_provider {
-            if !credentials_provider.as_any().is::<AnonymousCredentialsProvider>() {
+            if !credentials_provider
+                .as_any()
+                .is::<AnonymousCredentialsProvider>()
+            {
                 let cred = credentials_provider.get_credentials().await?;
                 signing_ctx.credentials = Some(cred);
 
@@ -698,11 +736,7 @@ impl Client {
                     .expect("Signer not set")
                     .sign(signing_ctx)?;
                 logger.debug(
-                    format!(
-                        "sign_request::sign:\nsigning_ctx: {:#?}",
-                        signing_ctx
-                    )
-                    .as_str(),
+                    format!("sign_request::sign:\nsigning_ctx: {:#?}", signing_ctx).as_str(),
                 );
             }
         }
@@ -771,35 +805,20 @@ fn is_callback_error(status: http::StatusCode, request_headers: &http::HeaderMap
 }
 
 // Helper function to convert HashMap to HeaderMap
-fn convert_hashmap_to_headermap(
-    hashmap: std::collections::HashMap<String, String>,
-) -> Result<http::HeaderMap, Box<dyn std::error::Error + Send + Sync>> {
-    use http::HeaderMap;
-    let mut header_map = HeaderMap::new();
-
-    for (key, value) in hashmap {
-        if let (Ok(header_name), Ok(header_value)) = (
-            http::HeaderName::from_bytes(key.as_bytes()),
-            http::HeaderValue::from_str(&value)
-        ) {
-            header_map.insert(header_name, header_value);
-        }
-    }
-
-    Ok(header_map)
-}
-
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
+    use bytes::Bytes;
+
     use super::*;
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
-    use crate::{SignatureVersionType, DEFAULT_CONTENT_TYPE, HTTP_HEADER_CONTENT_TYPE};
-    use crate::test_utils::{load_test_config, TestConfig};
-    use bytes::Bytes;
-    use std::time::Duration;
-    use crate::BodyContent;
+    use crate::test_utils::load_test_config;
+    use crate::{
+        BodyContent, SignatureVersionType, DEFAULT_CONTENT_TYPE, HTTP_HEADER_CONTENT_TYPE,
+    };
 
     /// A V4-signed request carrying a `Bytes` body must be retried on a
     /// retryable server error, and the replayable body must be resent intact
@@ -831,7 +850,9 @@ mod tests {
                 .with_endpoint(server.url().as_str())
                 .with_region("cn-hangzhou")
                 .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
-                    "test-ak", "test-sk", &[],
+                    "test-ak",
+                    "test-sk",
+                    &[],
                 )))
                 .with_signature_version(SignatureVersionType::V1)
                 .with_log_level(LogLevel::Off)
@@ -846,7 +867,10 @@ mod tests {
             method: http::Method::PUT,
             bucket: Some("test-bucket".to_string()),
             key: Some("retry-object".to_string()),
-            body: Some(BodyContent::from_bytes(Bytes::from_static(b"payload"), None)),
+            body: Some(BodyContent::from_bytes(
+                Bytes::from_static(b"payload"),
+                None,
+            )),
             ..Default::default()
         };
 
@@ -879,7 +903,9 @@ mod tests {
                 .with_endpoint(server.url().as_str())
                 .with_region("cn-hangzhou")
                 .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
-                    "test-ak", "test-sk", &[],
+                    "test-ak",
+                    "test-sk",
+                    &[],
                 )))
                 .with_signature_version(SignatureVersionType::V1)
                 .with_log_level(LogLevel::Off)
@@ -927,9 +953,7 @@ mod tests {
             .mock("GET", mockito::Matcher::Any)
             .with_status(403)
             .with_header("Date", server_date.as_str())
-            .with_body(
-                "<Error><Code>RequestTimeTooSkewed</Code><Message>skewed</Message></Error>",
-            )
+            .with_body("<Error><Code>RequestTimeTooSkewed</Code><Message>skewed</Message></Error>")
             .expect(1)
             .create_async()
             .await;
@@ -946,7 +970,9 @@ mod tests {
                 .with_endpoint(server.url().as_str())
                 .with_region("cn-hangzhou")
                 .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
-                    "test-ak", "test-sk", &[],
+                    "test-ak",
+                    "test-sk",
+                    &[],
                 )))
                 .with_signature_version(SignatureVersionType::V1)
                 .with_log_level(LogLevel::Off)
@@ -998,111 +1024,117 @@ mod tests {
     /// the message must be the one `ConnectionErrorRetryable` recognises —
     /// that is what lets a corrupted upload be retried instead of silently
     /// accepted.
-#[tokio::test]
-async fn test_put_object_crc64_mismatch_is_rejected() {
-    let mut server = mockito::Server::new_async().await;
+    #[tokio::test]
+    async fn test_put_object_crc64_mismatch_is_rejected() {
+        let mut server = mockito::Server::new_async().await;
 
-    // 0 is never the CRC64 of "payload", so the server value is a mismatch.
-    let mismatch = server
-        .mock("PUT", mockito::Matcher::Any)
-        .with_status(200)
-        .with_header("x-oss-hash-crc64ecma", "0")
-        .with_body("")
-        .create_async()
-        .await;
+        // 0 is never the CRC64 of "payload", so the server value is a mismatch.
+        let mismatch = server
+            .mock("PUT", mockito::Matcher::Any)
+            .with_status(200)
+            .with_header("x-oss-hash-crc64ecma", "0")
+            .with_body("")
+            .create_async()
+            .await;
 
-    let client = Client::new(
-        &Config::default()
-            .with_endpoint(server.url().as_str())
-            .with_region("cn-hangzhou")
-            .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
-                "test-ak", "test-sk", &[],
-            )))
-            .with_signature_version(SignatureVersionType::V1)
-            .with_log_level(LogLevel::Off)
-            .with_retryer(Rc::new(crate::retry::NopRetryer::new())),
-    );
+        let client = Client::new(
+            &Config::default()
+                .with_endpoint(server.url().as_str())
+                .with_region("cn-hangzhou")
+                .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
+                    "test-ak",
+                    "test-sk",
+                    &[],
+                )))
+                .with_signature_version(SignatureVersionType::V1)
+                .with_log_level(LogLevel::Off)
+                .with_retryer(Rc::new(crate::retry::NopRetryer::new())),
+        );
 
-    let mut input = OperationInput {
-        op_name: "PutObject".to_string(),
-        method: http::Method::PUT,
-        bucket: Some("test-bucket".to_string()),
-        key: Some("crc-object".to_string()),
-        body: Some(BodyContent::from_bytes(Bytes::from_static(b"payload"), None)),
-        ..Default::default()
-    };
+        let mut input = OperationInput {
+            op_name: "PutObject".to_string(),
+            method: http::Method::PUT,
+            bucket: Some("test-bucket".to_string()),
+            key: Some("crc-object".to_string()),
+            body: Some(BodyContent::from_bytes(
+                Bytes::from_static(b"payload"),
+                None,
+            )),
+            ..Default::default()
+        };
 
-    // The check is attached the same way PutObject does it.
-    crate::utils::add_crc64_check(
-        &mut input,
-        0,
-        true,
-    );
+        // The check is attached the same way PutObject does it.
+        crate::utils::add_crc64_check(&mut input, 0, true);
 
-    let err = client
-        .invoke_operation_inner(input, vec![])
-        .await
-        .expect_err("a CRC mismatch must fail the operation");
+        let err = client
+            .invoke_operation_inner(input, vec![])
+            .await
+            .expect_err("a CRC mismatch must fail the operation");
 
-    assert!(
-        err.to_string().contains("crc is inconsistent"),
-        "unexpected error: {}",
-        err
-    );
-    mismatch.assert_async().await;
-}
+        assert!(
+            err.to_string().contains("crc is inconsistent"),
+            "unexpected error: {}",
+            err
+        );
+        mismatch.assert_async().await;
+    }
 
-/// A matching CRC64 must leave the operation successful.
-#[tokio::test]
-async fn test_put_object_crc64_match_succeeds() {
-    let mut server = mockito::Server::new_async().await;
+    /// A matching CRC64 must leave the operation successful.
+    #[tokio::test]
+    async fn test_put_object_crc64_match_succeeds() {
+        let mut server = mockito::Server::new_async().await;
 
-    // The CRC64 of "payload", which is what the client computes.
-    let expected = {
-        let mut crc = crate::utils::Crc64::new(0);
-        crc.write(b"payload").unwrap();
-        crc.sum64().to_string()
-    };
+        // The CRC64 of "payload", which is what the client computes.
+        let expected = {
+            let mut crc = crate::utils::Crc64::new(0);
+            crc.write(b"payload").unwrap();
+            crc.sum64().to_string()
+        };
 
-    let ok = server
-        .mock("PUT", mockito::Matcher::Any)
-        .with_status(200)
-        .with_header("x-oss-hash-crc64ecma", expected.as_str())
-        .with_body("")
-        .create_async()
-        .await;
+        let ok = server
+            .mock("PUT", mockito::Matcher::Any)
+            .with_status(200)
+            .with_header("x-oss-hash-crc64ecma", expected.as_str())
+            .with_body("")
+            .create_async()
+            .await;
 
-    let client = Client::new(
-        &Config::default()
-            .with_endpoint(server.url().as_str())
-            .with_region("cn-hangzhou")
-            .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
-                "test-ak", "test-sk", &[],
-            )))
-            .with_signature_version(SignatureVersionType::V1)
-            .with_log_level(LogLevel::Off)
-            .with_retryer(Rc::new(crate::retry::NopRetryer::new())),
-    );
+        let client = Client::new(
+            &Config::default()
+                .with_endpoint(server.url().as_str())
+                .with_region("cn-hangzhou")
+                .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
+                    "test-ak",
+                    "test-sk",
+                    &[],
+                )))
+                .with_signature_version(SignatureVersionType::V1)
+                .with_log_level(LogLevel::Off)
+                .with_retryer(Rc::new(crate::retry::NopRetryer::new())),
+        );
 
-    let mut input = OperationInput {
-        op_name: "PutObject".to_string(),
-        method: http::Method::PUT,
-        bucket: Some("test-bucket".to_string()),
-        key: Some("crc-object".to_string()),
-        body: Some(BodyContent::from_bytes(Bytes::from_static(b"payload"), None)),
-        ..Default::default()
-    };
+        let mut input = OperationInput {
+            op_name: "PutObject".to_string(),
+            method: http::Method::PUT,
+            bucket: Some("test-bucket".to_string()),
+            key: Some("crc-object".to_string()),
+            body: Some(BodyContent::from_bytes(
+                Bytes::from_static(b"payload"),
+                None,
+            )),
+            ..Default::default()
+        };
 
-    crate::utils::add_crc64_check(&mut input, 0, true);
+        crate::utils::add_crc64_check(&mut input, 0, true);
 
-    let output = client
-        .invoke_operation_inner(input, vec![])
-        .await
-        .expect("a matching CRC must succeed");
+        let output = client
+            .invoke_operation_inner(input, vec![])
+            .await
+            .expect("a matching CRC must succeed");
 
-    assert!(output.status.is_success());
-    ok.assert_async().await;
-}
+        assert!(output.status.is_success());
+        ok.assert_async().await;
+    }
 
     /// 203 counts as success for `is_success()`, so only a callback request
     /// may treat it as an error; a callback-less 203 stays a success response.
@@ -1174,7 +1206,7 @@ async fn test_put_object_crc64_match_succeeds() {
                 .with_signature_version(SignatureVersionType::V4)
                 .with_log_level(LogLevel::Debug),
         )
-        .invoke_operation_inner(input, vec![])  // 移除 & 符号
+        .invoke_operation_inner(input, vec![]) // 移除 & 符号
         .await
         {
             assert!(output.status.is_success());
@@ -1221,9 +1253,10 @@ async fn test_put_object_crc64_match_succeeds() {
 
     #[tokio::test]
     async fn test_sign_request_skips_anonymous_provider() {
-        // Regression: anonymous detection used `Rc<dyn CredentialsProvider>::type_id()`,
-        // which is the trait object's TypeId — anonymous requests were still signed
-        // and failed with "Credentials is null or empty" under V4.
+        // Regression: anonymous detection used `Rc<dyn
+        // CredentialsProvider>::type_id()`, which is the trait object's
+        // TypeId — anonymous requests were still signed and failed with
+        // "Credentials is null or empty" under V4.
         let client = Client::new(
             &Config::default()
                 .with_region("cn-hangzhou")

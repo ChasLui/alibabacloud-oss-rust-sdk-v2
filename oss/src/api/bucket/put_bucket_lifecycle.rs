@@ -24,7 +24,10 @@ pub struct LifecycleRule {
 
     /// The delete operation that you want OSS to perform on the parts that are
     /// uploaded in incomplete multipart upload tasks when the parts expire.
-    #[serde(rename = "AbortMultipartUpload", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "AbortMultipartUpload",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub abort_multipart_upload: Option<LifecycleRuleAbortMultipartUpload>,
 
     /// Timestamp for when access tracking was enabled.
@@ -36,7 +39,8 @@ pub struct LifecycleRule {
     #[serde(rename = "NoncurrentVersionTransition", default)]
     pub noncurrent_version_transitions: Vec<NoncurrentVersionTransition>,
 
-    /// The container that stores the Not parameter that is used to filter objects.
+    /// The container that stores the Not parameter that is used to filter
+    /// objects.
     #[serde(rename = "Filter", skip_serializing_if = "Option::is_none")]
     pub filter: Option<LifecycleRuleFilter>,
 
@@ -61,13 +65,18 @@ pub struct LifecycleRule {
     #[serde(rename = "Tag", default)]
     pub tags: Vec<Tag>,
 
-    /// The delete operation that you want OSS to perform on the previous versions
-    /// of the objects that match the lifecycle rule when the previous versions expire.
-    #[serde(rename = "NoncurrentVersionExpiration", skip_serializing_if = "Option::is_none")]
+    /// The delete operation that you want OSS to perform on the previous
+    /// versions of the objects that match the lifecycle rule when the
+    /// previous versions expire.
+    #[serde(
+        rename = "NoncurrentVersionExpiration",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub noncurrent_version_expiration: Option<NoncurrentVersionExpiration>,
 }
 
-/// The delete operation performed on expired parts of incomplete multipart uploads.
+/// The delete operation performed on expired parts of incomplete multipart
+/// uploads.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct LifecycleRuleAbortMultipartUpload {
     /// The number of days from when the objects were last modified to when the
@@ -75,8 +84,8 @@ pub struct LifecycleRuleAbortMultipartUpload {
     #[serde(rename = "Days", skip_serializing_if = "Option::is_none")]
     pub days: Option<i32>,
 
-    /// The date based on which the lifecycle rule takes effect. Specify the time
-    /// in the ISO 8601 standard. The time must be at 00:00:00 in UTC.
+    /// The date based on which the lifecycle rule takes effect. Specify the
+    /// time in the ISO 8601 standard. The time must be at 00:00:00 in UTC.
     #[serde(rename = "CreatedBeforeDate", skip_serializing_if = "Option::is_none")]
     pub created_before_date: Option<String>,
 
@@ -92,7 +101,8 @@ pub struct LifecycleRuleNot {
     #[serde(rename = "Tag", skip_serializing_if = "Option::is_none")]
     pub tag: Option<Tag>,
 
-    /// The prefix in the names of the objects to which the lifecycle rule does not apply.
+    /// The prefix in the names of the objects to which the lifecycle rule does
+    /// not apply.
     #[serde(rename = "Prefix", skip_serializing_if = "Option::is_none")]
     pub prefix: Option<String>,
 }
@@ -100,12 +110,16 @@ pub struct LifecycleRuleNot {
 /// The container that stores the Not parameter that is used to filter objects.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct LifecycleRuleFilter {
-    /// The condition that is matched by objects to which the lifecycle rule does not apply.
+    /// The condition that is matched by objects to which the lifecycle rule
+    /// does not apply.
     #[serde(rename = "Not", default)]
     pub nots: Vec<LifecycleRuleNot>,
 
     /// This lifecycle rule only applies to files larger than this size.
-    #[serde(rename = "ObjectSizeGreaterThan", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "ObjectSizeGreaterThan",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub object_size_greater_than: Option<i64>,
 
     /// This lifecycle rule only applies to files smaller than this size.
@@ -127,7 +141,10 @@ pub struct LifecycleRuleExpiration {
     pub days: Option<i32>,
 
     /// Specifies whether to automatically remove expired delete markers.
-    #[serde(rename = "ExpiredObjectDeleteMarker", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "ExpiredObjectDeleteMarker",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub expired_object_delete_marker: Option<bool>,
 
     /// Deprecated: please use days or created_before_date.
@@ -138,8 +155,8 @@ pub struct LifecycleRuleExpiration {
 /// The delete operation performed on expired previous versions of objects.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct NoncurrentVersionExpiration {
-    /// The number of days from when the objects became previous versions to when
-    /// the lifecycle rule takes effect.
+    /// The number of days from when the objects became previous versions to
+    /// when the lifecycle rule takes effect.
     #[serde(rename = "NoncurrentDays", skip_serializing_if = "Option::is_none")]
     pub noncurrent_days: Option<i32>,
 }
@@ -155,16 +172,20 @@ pub struct NoncurrentVersionTransition {
 
     /// Specifies whether to convert the storage class of non-Standard objects
     /// back to Standard after the objects are accessed.
-    #[serde(rename = "ReturnToStdWhenVisit", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "ReturnToStdWhenVisit",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub return_to_std_when_visit: Option<bool>,
 
-    /// Specifies whether to convert the storage class of objects whose sizes are
-    /// less than 64 KB to IA, Archive, or Cold Archive based on their last access time.
+    /// Specifies whether to convert the storage class of objects whose sizes
+    /// are less than 64 KB to IA, Archive, or Cold Archive based on their
+    /// last access time.
     #[serde(rename = "AllowSmallFile", skip_serializing_if = "Option::is_none")]
     pub allow_small_file: Option<bool>,
 
-    /// The number of days from when the objects became previous versions to when
-    /// the lifecycle rule takes effect.
+    /// The number of days from when the objects became previous versions to
+    /// when the lifecycle rule takes effect.
     #[serde(rename = "NoncurrentDays", skip_serializing_if = "Option::is_none")]
     pub noncurrent_days: Option<i32>,
 
@@ -177,8 +198,8 @@ pub struct NoncurrentVersionTransition {
 /// The conversion of the storage class of objects when the objects expire.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct LifecycleRuleTransition {
-    /// The date based on which the lifecycle rule takes effect. Specify the time
-    /// in the ISO 8601 standard. The time must be at 00:00:00 in UTC.
+    /// The date based on which the lifecycle rule takes effect. Specify the
+    /// time in the ISO 8601 standard. The time must be at 00:00:00 in UTC.
     #[serde(rename = "CreatedBeforeDate", skip_serializing_if = "Option::is_none")]
     pub created_before_date: Option<String>,
 
@@ -199,11 +220,15 @@ pub struct LifecycleRuleTransition {
 
     /// Specifies whether to convert the storage class of non-Standard objects
     /// back to Standard after the objects are accessed.
-    #[serde(rename = "ReturnToStdWhenVisit", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "ReturnToStdWhenVisit",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub return_to_std_when_visit: Option<bool>,
 
-    /// Specifies whether to convert the storage class of objects whose sizes are
-    /// less than 64 KB to IA, Archive, or Cold Archive based on their last access time.
+    /// Specifies whether to convert the storage class of objects whose sizes
+    /// are less than 64 KB to IA, Archive, or Cold Archive based on their
+    /// last access time.
     #[serde(rename = "AllowSmallFile", skip_serializing_if = "Option::is_none")]
     pub allow_small_file: Option<bool>,
 }
@@ -213,7 +238,8 @@ pub struct PutBucketLifecycleRequest {
     /// The name of the bucket.
     pub bucket: String,
 
-    /// Specifies whether to allow overlapped prefixes. Valid values: true, false.
+    /// Specifies whether to allow overlapped prefixes. Valid values: true,
+    /// false.
     #[field(type = "header", rename = "x-oss-allow-same-action-overlap")]
     pub allow_same_action_overlap: Option<String>,
 
@@ -230,10 +256,11 @@ pub struct PutBucketLifecycleResult {
 }
 
 impl Client {
-    /// Configures a lifecycle rule for a bucket. After you configure a lifecycle
-    /// rule for a bucket, Object Storage Service (OSS) automatically deletes the
-    /// objects that match the rule or converts the storage type of the objects
-    /// based on the point in time that is specified in the lifecycle rule.
+    /// Configures a lifecycle rule for a bucket. After you configure a
+    /// lifecycle rule for a bucket, Object Storage Service (OSS)
+    /// automatically deletes the objects that match the rule or converts
+    /// the storage type of the objects based on the point in time that is
+    /// specified in the lifecycle rule.
     ///
     /// # Arguments
     ///
@@ -302,8 +329,10 @@ impl Client {
             std::rc::Rc::new(vec!["lifecycle".to_string()]),
         );
 
-        let xml_body =
-            quick_xml::se::to_string_with_root("LifecycleConfiguration", &request.lifecycle_configuration)?;
+        let xml_body = quick_xml::se::to_string_with_root(
+            "LifecycleConfiguration",
+            &request.lifecycle_configuration,
+        )?;
         input.body = Some(BodyContent::from_text(xml_body, None));
 
         modify_request(
@@ -408,7 +437,10 @@ mod tests {
         assert_eq!(rule.transitions.len(), 1);
         assert_eq!(rule.transitions[0].storage_class.as_deref(), Some("IA"));
         assert_eq!(
-            rule.noncurrent_version_expiration.as_ref().unwrap().noncurrent_days,
+            rule.noncurrent_version_expiration
+                .as_ref()
+                .unwrap()
+                .noncurrent_days,
             Some(20)
         );
         assert_eq!(rule.noncurrent_version_transitions.len(), 1);
@@ -475,7 +507,11 @@ mod tests {
                 ..Default::default()
             })
             .await;
-        assert!(result.is_ok(), "put_bucket_lifecycle failed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "put_bucket_lifecycle failed: {:?}",
+            result.err()
+        );
 
         // Clean up
         let _ = client

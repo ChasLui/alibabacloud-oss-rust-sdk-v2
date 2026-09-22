@@ -322,8 +322,8 @@ impl SignerV1 {
                 SECURITY_TOKEN_QUERY.to_string(),
                 cred.security_token.clone(),
             );
-            // Add "security-token=xxx" to `ctx.request.url.query` for later signature
-            // calculation
+            // Add "security-token=xxx" to `ctx.request.url.query` for later
+            // signature calculation
             set_query(ctx.request.as_mut().expect("Request is None"), &query)
         }
 
@@ -352,7 +352,6 @@ impl SignerV1 {
 
         Ok(())
     }
-
 }
 
 impl Signer for SignerV1 {

@@ -4,8 +4,7 @@ use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 
 use crate::api::service::PublicAccessBlockConfiguration;
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::signer::SUB_RESOURCE;
 use crate::utils::{modify_request, update_content_length, update_content_md5};
 use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
@@ -87,10 +86,9 @@ impl Client {
                 .collect(),
             ..Default::default()
         };
-        input.op_metadata.set(
-            SUB_RESOURCE,
-            Rc::new(vec!["publicAccessBlock".to_string()]),
-        );
+        input
+            .op_metadata
+            .set(SUB_RESOURCE, Rc::new(vec!["publicAccessBlock".to_string()]));
 
         modify_request(
             &mut input,
@@ -122,8 +120,8 @@ mod tests {
     use super::*;
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
-    use crate::SignatureVersionType;
     use crate::test_utils::load_test_config;
+    use crate::SignatureVersionType;
 
     #[test]
     fn test_public_access_block_configuration_deserialize() {

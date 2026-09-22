@@ -3,14 +3,12 @@ use std::rc::Rc;
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::Deserialize;
 
+use super::create_access_point::AccessPointVpcConfiguration;
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::signer::SUB_RESOURCE;
 use crate::utils::{modify_request, update_content_length, update_content_md5};
 use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
-
-use super::create_access_point::AccessPointVpcConfiguration;
 
 /// The information about an access point.
 #[derive(Debug, Default, Deserialize)]
@@ -85,7 +83,10 @@ pub struct ListAccessPointsResult {
     /// Indicates that this ListAccessPoints request does not return all
     /// results that can be listed. You can use NextContinuationToken to
     /// continue obtaining list results.
-    #[serde(rename = "NextContinuationToken", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "NextContinuationToken",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub next_continuation_token: Option<String>,
 
     /// The ID of the Alibaba Cloud account to which the access point belongs.
@@ -184,8 +185,8 @@ mod tests {
     use super::*;
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
-    use crate::SignatureVersionType;
     use crate::test_utils::load_test_config;
+    use crate::SignatureVersionType;
 
     #[test]
     fn test_list_access_points_result_deserialize() {

@@ -81,7 +81,12 @@ impl Client {
             std::rc::Rc::new(vec!["policyStatus".to_string()]),
         );
 
-        modify_request(&mut input, request.header_map(), request.query_map(), vec![])?;
+        modify_request(
+            &mut input,
+            request.header_map(),
+            request.query_map(),
+            vec![],
+        )?;
 
         let mut output = self.invoke_operation(input, vec![]).await?;
 

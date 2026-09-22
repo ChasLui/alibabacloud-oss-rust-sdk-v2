@@ -67,8 +67,19 @@ fn type_name(field: &Field) -> Option<String> {
 fn is_numeric_type(name: &str) -> bool {
     matches!(
         name,
-        "i8" | "i16" | "i32" | "i64" | "i128" | "isize" | "u8" | "u16" | "u32" | "u64" | "u128"
-            | "usize" | "f32" | "f64"
+        "i8" | "i16"
+            | "i32"
+            | "i64"
+            | "i128"
+            | "isize"
+            | "u8"
+            | "u16"
+            | "u32"
+            | "u64"
+            | "u128"
+            | "usize"
+            | "f32"
+            | "f64"
     )
 }
 
@@ -145,7 +156,8 @@ pub fn request_model_derive(input: TokenStream) -> TokenStream {
                                     // check if field_type is one of FieldType
                                     if let Ok(field_type) = lit.value().parse::<RequestFieldType>()
                                     {
-                                        // add field to corresponding field type vector
+                                        // add field to corresponding field type
+                                        // vector
                                         match field_type {
                                             RequestFieldType::Header => &mut header_insert_vec,
                                             RequestFieldType::Query => &mut query_insert_vec,
@@ -325,7 +337,8 @@ pub fn result_model_derive(input: TokenStream) -> TokenStream {
                                         .insert(field_ident.to_string(), lit.value().to_string());
                                 }
                             } else if nv.path.is_ident("usermeta") {
-                                // usermeta fields are handled by prefix capture below
+                                // usermeta fields are handled by prefix capture
+                                // below
                             } else {
                                 return TokenStream::from(quote! {
                                     compile_error!("Invalid field tag, expected one of: [type, rename, usermeta]");
@@ -352,7 +365,8 @@ pub fn result_model_derive(input: TokenStream) -> TokenStream {
                                 if let syn::Lit::Str(lit) = &nv.lit {
                                     // check if field_type is one of FieldType
                                     if let Ok(field_type) = lit.value().parse::<ResultFieldType>() {
-                                        // add field to corresponding field type vector
+                                        // add field to corresponding field type
+                                        // vector
                                         let header_tag =
                                             match indent_tag_map.get(&field_ident.to_string()) {
                                                 Some(name) => name,
@@ -361,10 +375,14 @@ pub fn result_model_derive(input: TokenStream) -> TokenStream {
                                                 ),
                                             };
                                         if is_usermeta_field(field) {
-                                            // prefix capture: collect every header whose name
-                                            // starts with `header_tag` into the map, keyed by
-                                            // the remainder (e.g. x-oss-meta-author -> author).
-                                            // Keys are lowercased, matching Go's unmarshalHeader.
+                                            // prefix capture: collect every
+                                            // header whose name
+                                            // starts with `header_tag` into the
+                                            // map, keyed by
+                                            // the remainder (e.g.
+                                            // x-oss-meta-author -> author).
+                                            // Keys are lowercased, matching
+                                            // Go's unmarshalHeader.
                                             let prefix_lower = header_tag.to_lowercase();
                                             header_update_vec.push(quote! {
                                                 self.#field_ident = output.headers.iter().filter_map(|(k, v)| {

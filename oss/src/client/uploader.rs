@@ -447,7 +447,8 @@ mod tests {
             "a single PutObject has no upload ID"
         );
         put.assert_async().await;
-        // The uploader must not have opened a multipart upload for a small file.
+        // The uploader must not have opened a multipart upload for a small
+        // file.
         post.assert_async().await;
     }
 
@@ -469,7 +470,10 @@ mod tests {
             .mock("POST", mockito::Matcher::Any)
             .match_query(mockito::Matcher::Regex("uploads".to_string()))
             .with_status(200)
-            .with_body("<InitiateMultipartUploadResult><Bucket>test-bucket</Bucket><Key>test-key</Key><UploadId>upload-123</UploadId></InitiateMultipartUploadResult>")
+            .with_body(
+                "<InitiateMultipartUploadResult><Bucket>test-bucket</Bucket><Key>test-key</\
+                 Key><UploadId>upload-123</UploadId></InitiateMultipartUploadResult>",
+            )
             .expect(1)
             .create_async()
             .await;
@@ -498,7 +502,10 @@ mod tests {
             .mock("POST", mockito::Matcher::Any)
             .match_query(mockito::Matcher::Regex("uploadId".to_string()))
             .with_status(200)
-            .with_body("<CompleteMultipartUploadResult><ETag>\"final\"</ETag></CompleteMultipartUploadResult>")
+            .with_body(
+                "<CompleteMultipartUploadResult><ETag>\"final\"</ETag></\
+                 CompleteMultipartUploadResult>",
+            )
             .expect(1)
             .create_async()
             .await;
@@ -543,7 +550,10 @@ mod tests {
             .mock("POST", mockito::Matcher::Any)
             .match_query(mockito::Matcher::Regex("uploads".to_string()))
             .with_status(200)
-            .with_body("<InitiateMultipartUploadResult><Bucket>test-bucket</Bucket><Key>test-key</Key><UploadId>upload-abc</UploadId></InitiateMultipartUploadResult>")
+            .with_body(
+                "<InitiateMultipartUploadResult><Bucket>test-bucket</Bucket><Key>test-key</\
+                 Key><UploadId>upload-abc</UploadId></InitiateMultipartUploadResult>",
+            )
             .create_async()
             .await;
         // Every part fails.
@@ -591,7 +601,10 @@ mod tests {
             .mock("POST", mockito::Matcher::Any)
             .match_query(mockito::Matcher::Regex("uploads".to_string()))
             .with_status(200)
-            .with_body("<InitiateMultipartUploadResult><Bucket>test-bucket</Bucket><Key>test-key</Key><UploadId>upload-keep</UploadId></InitiateMultipartUploadResult>")
+            .with_body(
+                "<InitiateMultipartUploadResult><Bucket>test-bucket</Bucket><Key>test-key</\
+                 Key><UploadId>upload-keep</UploadId></InitiateMultipartUploadResult>",
+            )
             .create_async()
             .await;
         server

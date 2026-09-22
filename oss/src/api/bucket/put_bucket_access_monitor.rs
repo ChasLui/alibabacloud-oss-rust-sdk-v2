@@ -102,6 +102,7 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use std::rc::Rc;
+
     use super::*;
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
@@ -113,9 +114,8 @@ mod tests {
         let configuration = AccessMonitorConfiguration {
             status: Some("Enabled".to_string()),
         };
-        let xml =
-            quick_xml::se::to_string_with_root("AccessMonitorConfiguration", &configuration)
-                .unwrap();
+        let xml = quick_xml::se::to_string_with_root("AccessMonitorConfiguration", &configuration)
+            .unwrap();
         assert!(xml.contains("<AccessMonitorConfiguration>"));
         assert!(xml.contains("<Status>Enabled</Status>"));
     }

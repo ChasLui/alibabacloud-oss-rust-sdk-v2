@@ -1,10 +1,9 @@
-use crate::HTTP_HEADER_CONTENT_TYPE;
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
 use crate::utils::modify_request;
-use crate::{OperationInput, OperationOutput};
+use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct DeleteBucketRequest {
@@ -28,17 +27,19 @@ pub struct DeleteBucketResult {
 impl Client {
     /// Deletes a bucket.
     ///
-    /// This method sends a DELETE request to delete a bucket. Only the bucket owner 
-    /// has permission to delete the bucket. OSS does not allow deleting a non-empty bucket.
+    /// This method sends a DELETE request to delete a bucket. Only the bucket
+    /// owner has permission to delete the bucket. OSS does not allow
+    /// deleting a non-empty bucket.
     ///
     /// # Arguments
     ///
-    /// * `request` - The `DeleteBucketRequest` containing the bucket name to delete.
+    /// * `request` - The `DeleteBucketRequest` containing the bucket name to
+    ///   delete.
     ///
     /// # Returns
     ///
-    /// Returns a `Result` containing the `DeleteBucketResult` if the deletion is
-    /// successful, or an error if it fails. Note that:
+    /// Returns a `Result` containing the `DeleteBucketResult` if the deletion
+    /// is successful, or an error if it fails. Note that:
     /// - If the bucket does not exist, a 404 error will be returned
     /// - If the bucket is not empty, a 409 error will be returned
     ///
@@ -103,15 +104,14 @@ mod tests {
     use std::rc::Rc;
 
     use super::*;
-    use crate::api::bucket::CreateBucketRequest;
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
+    use crate::test_utils::load_test_config;
     use crate::SignatureVersionType;
-    use crate::test_utils::{load_test_config, TestConfig, generate_unique_object_name, generate_unique_bucket_name};
 
-    // Skip this test for now since creating buckets requires special permissions
-    // and can conflict with existing buckets
+    // Skip this test for now since creating buckets requires special
+    // permissions and can conflict with existing buckets
     // #[tokio::test]
     // #[serial_test::serial]
     // async fn test_delete_bucket_basic() {
@@ -126,7 +126,8 @@ mod tests {
     //     let client = Client::new(
     //         &Config::default()
     //             .with_region(&config.region)
-    //             .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
+    //
+    // .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
     //                 &config.access_key_id,
     //                 &config.access_key_secret,
     //                 &[],
@@ -146,17 +147,17 @@ mod tests {
 
     //     match client.create_bucket(&create_request).await {
     //         Ok(create_result) => {
-    //             println!("Bucket created for deletion test: {:?}", create_result);
-    //         }
-    //         Err(err) => panic!("Failed to create bucket for deletion test: {:?}", err),
-    //     }
+    //             println!("Bucket created for deletion test: {:?}",
+    // create_result);         }
+    //         Err(err) => panic!("Failed to create bucket for deletion test:
+    // {:?}", err),     }
 
     //     // Verify the bucket exists by listing buckets
     //     let list_request = ListBucketsRequest::default();
     //     let list_result = match client.list_buckets(&list_request).await {
     //         Ok(result) => result,
-    //         Err(err) => panic!("Failed to list buckets for verification: {:?}", err),
-    //     };
+    //         Err(err) => panic!("Failed to list buckets for verification:
+    // {:?}", err),     };
 
     //     let bucket_exists = list_result.buckets.iter()
     //         .any(|bucket| bucket.name.as_deref() == Some(&bucket_name));
@@ -173,24 +174,24 @@ mod tests {
     //     match client.delete_bucket(&delete_request).await {
     //         Ok(result) => {
     //             println!("Bucket deleted successfully: {:?}", result);
-    //             assert_eq!(result.common.status, http::StatusCode::NO_CONTENT);
-    //             println!("Status code confirmed as 204 No Content");
-    //         }
+    //             assert_eq!(result.common.status,
+    // http::StatusCode::NO_CONTENT);             println!("Status code
+    // confirmed as 204 No Content");         }
     //         Err(err) => panic!("Delete bucket failed: {:?}", err),
     //     }
 
     //     // Verify the bucket no longer exists
-    //     let list_result_after = match client.list_buckets(&list_request).await {
-    //         Ok(result) => result,
-    //         Err(err) => panic!("Failed to list buckets after deletion: {:?}", err),
-    //     };
+    //     let list_result_after = match
+    // client.list_buckets(&list_request).await {         Ok(result) =>
+    // result,         Err(err) => panic!("Failed to list buckets after
+    // deletion: {:?}", err),     };
 
     //     let bucket_exists_after = list_result_after.buckets.iter()
     //         .any(|bucket| bucket.name.as_deref() == Some(&bucket_name));
 
-    //     assert!(!bucket_exists_after, "Bucket should not exist after deletion");
-    //     println!("Verified bucket no longer exists after deletion");
-    // }
+    //     assert!(!bucket_exists_after, "Bucket should not exist after
+    // deletion");     println!("Verified bucket no longer exists after
+    // deletion"); }
 
     #[tokio::test]
     #[serial_test::serial]
@@ -223,11 +224,13 @@ mod tests {
 
         match client.delete_bucket(&delete_request).await {
             Ok(_) => {
-                // This shouldn't happen, but if it does, it means the bucket existed
+                // This shouldn't happen, but if it does, it means the bucket
+                // existed
                 println!("Unexpectedly succeeded in deleting nonexistent bucket");
             }
             Err(err) => {
-                // This is expected - trying to delete a nonexistent bucket should fail
+                // This is expected - trying to delete a nonexistent bucket
+                // should fail
                 println!("Correctly failed to delete nonexistent bucket: {:?}", err);
             }
         }

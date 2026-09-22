@@ -2,9 +2,8 @@ use std::any::Any;
 use std::rc::Rc;
 
 use crate::client::{OssResponse, ResponseHandler, ResponseHandlers};
-use crate::Crc64Tracker;
 use crate::{
-    OperationInput, HEADER_OSS_CRC64, OP_META_KEY_REQUEST_BODY_TRACKER,
+    Crc64Tracker, OperationInput, HEADER_OSS_CRC64, OP_META_KEY_REQUEST_BODY_TRACKER,
     OP_META_KEY_RESPONSE_HANDLER,
 };
 
@@ -151,8 +150,8 @@ pub(crate) fn crc64_combine(crc1: u64, crc2: u64, len2: u64) -> u64 {
     // Operator for one zero bit.
     odd[0] = CRC64_POLY;
     let mut row = 1u64;
-    for n in 1..64 {
-        odd[n] = row;
+    for slot in odd.iter_mut().skip(1) {
+        *slot = row;
         row <<= 1;
     }
 
@@ -272,9 +271,13 @@ mod tests {
     /// convention drifts, these fail while a self-computed expectation would
     /// happily agree with a wrong implementation.
     const EXAMPLE_CHECKSUM: u64 = 0x51CF5C3BC87BACC8; // crc(0, "Hello")
-    const GO_TEST_VECTOR: u64 = 0x995DC9BBDF1939FA; // Go utils_crc_test.go: crc(0, "123456789")
-    const GO_TEST_VECTOR_2: u64 = 0x27DB187FC15BBC72; // Go utils_crc_test.go: crc(0, "This is a test...")
-    const COMBINED_VECTOR: u64 = 0x6A7AA19FCBF48688; // crc(0, "123456789" + "This is a test...")
+    const GO_TEST_VECTOR: u64 = 0x995DC9BBDF1939FA; // Go utils_crc_test.go:
+                                                    // crc(0, "123456789")
+    const GO_TEST_VECTOR_2: u64 = 0x27DB187FC15BBC72; // Go utils_crc_test.go:
+                                                      // crc(0, "This is a
+                                                      // test...")
+    const COMBINED_VECTOR: u64 = 0x6A7AA19FCBF48688; // crc(0, "123456789" +
+                                                     // "This is a test...")
 
     #[test]
     fn test_new() {

@@ -12,15 +12,26 @@ use crate::{BodyContent, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TY
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct PutAccessPointConfigForObjectProcessConfiguration {
     /// Whether allow anonymous user to access this FC Access Point.
-    #[serde(rename = "AllowAnonymousAccessForObjectProcess", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "AllowAnonymousAccessForObjectProcess",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub allow_anonymous_access_for_object_process: Option<String>,
 
-    /// The container in which the Block Public Access configurations are stored.
-    #[serde(rename = "PublicAccessBlockConfiguration", skip_serializing_if = "Option::is_none")]
+    /// The container in which the Block Public Access configurations are
+    /// stored.
+    #[serde(
+        rename = "PublicAccessBlockConfiguration",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub public_access_block_configuration: Option<PublicAccessBlockConfiguration>,
 
-    /// The container that stores the processing information about the Object FC Access Point.
-    #[serde(rename = "ObjectProcessConfiguration", skip_serializing_if = "Option::is_none")]
+    /// The container that stores the processing information about the Object FC
+    /// Access Point.
+    #[serde(
+        rename = "ObjectProcessConfiguration",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub object_process_configuration: Option<ObjectProcessConfiguration>,
 }
 
@@ -54,8 +65,9 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `request` - The `PutAccessPointConfigForObjectProcessRequest` containing
-    ///   the bucket name, the Object FC Access Point name and the configuration.
+    /// * `request` - The `PutAccessPointConfigForObjectProcessRequest`
+    ///   containing the bucket name, the Object FC Access Point name and the
+    ///   configuration.
     ///
     /// # Examples
     ///
@@ -80,12 +92,18 @@ impl Client {
     ///     ..Default::default()
     /// };
     ///
-    /// match client.put_access_point_config_for_object_process(&request).await {
+    /// match client
+    ///     .put_access_point_config_for_object_process(&request)
+    ///     .await
+    /// {
     ///     Ok(result) => {
     ///         println!("Access point config updated: {:?}", result.common.status);
     ///     }
     ///     Err(error) => {
-    ///         eprintln!("Failed to put access point config for object process: {}", error);
+    ///         eprintln!(
+    ///             "Failed to put access point config for object process: {}",
+    ///             error
+    ///         );
     ///     }
     /// }
     /// # })
@@ -167,7 +185,8 @@ mod tests {
                         content_transformation: Some(ContentTransformation {
                             function_compute: Some(ObjectProcessFunctionCompute {
                                 function_arn: Some(
-                                    "acs:fc:cn-qingdao:1234567890:services/svc.LATEST/functions/fc-01"
+                                    "acs:fc:cn-qingdao:1234567890:services/svc.LATEST/functions/\
+                                     fc-01"
                                         .to_string(),
                                 ),
                                 function_assume_role_arn: Some(
@@ -254,7 +273,8 @@ mod tests {
             .await;
         if let Err(error) = &result {
             eprintln!(
-                "put_access_point_config_for_object_process rejected (access point may not exist): {}",
+                "put_access_point_config_for_object_process rejected (access point may not \
+                 exist): {}",
                 error
             );
         }

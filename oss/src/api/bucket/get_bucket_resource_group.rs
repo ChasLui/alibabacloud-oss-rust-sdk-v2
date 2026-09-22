@@ -89,7 +89,12 @@ impl Client {
             std::rc::Rc::new(vec!["resourceGroup".to_string()]),
         );
 
-        modify_request(&mut input, request.header_map(), request.query_map(), vec![])?;
+        modify_request(
+            &mut input,
+            request.header_map(),
+            request.query_map(),
+            vec![],
+        )?;
 
         let mut output = self.invoke_operation(input, vec![]).await?;
 
@@ -118,9 +123,8 @@ mod tests {
             resource_group_id: Some("rg-aekz****".to_string()),
         };
 
-        let xml =
-            quick_xml::se::to_string_with_root("BucketResourceGroupConfiguration", &config)
-                .unwrap();
+        let xml = quick_xml::se::to_string_with_root("BucketResourceGroupConfiguration", &config)
+            .unwrap();
         assert!(xml.contains("<BucketResourceGroupConfiguration>"));
         assert!(xml.contains("<ResourceGroupId>rg-aekz****</ResourceGroupId>"));
 

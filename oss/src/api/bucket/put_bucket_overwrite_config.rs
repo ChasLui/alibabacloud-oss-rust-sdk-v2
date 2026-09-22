@@ -256,7 +256,11 @@ mod tests {
                 ..Default::default()
             })
             .await;
-        assert!(result.is_ok(), "put_bucket_overwrite_config failed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "put_bucket_overwrite_config failed: {:?}",
+            result.err()
+        );
 
         // Clean up
         let _ = client

@@ -110,7 +110,8 @@ mod tests {
 
     #[test]
     fn test_get_public_access_block_result_deserialize() {
-        let xml = "<PublicAccessBlockConfiguration><BlockPublicAccess>true</BlockPublicAccess></PublicAccessBlockConfiguration>";
+        let xml = "<PublicAccessBlockConfiguration><BlockPublicAccess>true</BlockPublicAccess></\
+                   PublicAccessBlockConfiguration>";
         let config: PublicAccessBlockConfiguration = quick_xml::de::from_str(xml).unwrap();
         assert_eq!(config.block_public_access, Some(true));
     }

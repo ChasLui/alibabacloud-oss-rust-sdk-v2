@@ -2,15 +2,15 @@ use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::{Deserialize, Serialize};
 
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_length, update_content_md5};
 use crate::{BodyContent, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 /// The container that stores the supported OSS API operations.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct AccessPointActions {
-    /// The supported OSS API operations. Only the GetObject operation is supported.
+    /// The supported OSS API operations. Only the GetObject operation is
+    /// supported.
     #[serde(rename = "Action", default)]
     pub actions: Vec<String>,
 }
@@ -27,7 +27,10 @@ pub struct ObjectProcessCustomForwardHeaders {
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ObjectProcessAdditionalFeatures {
     /// The container that stores the custom forward headers.
-    #[serde(rename = "CustomForwardHeaders", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "CustomForwardHeaders",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub custom_forward_headers: Option<ObjectProcessCustomForwardHeaders>,
 }
 
@@ -41,7 +44,10 @@ pub struct ObjectProcessFunctionCompute {
     /// The Alibaba Cloud Resource Name (ARN) of the role that Function Compute
     /// uses to access your resources in other cloud services. The default role
     /// is AliyunFCDefaultRole.
-    #[serde(rename = "FunctionAssumeRoleArn", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "FunctionAssumeRoleArn",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub function_assume_role_arn: Option<String>,
 }
 
@@ -64,8 +70,12 @@ pub struct TransformationConfiguration {
     #[serde(rename = "Actions", skip_serializing_if = "Option::is_none")]
     pub actions: Option<AccessPointActions>,
 
-    /// The container that stores the content of the transformation configurations.
-    #[serde(rename = "ContentTransformation", skip_serializing_if = "Option::is_none")]
+    /// The container that stores the content of the transformation
+    /// configurations.
+    #[serde(
+        rename = "ContentTransformation",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub content_transformation: Option<ContentTransformation>,
 }
 
@@ -85,11 +95,15 @@ pub struct ObjectProcessAllowedFeatures {
     pub allowed_features: Vec<String>,
 }
 
-/// The container that stores the processing information about the Object FC Access Point.
+/// The container that stores the processing information about the Object FC
+/// Access Point.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ObjectProcessConfiguration {
     /// The container that stores the transformation configurations.
-    #[serde(rename = "TransformationConfigurations", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "TransformationConfigurations",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub transformation_configurations: Option<TransformationConfigurations>,
 
     /// The container that stores allowed features.
@@ -118,15 +132,24 @@ pub struct AccessPointForObjectProcess {
     pub status: Option<String>,
 
     /// Whether allow anonymous user access this FC Access Point.
-    #[serde(rename = "AllowAnonymousAccessForObjectProcess", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "AllowAnonymousAccessForObjectProcess",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub allow_anonymous_access_for_object_process: Option<String>,
 
     /// The name of the Object FC Access Point.
-    #[serde(rename = "AccessPointNameForObjectProcess", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "AccessPointNameForObjectProcess",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub access_point_name_for_object_process: Option<String>,
 
     /// The alias of the Object FC Access Point.
-    #[serde(rename = "AccessPointForObjectProcessAlias", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "AccessPointForObjectProcessAlias",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub access_point_for_object_process_alias: Option<String>,
 
     /// The name of the access point.
@@ -137,7 +160,8 @@ pub struct AccessPointForObjectProcess {
 /// The container that stores information about all Object FC Access Points.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct AccessPointsForObjectProcess {
-    /// The container that stores information about a single Object FC Access Point.
+    /// The container that stores information about a single Object FC Access
+    /// Point.
     #[serde(rename = "AccessPointForObjectProcess", default)]
     pub access_point_for_object_processes: Vec<AccessPointForObjectProcess>,
 }
@@ -146,15 +170,22 @@ pub struct AccessPointsForObjectProcess {
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct CreateAccessPointForObjectProcessConfiguration {
     /// Whether allow anonymous user to access this FC Access Point.
-    #[serde(rename = "AllowAnonymousAccessForObjectProcess", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "AllowAnonymousAccessForObjectProcess",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub allow_anonymous_access_for_object_process: Option<String>,
 
     /// The name of the access point.
     #[serde(rename = "AccessPointName", skip_serializing_if = "Option::is_none")]
     pub access_point_name: Option<String>,
 
-    /// The container that stores the processing information about the Object FC Access Point.
-    #[serde(rename = "ObjectProcessConfiguration", skip_serializing_if = "Option::is_none")]
+    /// The container that stores the processing information about the Object FC
+    /// Access Point.
+    #[serde(
+        rename = "ObjectProcessConfiguration",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub object_process_configuration: Option<ObjectProcessConfiguration>,
 }
 
@@ -178,11 +209,17 @@ pub struct CreateAccessPointForObjectProcessRequest {
 #[serde(rename = "CreateAccessPointForObjectProcessResult")]
 pub struct CreateAccessPointForObjectProcessResult {
     /// The ARN of the Object FC Access Point.
-    #[serde(rename = "AccessPointForObjectProcessArn", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "AccessPointForObjectProcessArn",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub access_point_for_object_process_arn: Option<String>,
 
     /// The alias of the Object FC Access Point.
-    #[serde(rename = "AccessPointForObjectProcessAlias", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "AccessPointForObjectProcessAlias",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub access_point_for_object_process_alias: Option<String>,
 
     /// Common result fields
@@ -196,7 +233,8 @@ impl Client {
     /// # Arguments
     ///
     /// * `request` - The `CreateAccessPointForObjectProcessRequest` containing
-    ///   the bucket name, the Object FC Access Point name and the configuration.
+    ///   the bucket name, the Object FC Access Point name and the
+    ///   configuration.
     ///
     /// # Examples
     ///
@@ -323,7 +361,8 @@ mod tests {
                         content_transformation: Some(ContentTransformation {
                             function_compute: Some(ObjectProcessFunctionCompute {
                                 function_arn: Some(
-                                    "acs:fc:cn-qingdao:1234567890:services/svc.LATEST/functions/fc-01"
+                                    "acs:fc:cn-qingdao:1234567890:services/svc.LATEST/functions/\
+                                     fc-01"
                                         .to_string(),
                                 ),
                                 function_assume_role_arn: Some(
@@ -381,12 +420,12 @@ mod tests {
 
     #[test]
     fn test_create_result_deserialize() {
-        let xml = "<CreateAccessPointForObjectProcessResult>\
-            <AccessPointForObjectProcessArn>acs:oss:cn-qingdao:123:accesspointforobjectprocess/fc-ap-01</AccessPointForObjectProcessArn>\
-            <AccessPointForObjectProcessAlias>fc-ap-01-alias</AccessPointForObjectProcessAlias>\
-            </CreateAccessPointForObjectProcessResult>";
-        let result: CreateAccessPointForObjectProcessResult =
-            quick_xml::de::from_str(xml).unwrap();
+        let xml =
+            "<CreateAccessPointForObjectProcessResult><AccessPointForObjectProcessArn>acs:oss:\
+             cn-qingdao:123:accesspointforobjectprocess/fc-ap-01</\
+             AccessPointForObjectProcessArn><AccessPointForObjectProcessAlias>fc-ap-01-alias</\
+             AccessPointForObjectProcessAlias></CreateAccessPointForObjectProcessResult>";
+        let result: CreateAccessPointForObjectProcessResult = quick_xml::de::from_str(xml).unwrap();
         assert_eq!(
             result.access_point_for_object_process_arn.as_deref(),
             Some("acs:oss:cn-qingdao:123:accesspointforobjectprocess/fc-ap-01")

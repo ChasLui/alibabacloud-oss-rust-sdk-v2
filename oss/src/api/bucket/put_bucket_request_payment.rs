@@ -7,7 +7,9 @@ use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
 use crate::signer::SUB_RESOURCE;
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-use crate::{BodyContent, OperationInput, OperationOutput, DEFAULT_CONTENT_TYPE, HTTP_HEADER_CONTENT_TYPE};
+use crate::{
+    BodyContent, OperationInput, OperationOutput, DEFAULT_CONTENT_TYPE, HTTP_HEADER_CONTENT_TYPE,
+};
 
 /// The request payment configuration information for the bucket.
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -40,8 +42,8 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `request` - The `PutBucketRequestPaymentRequest` containing the
-    ///   bucket name and the request payment configuration.
+    /// * `request` - The `PutBucketRequestPaymentRequest` containing the bucket
+    ///   name and the request payment configuration.
     ///
     /// # Examples
     ///
@@ -117,11 +119,13 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::bucket::{CreateBucketRequest, DeleteBucketRequest, GetBucketRequestPaymentRequest};
+    use crate::api::bucket::{
+        CreateBucketRequest, DeleteBucketRequest, GetBucketRequestPaymentRequest,
+    };
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
-    use crate::SignatureVersionType;
     use crate::test_utils::{generate_unique_bucket_name, load_test_config};
+    use crate::SignatureVersionType;
 
     #[test]
     fn test_request_payment_configuration_serde_round_trip() {

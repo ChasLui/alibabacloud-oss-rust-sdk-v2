@@ -1,20 +1,18 @@
-use crate::HTTP_HEADER_CONTENT_TYPE;
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::Deserialize;
 
 use super::create_access_point_for_object_process::AccessPointsForObjectProcess;
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_md5};
-use crate::{OperationInput, OperationOutput};
+use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct ListAccessPointsForObjectProcessRequest {
     /// The maximum number of Object FC Access Points to return. Valid values: 1
     /// to 1000. If the list cannot be complete at a time due to the
-    /// configurations of the max-keys element, the NextContinuationToken element
-    /// is included in the response as the token for the next list.
+    /// configurations of the max-keys element, the NextContinuationToken
+    /// element is included in the response as the token for the next list.
     #[field(type = "query", rename = "max-keys")]
     pub max_keys: Option<i64>,
 
@@ -30,7 +28,10 @@ pub struct ListAccessPointsForObjectProcessRequest {
 #[serde(rename = "ListAccessPointsForObjectProcessResult")]
 pub struct ListAccessPointsForObjectProcessResult {
     /// The container that stores information about all Object FC Access Points.
-    #[serde(rename = "AccessPointsForObjectProcess", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "AccessPointsForObjectProcess",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub access_points_for_object_process: Option<AccessPointsForObjectProcess>,
 
     /// Indicates whether the returned results are truncated. true: not all
@@ -39,7 +40,10 @@ pub struct ListAccessPointsForObjectProcessResult {
     pub is_truncated: Option<bool>,
 
     /// The token for the next list operation.
-    #[serde(rename = "NextContinuationToken", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "NextContinuationToken",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub next_continuation_token: Option<String>,
 
     /// The UID of the Alibaba Cloud account to which the Object FC Access
@@ -53,7 +57,8 @@ pub struct ListAccessPointsForObjectProcessResult {
 }
 
 impl Client {
-    /// Lists information about Object FC Access Points in an Alibaba Cloud account.
+    /// Lists information about Object FC Access Points in an Alibaba Cloud
+    /// account.
     ///
     /// # Arguments
     ///
@@ -153,8 +158,7 @@ mod tests {
       </AccessPointForObjectProcess>
    </AccessPointsForObjectProcess>
 </ListAccessPointsForObjectProcessResult>"#;
-        let result: ListAccessPointsForObjectProcessResult =
-            quick_xml::de::from_str(xml).unwrap();
+        let result: ListAccessPointsForObjectProcessResult = quick_xml::de::from_str(xml).unwrap();
         assert_eq!(result.is_truncated, Some(true));
         assert_eq!(result.next_continuation_token.as_deref(), Some("abc"));
         assert_eq!(result.account_id.as_deref(), Some("1119"));

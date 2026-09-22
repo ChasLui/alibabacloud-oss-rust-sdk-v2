@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-use crate::{OperationOutput, BodyContent, OperationInput, HTTP_HEADER_CONTENT_TYPE};
+use crate::{BodyContent, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 /// The container for which the certificate is configured.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -43,7 +43,10 @@ pub struct Cname {
     pub domain: Option<String>,
 
     /// The container for which the certificate is configured.
-    #[serde(rename = "CertificateConfiguration", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "CertificateConfiguration",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub certificate_configuration: Option<CertificateConfiguration>,
 
     /// Specifies whether the domain name is a wildcard domain name.
@@ -63,7 +66,10 @@ pub struct BucketCnameConfiguration {
     /// The container for which the certificate is configured.
     /// Deprecated: use `cname.certificate_configuration` instead. If both
     /// exist simultaneously, the value of `cname` takes precedence.
-    #[serde(rename = "CertificateConfiguration", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "CertificateConfiguration",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub certificate_configuration: Option<CertificateConfiguration>,
 
     /// The container for the custom domain name.
@@ -175,8 +181,7 @@ impl Client {
             std::rc::Rc::new(vec!["comp".to_string(), "cname".to_string()]),
         );
 
-        let effective_config =
-            effective_cname_configuration(&request.bucket_cname_configuration);
+        let effective_config = effective_cname_configuration(&request.bucket_cname_configuration);
         let xml_body =
             quick_xml::se::to_string_with_root("BucketCnameConfiguration", &effective_config)?;
         input.body = Some(BodyContent::from_text(xml_body, None));
@@ -225,8 +230,7 @@ mod tests {
             ..Default::default()
         };
 
-        let xml =
-            quick_xml::se::to_string_with_root("BucketCnameConfiguration", &config).unwrap();
+        let xml = quick_xml::se::to_string_with_root("BucketCnameConfiguration", &config).unwrap();
         assert!(xml.contains("<BucketCnameConfiguration>"));
         assert!(xml.contains("<Cname>"));
         assert!(xml.contains("<Domain>example.com</Domain>"));

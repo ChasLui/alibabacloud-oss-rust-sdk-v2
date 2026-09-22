@@ -3,8 +3,7 @@ use serde::Deserialize;
 
 use super::put_object_tagging::TagSet;
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_md5};
 use crate::{OperationInput, OperationOutput};
 
@@ -124,8 +123,8 @@ mod tests {
 
     #[test]
     fn test_get_object_tagging_result_serde_round_trip() {
-        let xml = "<Tagging><TagSet><Tag><Key>k1</Key><Value>v1</Value></Tag>\
-            <Tag><Key>k2</Key><Value></Value></Tag></TagSet></Tagging>";
+        let xml = "<Tagging><TagSet><Tag><Key>k1</Key><Value>v1</Value></Tag><Tag><Key>k2</\
+                   Key><Value></Value></Tag></TagSet></Tagging>";
         let result: GetObjectTaggingResult = quick_xml::de::from_str(xml).unwrap();
         let tags = result.tag_set.unwrap().tags;
         assert_eq!(tags.len(), 2);
@@ -193,7 +192,11 @@ mod tests {
                 ..Default::default()
             })
             .await;
-        assert!(result.is_ok(), "get_object_tagging failed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "get_object_tagging failed: {:?}",
+            result.err()
+        );
         let tags = result.unwrap().tag_set.unwrap().tags;
         assert_eq!(tags.len(), 1);
         assert_eq!(tags[0].key.as_deref(), Some("k1"));

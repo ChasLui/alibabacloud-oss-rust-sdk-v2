@@ -36,14 +36,16 @@ fn get_object_meta_uses_head() {
                     Err(_) => break,
                 }
             }
-            let _ = stream.write_all(
-                b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nETag: \"abc\"\r\n\r\n",
-            );
+            let _ =
+                stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nETag: \"abc\"\r\n\r\n");
             tx.send(String::from_utf8_lossy(&acc).to_string()).ok();
         }
     });
 
-    let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
     let (err, observed) = rt.block_on(async move {
         let config = Config::default()
             .with_region("cn-hangzhou")

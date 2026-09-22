@@ -169,7 +169,11 @@ mod tests {
                 ..Default::default()
             })
             .await;
-        assert!(result.is_ok(), "delete_object_tagging failed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "delete_object_tagging failed: {:?}",
+            result.err()
+        );
 
         // Verify the tags are gone.
         let get_result = client

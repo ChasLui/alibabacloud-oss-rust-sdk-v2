@@ -80,10 +80,9 @@ impl Client {
                 .collect(),
             ..Default::default()
         };
-        input.op_metadata.set(
-            SUB_RESOURCE,
-            Rc::new(vec!["publicAccessBlock".to_string()]),
-        );
+        input
+            .op_metadata
+            .set(SUB_RESOURCE, Rc::new(vec!["publicAccessBlock".to_string()]));
 
         let xml_body = quick_xml::se::to_string_with_root(
             "PublicAccessBlockConfiguration",
@@ -114,8 +113,8 @@ mod tests {
     use super::*;
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
-    use crate::SignatureVersionType;
     use crate::test_utils::load_test_config;
+    use crate::SignatureVersionType;
 
     #[tokio::test]
     #[serial_test::serial]

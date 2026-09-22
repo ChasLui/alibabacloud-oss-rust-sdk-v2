@@ -1,11 +1,9 @@
-use crate::HTTP_HEADER_CONTENT_TYPE;
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_md5};
-use crate::{OperationInput, OperationOutput};
+use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct GetAccessPointPolicyForObjectProcessRequest {
@@ -21,7 +19,8 @@ pub struct GetAccessPointPolicyForObjectProcessRequest {
 
 #[derive(Debug, Default, OssResultModel)]
 pub struct GetAccessPointPolicyForObjectProcessResult {
-    /// The configurations of the access point policy for object process, in json format.
+    /// The configurations of the access point policy for object process, in
+    /// json format.
     pub body: String,
 
     /// Common result fields
@@ -33,8 +32,8 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `request` - The `GetAccessPointPolicyForObjectProcessRequest` containing
-    ///   the bucket name and the Object FC Access Point name.
+    /// * `request` - The `GetAccessPointPolicyForObjectProcessRequest`
+    ///   containing the bucket name and the Object FC Access Point name.
     ///
     /// # Examples
     ///
@@ -142,7 +141,8 @@ mod tests {
         );
 
         // Querying a policy on a non-existent Object FC Access Point is
-        // expected to be rejected by the server; the call exercises the request path.
+        // expected to be rejected by the server; the call exercises the request
+        // path.
         let result = client
             .get_access_point_policy_for_object_process(
                 &GetAccessPointPolicyForObjectProcessRequest {
@@ -154,7 +154,8 @@ mod tests {
             .await;
         if let Err(error) = &result {
             eprintln!(
-                "get_access_point_policy_for_object_process rejected (access point may not exist): {}",
+                "get_access_point_policy_for_object_process rejected (access point may not \
+                 exist): {}",
                 error
             );
         }

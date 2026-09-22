@@ -1,12 +1,5 @@
 use crate::client::{Client, ClientOptions};
 use crate::{OperationInput, OperationOutput};
-use http::Method;
-use std::rc::Rc;
-use std::sync::{Arc, Mutex};
-use crate::config::Config;
-use crate::credential::StaticCredentialsProvider;
-use crate::log::LogLevel;
-use crate::client::BodyDataReader;
 
 impl Client {
     /// Performs a raw operation on the client.
@@ -40,7 +33,7 @@ impl Client {
     /// let client = Client::new(&Config::default());
     /// let input = OperationInput::default();
     ///
-    /// let result = client.invoke_operation(input, vec![]).await;  // 移除 & 符号
+    /// let result = client.invoke_operation(input, vec![]).await; // 移除 & 符号
     /// match result {
     ///     Ok(output) => {
     ///         // Handle successful operation output
@@ -61,9 +54,9 @@ impl Client {
             return Err(err);
         }
         // let mut input = input.clone();
-        // extend_headers_case_insensitive(&mut input.headers, &request_common.headers);
-        // extend_headers_case_insensitive(&mut input.parameters,
-        // &request_common.parameters);
+        // extend_headers_case_insensitive(&mut input.headers,
+        // &request_common.headers); extend_headers_case_insensitive(&
+        // mut input.parameters, &request_common.parameters);
 
         let output = self.invoke_operation_inner(input, opt_fns).await?;
 
@@ -73,12 +66,17 @@ impl Client {
 
 #[cfg(test)]
 mod tests {
+    use std::rc::Rc;
+
+    use http::Method;
+
     use super::*;
-    use crate::api::object::{DeleteObjectRequest, GetObjectRequest, PutObjectRequest};
-    use crate::api::bucket::ListObjectsV2Request;
-    use std::io::Read;
-    use crate::test_utils::{load_test_config, generate_unique_object_name};
-    use crate::{HTTP_HEADER_CONTENT_TYPE, DEFAULT_CONTENT_TYPE};
+    use crate::client::BodyDataReader;
+    use crate::config::Config;
+    use crate::credential::StaticCredentialsProvider;
+    use crate::log::LogLevel;
+    use crate::test_utils::{generate_unique_object_name, load_test_config};
+    use crate::{DEFAULT_CONTENT_TYPE, HTTP_HEADER_CONTENT_TYPE};
 
     #[tokio::test]
     #[serial_test::serial]
@@ -109,16 +107,22 @@ mod tests {
         println!("Step 1: Uploading object using invoke_operation");
         let content = "Hello from invoke_operation!";
         let content_bytes = content.as_bytes();
-        
-        let mut input = OperationInput {
+
+        let input = OperationInput {
             op_name: "PutObject".to_string(),
             method: Method::PUT,
             bucket: Some(config.bucket.to_string()),
             key: Some(object_name.clone()),
             body: Some(crate::BodyContent::from_bytes(content_bytes.to_vec(), None)),
             headers: [
-                (HTTP_HEADER_CONTENT_TYPE.to_string(), DEFAULT_CONTENT_TYPE.to_string()),
-                ("Content-Length".to_string(), content_bytes.len().to_string()), // Add content length
+                (
+                    HTTP_HEADER_CONTENT_TYPE.to_string(),
+                    DEFAULT_CONTENT_TYPE.to_string(),
+                ),
+                (
+                    "Content-Length".to_string(),
+                    content_bytes.len().to_string(),
+                ), // Add content length
             ]
             .iter()
             .map(|(k, v)| (k.to_string(), v.to_string()))
@@ -126,9 +130,13 @@ mod tests {
             ..Default::default()
         };
 
-        match client.invoke_operation(input, vec![]).await {  // 移除 & 符号
+        match client.invoke_operation(input, vec![]).await {
+            // 移除 & 符号
             Ok(output) => {
-                println!("Object uploaded successfully via invoke_operation. Status: {}", output.status.as_u16());
+                println!(
+                    "Object uploaded successfully via invoke_operation. Status: {}",
+                    output.status.as_u16()
+                );
                 assert!(output.status.is_success());
             }
             Err(err) => panic!("Upload via invoke_operation failed: {:?}", err),
@@ -141,18 +149,22 @@ mod tests {
             method: Method::GET,
             bucket: Some(config.bucket.to_string()),
             key: None,
-            parameters: [("list-type", "2".to_string())]  // Proper parameter for list objects v2
+            parameters: [("list-type", "2".to_string())] // Proper parameter for list objects v2
                 .iter()
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect(),
             ..Default::default()
         };
 
-        match client.invoke_operation(input, vec![]).await {  // 移除 & 符号
+        match client.invoke_operation(input, vec![]).await {
+            // 移除 & 符号
             Ok(mut output) => {
-                println!("Objects listed successfully via invoke_operation. Status: {}", output.status.as_u16());
+                println!(
+                    "Objects listed successfully via invoke_operation. Status: {}",
+                    output.status.as_u16()
+                );
                 assert!(output.status.is_success());
-                
+
                 // Read the response body to verify the object is there
                 let body_data = output.get_all_data().await.unwrap_or_default();
                 println!("List response length: {} bytes", body_data.len());
@@ -160,7 +172,10 @@ mod tests {
                 if body_str.contains(&object_name) {
                     println!("Object '{}' found in list response", object_name);
                 } else {
-                    println!("Object '{}' may not be immediately visible in list", object_name);
+                    println!(
+                        "Object '{}' may not be immediately visible in list",
+                        object_name
+                    );
                 }
             }
             Err(err) => panic!("List via invoke_operation failed: {:?}", err),
@@ -176,16 +191,23 @@ mod tests {
             ..Default::default()
         };
 
-        match client.invoke_operation(input, vec![]).await {  // 移除 & 符号
+        match client.invoke_operation(input, vec![]).await {
+            // 移除 & 符号
             Ok(mut output) => {
-                println!("Object downloaded successfully via invoke_operation. Status: {}", output.status.as_u16());
+                println!(
+                    "Object downloaded successfully via invoke_operation. Status: {}",
+                    output.status.as_u16()
+                );
                 assert!(output.status.is_success());
-                
+
                 // Read the response body
                 let body_data = output.get_all_data().await.unwrap_or_default();
-                let downloaded_content = String::from_utf8_lossy(&body_data).into_owned();  // Convert to owned String
+                let downloaded_content = String::from_utf8_lossy(&body_data).into_owned(); // Convert to owned String
                 println!("Downloaded content: '{}'", downloaded_content);
-                assert_eq!(downloaded_content, content, "Downloaded content should match uploaded content");
+                assert_eq!(
+                    downloaded_content, content,
+                    "Downloaded content should match uploaded content"
+                );
             }
             Err(err) => panic!("Download via invoke_operation failed: {:?}", err),
         }
@@ -200,9 +222,13 @@ mod tests {
             ..Default::default()
         };
 
-        match client.invoke_operation(input, vec![]).await {  // 移除 & 符号
+        match client.invoke_operation(input, vec![]).await {
+            // 移除 & 符号
             Ok(output) => {
-                println!("Object deleted successfully via invoke_operation. Status: {}", output.status.as_u16());
+                println!(
+                    "Object deleted successfully via invoke_operation. Status: {}",
+                    output.status.as_u16()
+                );
                 assert!(output.status.is_success());
             }
             Err(err) => panic!("Delete via invoke_operation failed: {:?}", err),
@@ -239,7 +265,7 @@ mod tests {
         // Upload using invoke_operation
         let content = "Simple test content";
         let content_bytes = content.as_bytes();
-        
+
         let input = OperationInput {
             op_name: "PutObject".to_string(),
             method: Method::PUT,
@@ -247,8 +273,14 @@ mod tests {
             key: Some(object_name.clone()),
             body: Some(crate::BodyContent::from_bytes(content_bytes.to_vec(), None)),
             headers: [
-                (HTTP_HEADER_CONTENT_TYPE.to_string(), DEFAULT_CONTENT_TYPE.to_string()),
-                ("Content-Length".to_string(), content_bytes.len().to_string()), // Add content length
+                (
+                    HTTP_HEADER_CONTENT_TYPE.to_string(),
+                    DEFAULT_CONTENT_TYPE.to_string(),
+                ),
+                (
+                    "Content-Length".to_string(),
+                    content_bytes.len().to_string(),
+                ), // Add content length
             ]
             .iter()
             .map(|(k, v)| (k.to_string(), v.to_string()))
@@ -256,7 +288,8 @@ mod tests {
             ..Default::default()
         };
 
-        match client.invoke_operation(input, vec![]).await {  // 移除 & 符号
+        match client.invoke_operation(input, vec![]).await {
+            // 移除 & 符号
             Ok(output) => {
                 assert!(output.status.is_success());
             }
@@ -272,7 +305,8 @@ mod tests {
             ..Default::default()
         };
 
-        match client.invoke_operation(input, vec![]).await {  // 移除 & 符号
+        match client.invoke_operation(input, vec![]).await {
+            // 移除 & 符号
             Ok(mut output) => {
                 assert!(output.status.is_success());
                 let body_data = output.get_all_data().await.unwrap_or_default();
@@ -291,7 +325,8 @@ mod tests {
             ..Default::default()
         };
 
-        match client.invoke_operation(input, vec![]).await {  // 移除 & 符号
+        match client.invoke_operation(input, vec![]).await {
+            // 移除 & 符号
             Ok(output) => {
                 assert!(output.status.is_success());
             }

@@ -1,10 +1,10 @@
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 
-use super::put_cname::{effective_cname_configuration, BucketCnameConfiguration, Cname};
+use super::put_cname::{effective_cname_configuration, BucketCnameConfiguration};
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-use crate::{OperationOutput, BodyContent, OperationInput, HTTP_HEADER_CONTENT_TYPE};
+use crate::{BodyContent, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct DeleteCnameRequest {
@@ -88,8 +88,7 @@ impl Client {
             std::rc::Rc::new(vec!["cname".to_string(), "comp".to_string()]),
         );
 
-        let effective_config =
-            effective_cname_configuration(&request.bucket_cname_configuration);
+        let effective_config = effective_cname_configuration(&request.bucket_cname_configuration);
         let xml_body =
             quick_xml::se::to_string_with_root("BucketCnameConfiguration", &effective_config)?;
         input.body = Some(BodyContent::from_text(xml_body, None));
@@ -115,6 +114,7 @@ mod tests {
     use std::rc::Rc;
 
     use super::*;
+    use crate::api::bucket::put_cname::Cname;
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::test_utils::{generate_unique_bucket_name, load_test_config};

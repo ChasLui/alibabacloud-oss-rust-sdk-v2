@@ -131,7 +131,8 @@ mod tests {
         );
 
         let policy = format!(
-            "{{\"Version\":\"1\",\"Statement\":[{{\"Action\":[\"oss:GetObject\"],\"Effect\":\"Deny\",\"Principal\":[\"1234567890\"],\"Resource\":[\"acs:oss:*:*:{}/*\"]}}]}}",
+            "{{\"Version\":\"1\",\"Statement\":[{{\"Action\":[\"oss:GetObject\"],\"Effect\":\"\
+             Deny\",\"Principal\":[\"1234567890\"],\"Resource\":[\"acs:oss:*:*:{}/*\"]}}]}}",
             config.bucket
         );
 

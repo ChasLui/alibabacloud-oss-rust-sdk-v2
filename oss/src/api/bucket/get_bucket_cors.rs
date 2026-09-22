@@ -1,13 +1,11 @@
-use crate::HTTP_HEADER_CONTENT_TYPE;
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::Deserialize;
 
 use super::put_bucket_cors::CORSRule;
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-use crate::{OperationInput, OperationOutput};
+use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct GetBucketCorsRequest {
@@ -34,8 +32,8 @@ pub struct GetBucketCorsResult {
 }
 
 impl Client {
-    /// Queries the cross-origin resource sharing (CORS) rules that are configured
-    /// for a bucket.
+    /// Queries the cross-origin resource sharing (CORS) rules that are
+    /// configured for a bucket.
     ///
     /// # Arguments
     ///
@@ -125,7 +123,10 @@ mod tests {
         let xml = r#"<CORSConfiguration><CORSRule><AllowedOrigin>https://example.com</AllowedOrigin><AllowedMethod>GET</AllowedMethod><MaxAgeSeconds>3600</MaxAgeSeconds></CORSRule><ResponseVary>false</ResponseVary></CORSConfiguration>"#;
         let result: GetBucketCorsResult = quick_xml::de::from_str(xml).unwrap();
         assert_eq!(result.cors_rules.len(), 1);
-        assert_eq!(result.cors_rules[0].allowed_origins, vec!["https://example.com".to_string()]);
+        assert_eq!(
+            result.cors_rules[0].allowed_origins,
+            vec!["https://example.com".to_string()]
+        );
         assert_eq!(result.cors_rules[0].max_age_seconds, Some(3600));
         assert_eq!(result.response_vary, Some(false));
     }

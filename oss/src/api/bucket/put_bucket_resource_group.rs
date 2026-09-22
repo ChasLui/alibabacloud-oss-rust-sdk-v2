@@ -4,9 +4,7 @@ use super::get_bucket_resource_group::BucketResourceGroupConfiguration;
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-use crate::{
-    BodyContent, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE,
-};
+use crate::{BodyContent, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct PutBucketResourceGroupRequest {

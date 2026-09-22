@@ -8,9 +8,9 @@
 //! The properties worth stating because they are not obvious from the API:
 //!
 //! - Reads are served by a single ranged `GetObject` whose body is consumed
-//!   lazily; seeking backwards discards the open stream and opens a new one.
-//!   A seek does not re-read bytes that were already downloaded, but it does
-//!   mean the connection is not reused across disjoint ranges.
+//!   lazily; seeking backwards discards the open stream and opens a new one. A
+//!   seek does not re-read bytes that were already downloaded, but it does mean
+//!   the connection is not reused across disjoint ranges.
 //! - A ranged response is checked against the object it was opened from. OSS
 //!   answers a range request with the range that was actually returned, so a
 //!   `Content-Range` that does not start where the request asked means the
@@ -23,9 +23,10 @@
 //!   extension — a genuinely concurrent writer is an error, not something to
 //!   paper over.
 
+use futures_util::StreamExt;
+
 use crate::api::object::{AppendObjectRequest, GetObjectRequest, HeadObjectRequest};
 use crate::client::Client;
-use futures_util::StreamExt;
 
 /// Whence values accepted by [`ReadOnlyFile::seek`] and
 /// [`AppendOnlyFile::seek`], matching [`std::io::SeekFrom`].
@@ -40,21 +41,12 @@ pub enum SeekFrom {
 }
 
 /// Options for [`Client::open_read_only_file`].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct OpenOptions {
     /// The version ID of the object to read.
     pub version_id: Option<String>,
     /// Whoever pays for the request, when the bucket bills the requester.
     pub request_payer: Option<String>,
-}
-
-impl Default for OpenOptions {
-    fn default() -> Self {
-        OpenOptions {
-            version_id: None,
-            request_payer: None,
-        }
-    }
 }
 
 /// A read-only handle over an object.
@@ -266,7 +258,8 @@ impl ReadOnlyFile {
         ) {
             if opened != current {
                 return Err(format!(
-                    "source file is changed, origin last-modified {opened}, new last-modified {current}"
+                    "source file is changed, origin last-modified {opened}, new last-modified \
+                     {current}"
                 )
                 .into());
             }
@@ -371,7 +364,7 @@ impl AppendOnlyFile {
                 // actually has; the write is only retried implicitly when that
                 // position is exactly where this write would have landed,
                 // which means the bytes are already there.
-                if !is_position_mismatch(&err) {
+                if !is_position_mismatch(&*err) {
                     return Err(err);
                 }
                 let head = self
@@ -462,7 +455,7 @@ fn parse_next_position(
 
 /// Whether the service rejected the append because the object's length is not
 /// the position the handle assumed.
-fn is_position_mismatch(err: &Box<dyn std::error::Error + Send + Sync>) -> bool {
+fn is_position_mismatch(err: &(dyn std::error::Error + Send + Sync + 'static)) -> bool {
     err.downcast_ref::<crate::ServiceError>()
         .map(|service_error| service_error.error_code() == "PositionNotEqualToLength")
         .unwrap_or(false)
@@ -567,7 +560,7 @@ impl Client {
             Err(err) => {
                 // A missing object is the normal case for a new file; anything
                 // else is a real failure.
-                if is_not_found(&err) {
+                if is_not_found(&*err) {
                     Ok(file)
                 } else {
                     Err(err)
@@ -578,7 +571,7 @@ impl Client {
 }
 
 /// Whether the request failed because the object does not exist.
-fn is_not_found(err: &Box<dyn std::error::Error + Send + Sync>) -> bool {
+fn is_not_found(err: &(dyn std::error::Error + Send + Sync + 'static)) -> bool {
     err.downcast_ref::<crate::ServiceError>()
         .map(|service_error| service_error.status_code.as_u16() == 404)
         .unwrap_or(false)
@@ -862,7 +855,10 @@ mod tests {
         server
             .mock("POST", mockito::Matcher::Any)
             .with_status(409)
-            .with_body("<Error><Code>PositionNotEqualToLength</Code><Message>position mismatch</Message></Error>")
+            .with_body(
+                "<Error><Code>PositionNotEqualToLength</Code><Message>position \
+                 mismatch</Message></Error>",
+            )
             .create_async()
             .await;
         server

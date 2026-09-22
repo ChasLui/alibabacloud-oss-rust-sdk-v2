@@ -4,17 +4,17 @@ use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::{Deserialize, Serialize};
 
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::signer::SUB_RESOURCE;
 use crate::utils::{modify_request, update_content_length};
-use crate::{OperationOutput, OperationInput, HTTP_HEADER_CONTENT_TYPE};
+use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 /// The container that stores the configurations for real-time access of Archive
 /// objects.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ArchiveDirectReadConfiguration {
-    /// Specifies whether to enable real-time access of Archive objects for a bucket.
+    /// Specifies whether to enable real-time access of Archive objects for a
+    /// bucket.
     #[serde(rename = "Enabled", skip_serializing_if = "Option::is_none")]
     pub enabled: Option<bool>,
 }
@@ -47,7 +47,8 @@ pub struct GetBucketArchiveDirectReadResult {
 }
 
 impl Client {
-    /// Queries whether real-time access of Archive objects is enabled for a bucket.
+    /// Queries whether real-time access of Archive objects is enabled for a
+    /// bucket.
     ///
     /// # Arguments
     ///
@@ -67,7 +68,10 @@ impl Client {
     ///
     /// match client.get_bucket_archive_direct_read(&request).await {
     ///     Ok(result) => {
-    ///         println!("Archive direct read: {:?}", result.archive_direct_read_configuration);
+    ///         println!(
+    ///             "Archive direct read: {:?}",
+    ///             result.archive_direct_read_configuration
+    ///         );
     ///     }
     ///     Err(error) => {
     ///         eprintln!("Failed to get bucket archive direct read: {}", error);
@@ -169,7 +173,10 @@ mod tests {
             .get_bucket_archive_direct_read(&GetBucketArchiveDirectReadRequest::new(&config.bucket))
             .await;
         if let Err(error) = &result {
-            eprintln!("get_bucket_archive_direct_read rejected (may not be configured): {}", error);
+            eprintln!(
+                "get_bucket_archive_direct_read rejected (may not be configured): {}",
+                error
+            );
         }
     }
 }

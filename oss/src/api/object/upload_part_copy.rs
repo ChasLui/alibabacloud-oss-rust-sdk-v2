@@ -1,15 +1,11 @@
-use std::collections::HashMap;
-
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::modify_request;
 use crate::{OperationInput, OperationOutput};
-use crate::client::BodyDataReader;
-
 
 #[derive(Debug, Default, Serialize, OssRequestModel)]
 pub struct UploadPartCopyRequest {
@@ -43,20 +39,24 @@ pub struct UploadPartCopyRequest {
     #[field(type = "header", rename = "x-oss-copy-source-range")]
     pub copy_source_range: Option<String>,
 
-    /// Copy condition: only copy if the source object's ETag matches this value.
+    /// Copy condition: only copy if the source object's ETag matches this
+    /// value.
     #[field(type = "header", rename = "x-oss-copy-source-if-match")]
     pub copy_source_if_match: Option<String>,
 
-    /// Copy condition: only copy if the source object's ETag does not match this value.
+    /// Copy condition: only copy if the source object's ETag does not match
+    /// this value.
     #[field(type = "header", rename = "x-oss-copy-source-if-none-match")]
     pub copy_source_if_none_match: Option<String>,
 
-    /// Copy condition: only copy if the source object has not been modified since this time.
+    /// Copy condition: only copy if the source object has not been modified
+    /// since this time.
     #[serde(skip)]
     #[field(type = "header", rename = "x-oss-copy-source-if-unmodified-since")]
     pub copy_source_if_unmodified_since: Option<DateTime<Utc>>,
 
-    /// Copy condition: only copy if the source object has been modified since this time.
+    /// Copy condition: only copy if the source object has been modified since
+    /// this time.
     #[serde(skip)]
     #[field(type = "header", rename = "x-oss-copy-source-if-modified-since")]
     pub copy_source_if_modified_since: Option<DateTime<Utc>>,
@@ -80,7 +80,7 @@ pub struct UploadPartCopyRequest {
 pub struct UploadPartCopyResult {
     /// The time when the part was last modified.
     #[serde(rename = "LastModified", skip_serializing_if = "Option::is_none")]
-    pub last_modified: Option<String>,  // Using String to avoid deserialization issues
+    pub last_modified: Option<String>, // Using String to avoid deserialization issues
 
     /// The ETag of the uploaded part.
     #[serde(rename = "ETag", skip_serializing_if = "Option::is_none")]
@@ -98,15 +98,16 @@ pub struct UploadPartCopyResult {
 impl Client {
     /// Uploads a part by copying data from an existing object.
     ///
-    /// This method copies data from a source object to upload a part of a multipart upload.
-    /// It sends a PUT request with the part number and upload ID parameters, along with
-    /// the x-oss-copy-source header specifying the source object to copy from.
+    /// This method copies data from a source object to upload a part of a
+    /// multipart upload. It sends a PUT request with the part number and
+    /// upload ID parameters, along with the x-oss-copy-source header
+    /// specifying the source object to copy from.
     ///
     /// # Arguments
     ///
-    /// * `request` - The `UploadPartCopyRequest` containing the necessary information
-    ///   for the part copy operation, including destination bucket/key, part number,
-    ///   upload ID, and source object specification.
+    /// * `request` - The `UploadPartCopyRequest` containing the necessary
+    ///   information for the part copy operation, including destination
+    ///   bucket/key, part number, upload ID, and source object specification.
     ///
     /// # Returns
     ///
@@ -125,7 +126,7 @@ impl Client {
     /// let request = UploadPartCopyRequest {
     ///     bucket: "destination-bucket".to_string(),
     ///     key: "destination-object".to_string(),
-    ///     part_number: 1,  // part number must be between 1 and 10000
+    ///     part_number: 1, // part number must be between 1 and 10000
     ///     upload_id: "upload-id-from-initiate-multipart-upload".to_string(),
     ///     copy_source: "/source-bucket/source-object".to_string(),
     ///     copy_source_range: Some("bytes=0-1048575".to_string()), // Copy first 1MB
@@ -134,7 +135,10 @@ impl Client {
     ///
     /// match client.upload_part_copy(&request).await {
     ///     Ok(upload_part_copy_result) => {
-    ///         println!("Part copied successfully: {:?}", upload_part_copy_result.etag);
+    ///         println!(
+    ///             "Part copied successfully: {:?}",
+    ///             upload_part_copy_result.etag
+    ///         );
     ///     }
     ///     Err(error) => {
     ///         eprintln!("Failed to copy part: {}", error);
@@ -187,12 +191,14 @@ mod tests {
     use std::rc::Rc;
 
     use super::*;
-    use crate::api::object::{InitiateMultipartUploadRequest, PutObjectRequest, AbortMultipartUploadRequest};
+    use crate::api::object::{
+        AbortMultipartUploadRequest, InitiateMultipartUploadRequest, PutObjectRequest,
+    };
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
+    use crate::test_utils::{generate_unique_object_name, load_test_config};
     use crate::SignatureVersionType;
-    use crate::test_utils::{load_test_config, TestConfig, generate_unique_object_name};
 
     #[tokio::test]
     #[serial_test::serial]
@@ -226,7 +232,10 @@ mod tests {
         let put_request = PutObjectRequest {
             bucket: config.bucket.to_string(),
             key: source_object_name.clone(),
-            body: Some(crate::BodyContent::from_bytes(source_content.to_vec(), None)),
+            body: Some(crate::BodyContent::from_bytes(
+                source_content.to_vec(),
+                None,
+            )),
             ..Default::default()
         };
 
@@ -268,35 +277,50 @@ mod tests {
         match client.upload_part_copy(&copy_request).await {
             Ok(result) => {
                 println!("Part copied successfully: {:?}", result);
-                assert!(result.etag.is_some(), "ETag should be present in the response");
+                assert!(
+                    result.etag.is_some(),
+                    "ETag should be present in the response"
+                );
                 println!("Got ETag: {:?}", result.etag);
                 println!("Last modified: {:?}", result.last_modified);
 
                 // Clean up: abort the multipart upload to release resources
-                match client.abort_multipart_upload(&AbortMultipartUploadRequest {
-                    bucket: config.bucket.to_string(),
-                    key: dest_object_name,
-                    upload_id: upload_id.clone(),
-                    ..Default::default()
-                }).await {
+                match client
+                    .abort_multipart_upload(&AbortMultipartUploadRequest {
+                        bucket: config.bucket.to_string(),
+                        key: dest_object_name,
+                        upload_id: upload_id.clone(),
+                        ..Default::default()
+                    })
+                    .await
+                {
                     Ok(_) => println!("Successfully aborted multipart upload for cleanup"),
-                    Err(err) => eprintln!("Failed to abort multipart upload during cleanup: {:?}", err),
+                    Err(err) => {
+                        eprintln!("Failed to abort multipart upload during cleanup: {:?}", err)
+                    }
                 }
             }
             Err(err) => {
                 eprintln!("Upload part copy failed: {:?}", err);
-                
+
                 // Even if upload part copy fails, we should still clean up
-                match client.abort_multipart_upload(&AbortMultipartUploadRequest {
-                    bucket: config.bucket.to_string(),
-                    key: dest_object_name,
-                    upload_id: upload_id.clone(),
-                    ..Default::default()
-                }).await {
-                    Ok(_) => println!("Successfully aborted multipart upload for cleanup after failure"),
-                    Err(err) => eprintln!("Failed to abort multipart upload during cleanup: {:?}", err),
+                match client
+                    .abort_multipart_upload(&AbortMultipartUploadRequest {
+                        bucket: config.bucket.to_string(),
+                        key: dest_object_name,
+                        upload_id: upload_id.clone(),
+                        ..Default::default()
+                    })
+                    .await
+                {
+                    Ok(_) => {
+                        println!("Successfully aborted multipart upload for cleanup after failure")
+                    }
+                    Err(err) => {
+                        eprintln!("Failed to abort multipart upload during cleanup: {:?}", err)
+                    }
                 }
-                
+
                 panic!("Upload part copy failed: {:?}", err);
             }
         }

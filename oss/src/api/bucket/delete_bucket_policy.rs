@@ -75,7 +75,12 @@ impl Client {
             std::rc::Rc::new(vec!["policy".to_string()]),
         );
 
-        modify_request(&mut input, request.header_map(), request.query_map(), vec![])?;
+        modify_request(
+            &mut input,
+            request.header_map(),
+            request.query_map(),
+            vec![],
+        )?;
 
         let output = self.invoke_operation(input, vec![]).await?;
 
@@ -120,7 +125,8 @@ mod tests {
 
         // Prepare a bucket policy to delete
         let policy = format!(
-            "{{\"Version\":\"1\",\"Statement\":[{{\"Action\":[\"oss:GetObject\"],\"Effect\":\"Deny\",\"Principal\":[\"1234567890\"],\"Resource\":[\"acs:oss:*:*:{}/*\"]}}]}}",
+            "{{\"Version\":\"1\",\"Statement\":[{{\"Action\":[\"oss:GetObject\"],\"Effect\":\"\
+             Deny\",\"Principal\":[\"1234567890\"],\"Resource\":[\"acs:oss:*:*:{}/*\"]}}]}}",
             config.bucket
         );
         let _ = client

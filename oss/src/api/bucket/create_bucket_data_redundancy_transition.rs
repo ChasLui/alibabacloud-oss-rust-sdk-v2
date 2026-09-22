@@ -1,12 +1,10 @@
-use crate::HTTP_HEADER_CONTENT_TYPE;
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::{Deserialize, Serialize};
 
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-use crate::OperationInput;
-use crate::OperationOutput;
+use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 /// The container in which the redundancy type conversion task is stored.
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -20,7 +18,10 @@ pub struct BucketDataRedundancyTransition {
     /// The estimated period of time that is required for the redundancy type
     /// change task. Unit: hours. This element is available when the task is in
     /// the Processing or Finished state.
-    #[serde(rename = "EstimatedRemainingTime", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "EstimatedRemainingTime",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub estimated_remaining_time: Option<i64>,
 
     /// The name of the bucket.
@@ -178,9 +179,8 @@ mod tests {
             end_time: None,
         };
 
-        let xml =
-            quick_xml::se::to_string_with_root("BucketDataRedundancyTransition", &transition)
-                .unwrap();
+        let xml = quick_xml::se::to_string_with_root("BucketDataRedundancyTransition", &transition)
+            .unwrap();
         assert!(xml.contains("<TaskId>task-123</TaskId>"));
         assert!(xml.contains("<ProcessPercentage>50</ProcessPercentage>"));
         assert!(xml.contains("<EstimatedRemainingTime>1</EstimatedRemainingTime>"));
@@ -256,7 +256,10 @@ mod tests {
                 }
             }
             Err(error) => {
-                eprintln!("create_bucket_data_redundancy_transition rejected: {}", error);
+                eprintln!(
+                    "create_bucket_data_redundancy_transition rejected: {}",
+                    error
+                );
             }
         }
     }

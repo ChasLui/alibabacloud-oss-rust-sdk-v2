@@ -1,13 +1,12 @@
-use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
-use serde::Deserialize;
 use std::collections::HashMap;
 
+use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
+use serde::Deserialize;
+
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::modify_request;
 use crate::{OperationInput, OperationOutput};
-use crate::client::BodyDataReader;
-
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct CopyObjectRequest {
@@ -17,8 +16,9 @@ pub struct CopyObjectRequest {
     /// The name of the object.
     pub key: String,
 
-    /// The source of the copy operation in the format `/SourceBucketName/SourceObjectName`
-    /// or `/SourceBucketName/SourceObjectName?versionId=xxx` to specify a version.
+    /// The source of the copy operation in the format
+    /// `/SourceBucketName/SourceObjectName` or `/SourceBucketName/
+    /// SourceObjectName?versionId=xxx` to specify a version.
     #[field(type = "header", rename = "x-oss-copy-source")]
     pub copy_source: String,
 
@@ -31,17 +31,20 @@ pub struct CopyObjectRequest {
     #[field(type = "header", rename = "x-oss-copy-source-if-match")]
     pub copy_source_if_match: Option<String>,
 
-    /// Specifies the ETag value to match against the source object (should not match).
+    /// Specifies the ETag value to match against the source object (should not
+    /// match).
     #[field(type = "header", rename = "x-oss-copy-source-if-none-match")]
     pub copy_source_if_none_match: Option<String>,
 
-    /// Specifies the time to compare with the modification time of the source object.
-    /// If the source object was modified after this time, the copy operation proceeds.
+    /// Specifies the time to compare with the modification time of the source
+    /// object. If the source object was modified after this time, the copy
+    /// operation proceeds.
     #[field(type = "header", rename = "x-oss-copy-source-if-unmodified-since")]
     pub copy_source_if_unmodified_since: Option<String>,
 
-    /// Specifies the time to compare with the modification time of the source object.
-    /// If the source object was modified before this time, the copy operation proceeds.
+    /// Specifies the time to compare with the modification time of the source
+    /// object. If the source object was modified before this time, the copy
+    /// operation proceeds.
     #[field(type = "header", rename = "x-oss-copy-source-if-modified-since")]
     pub copy_source_if_modified_since: Option<String>,
 
@@ -50,7 +53,8 @@ pub struct CopyObjectRequest {
     #[field(type = "header", rename = "x-oss-metadata-directive")]
     pub metadata_directive: Option<String>,
 
-    /// The encryption method on the server side when the target object is created.
+    /// The encryption method on the server side when the target object is
+    /// created.
     #[field(type = "header", rename = "x-oss-server-side-encryption")]
     pub server_side_encryption: Option<String>,
 
@@ -66,7 +70,8 @@ pub struct CopyObjectRequest {
     #[field(type = "header", rename = "x-oss-storage-class")]
     pub storage_class: Option<String>,
 
-    /// The tags that are specified for the target object using a key-value pair.
+    /// The tags that are specified for the target object using a key-value
+    /// pair.
     #[field(type = "header", rename = "x-oss-tagging")]
     pub tagging: Option<String>,
 
@@ -122,7 +127,7 @@ pub struct CopyObjectRequest {
 struct CopyObjectResponseBody {
     #[serde(rename = "ETag", skip_serializing_if = "Option::is_none")]
     pub etag: Option<String>,
-    
+
     #[serde(rename = "LastModified", skip_serializing_if = "Option::is_none")]
     pub last_modified: Option<String>,
 }
@@ -232,12 +237,14 @@ impl Client {
         // First update result with headers and other common fields
         result.update_result(&output);
 
-        // Then parse the XML response body if it exists and merge with header values
+        // Then parse the XML response body if it exists and merge with header
+        // values
         let body_bytes = output.get_all_data().await?;
         let body_data = String::from_utf8_lossy(&body_bytes).into_owned();
         if !body_data.trim().is_empty() {
             // Parse the XML response
-            if let Ok(parsed_result) = quick_xml::de::from_str::<CopyObjectResponseBody>(&body_data) {
+            if let Ok(parsed_result) = quick_xml::de::from_str::<CopyObjectResponseBody>(&body_data)
+            {
                 // Only update fields that might come from the XML body
                 if parsed_result.etag.is_some() {
                     result.etag = parsed_result.etag;
@@ -258,22 +265,22 @@ impl Client {
 pub struct CopyObjectResultBody {
     #[serde(rename = "ETag", skip_serializing_if = "Option::is_none")]
     pub etag: Option<String>,
-    
+
     #[serde(rename = "LastModified", skip_serializing_if = "Option::is_none")]
     pub last_modified: Option<String>,
 }
 
 #[cfg(test)]
 mod tests {
+    use std::rc::Rc;
+
     use super::*;
-    use crate::api::object::{PutObjectRequest, GetObjectRequest};
+    use crate::api::object::{GetObjectRequest, PutObjectRequest};
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
+    use crate::test_utils::{generate_unique_object_name, load_test_config};
     use crate::SignatureVersionType;
-    use std::rc::Rc;
-    use std::sync::{Arc, Mutex};
-    use crate::test_utils::{load_test_config, TestConfig, generate_unique_object_name};
 
     /// The extended request headers added for Go SDK v2 parity must reach the
     /// wire map under their protocol names.
@@ -293,13 +300,36 @@ mod tests {
             ..Default::default()
         };
         let headers = request.header_map();
-        assert_eq!(headers.get("Cache-Control").map(String::as_str), Some("no-cache"));
-        assert_eq!(headers.get("Content-Disposition").map(String::as_str), Some("attachment"));
-        assert_eq!(headers.get("Content-Encoding").map(String::as_str), Some("gzip"));
-        assert_eq!(headers.get("Content-Type").map(String::as_str), Some("text/plain"));
-        assert_eq!(headers.get("Expires").map(String::as_str), Some("Fri, 13 Nov 2015 14:47:53 GMT"));
-        assert_eq!(headers.get("x-oss-server-side-data-encryption").map(String::as_str), Some("AES256"));
-        assert_eq!(headers.get("x-oss-traffic-limit").map(String::as_str), Some("245760"));
+        assert_eq!(
+            headers.get("Cache-Control").map(String::as_str),
+            Some("no-cache")
+        );
+        assert_eq!(
+            headers.get("Content-Disposition").map(String::as_str),
+            Some("attachment")
+        );
+        assert_eq!(
+            headers.get("Content-Encoding").map(String::as_str),
+            Some("gzip")
+        );
+        assert_eq!(
+            headers.get("Content-Type").map(String::as_str),
+            Some("text/plain")
+        );
+        assert_eq!(
+            headers.get("Expires").map(String::as_str),
+            Some("Fri, 13 Nov 2015 14:47:53 GMT")
+        );
+        assert_eq!(
+            headers
+                .get("x-oss-server-side-data-encryption")
+                .map(String::as_str),
+            Some("AES256")
+        );
+        assert_eq!(
+            headers.get("x-oss-traffic-limit").map(String::as_str),
+            Some("245760")
+        );
     }
 
     // Configuration structure to hold test credentials
@@ -343,7 +373,10 @@ mod tests {
         let put_request = PutObjectRequest {
             bucket: config.bucket.to_string(),
             key: source_object_name.to_string(),
-            body: Some(crate::BodyContent::from_text(test_content.to_string(), None)),
+            body: Some(crate::BodyContent::from_text(
+                test_content.to_string(),
+                None,
+            )),
             ..Default::default()
         };
 
@@ -419,7 +452,10 @@ mod tests {
         let put_request = PutObjectRequest {
             bucket: config.bucket.to_string(),
             key: source_object_name.to_string(),
-            body: Some(crate::BodyContent::from_text(test_content.to_string(), None)),
+            body: Some(crate::BodyContent::from_text(
+                test_content.to_string(),
+                None,
+            )),
             ..Default::default()
         };
 
@@ -482,7 +518,10 @@ mod tests {
         let put_request = PutObjectRequest {
             bucket: config.bucket.to_string(),
             key: source_object_name.to_string(),
-            body: Some(crate::BodyContent::from_text(test_content.to_string(), None)),
+            body: Some(crate::BodyContent::from_text(
+                test_content.to_string(),
+                None,
+            )),
             ..Default::default()
         };
 
@@ -542,7 +581,10 @@ mod tests {
         let put_request = PutObjectRequest {
             bucket: config.bucket.to_string(),
             key: source_object_name.to_string(),
-            body: Some(crate::BodyContent::from_text(test_content.to_string(), None)),
+            body: Some(crate::BodyContent::from_text(
+                test_content.to_string(),
+                None,
+            )),
             ..Default::default()
         };
 
@@ -606,7 +648,10 @@ mod tests {
         let put_request = PutObjectRequest {
             bucket: config.bucket.to_string(),
             key: source_object_name.to_string(),
-            body: Some(crate::BodyContent::from_text(test_content.to_string(), None)),
+            body: Some(crate::BodyContent::from_text(
+                test_content.to_string(),
+                None,
+            )),
             ..Default::default()
         };
 
@@ -644,7 +689,8 @@ mod tests {
             Err(err) => panic!("Failed to update target object: {:?}", err),
         }
 
-        // Now try to copy again with forbid overwrite enabled - this should fail
+        // Now try to copy again with forbid overwrite enabled - this should
+        // fail
         let copy_request_forbid = CopyObjectRequest {
             bucket: config.bucket.to_string(),
             key: target_object_name.to_string(),
@@ -655,11 +701,18 @@ mod tests {
 
         match client.copy_object(&copy_request_forbid).await {
             Ok(_result) => {
-                // In some cases, depending on bucket settings, this might succeed
-                println!("Copy with overwrite forbidden succeeded - this may be due to bucket versioning settings");
+                // In some cases, depending on bucket settings, this might
+                // succeed
+                println!(
+                    "Copy with overwrite forbidden succeeded - this may be due to bucket \
+                     versioning settings"
+                );
             }
             Err(err) => {
-                println!("Copy with overwrite forbidden failed as expected in some configurations: {:?}", err);
+                println!(
+                    "Copy with overwrite forbidden failed as expected in some configurations: {:?}",
+                    err
+                );
             }
         }
     }

@@ -1,11 +1,11 @@
 // Integration tests for error types
 
 use std::error::Error;
+
 use alibabacloud_oss_sdk_rust_v2::{
-    ServiceError, ClientError, OperationError, DeserializationError, 
-    SerializationError, CanceledError,
-    new_err_param_required, new_err_param_invalid, new_err_param_null,
-    new_err_param_type_not_support,
+    new_err_param_invalid, new_err_param_null, new_err_param_required,
+    new_err_param_type_not_support, CanceledError, ClientError, DeserializationError,
+    OperationError, SerializationError, ServiceError,
 };
 use http::StatusCode;
 
@@ -22,7 +22,7 @@ fn test_service_error_creation() {
         request_target: "/bucket".to_string(),
         headers: http::HeaderMap::new(),
     };
-    
+
     assert_eq!(error.code, "NoSuchBucket");
     assert_eq!(error.message, "The specified bucket does not exist");
     assert_eq!(error.request_id, "request-123");
@@ -42,7 +42,7 @@ fn test_service_error_display_format() {
         request_target: "/bucket/object".to_string(),
         headers: http::HeaderMap::new(),
     };
-    
+
     let display = format!("{}", error);
     assert!(display.contains("403"));
     assert!(display.contains("AccessDenied"));
@@ -63,7 +63,7 @@ fn test_service_error_http_status_code() {
         request_target: "/".to_string(),
         headers: http::HeaderMap::new(),
     };
-    
+
     assert_eq!(error.http_status_code(), StatusCode::BAD_REQUEST);
 }
 
@@ -80,7 +80,7 @@ fn test_service_error_error_code() {
         request_target: "/".to_string(),
         headers: http::HeaderMap::new(),
     };
-    
+
     assert_eq!(error.error_code(), "InvalidArgument");
 }
 
@@ -97,13 +97,13 @@ fn test_client_error_with_source() {
         request_target: "/".to_string(),
         headers: http::HeaderMap::new(),
     };
-    
+
     let client_error = ClientError {
         code: "ClientError".to_string(),
         message: "Client operation failed".to_string(),
         err: Box::new(service_error),
     };
-    
+
     assert!(client_error.source().is_some());
     let source_msg = format!("{}", client_error.source().unwrap());
     assert!(source_msg.contains("ServiceError"));
@@ -122,18 +122,18 @@ fn test_operation_error_chain() {
         request_target: "/bucket".to_string(),
         headers: http::HeaderMap::new(),
     };
-    
+
     let client_error = ClientError {
         code: "ClientError".to_string(),
         message: "Client failed".to_string(),
         err: Box::new(service_error),
     };
-    
+
     let operation_error = OperationError {
         name: "PutObject".to_string(),
         err: Box::new(client_error),
     };
-    
+
     assert_eq!(operation_error.operation(), "PutObject");
     assert!(format!("{}", operation_error).contains("PutObject"));
 }
@@ -142,12 +142,12 @@ fn test_operation_error_chain() {
 fn test_deserialization_error_with_snapshot() {
     let inner_error = std::io::Error::new(std::io::ErrorKind::Other, "parse error");
     let snapshot = vec![1, 2, 3, 4, 5];
-    
+
     let error = DeserializationError {
         err: Box::new(inner_error),
         snapshot: snapshot.clone(),
     };
-    
+
     assert_eq!(error.snapshot, snapshot);
     assert!(format!("{}", error).contains("deserialization failed"));
 }
@@ -155,22 +155,22 @@ fn test_deserialization_error_with_snapshot() {
 #[test]
 fn test_serialization_error() {
     let inner_error = std::io::Error::new(std::io::ErrorKind::Other, "serialize error");
-    
+
     let error = SerializationError {
         err: Box::new(inner_error),
     };
-    
+
     assert!(format!("{}", error).contains("serialization failed"));
 }
 
 #[test]
 fn test_canceled_error() {
     let inner_error = std::io::Error::new(std::io::ErrorKind::Other, "canceled");
-    
+
     let error = CanceledError {
         err: Box::new(inner_error),
     };
-    
+
     assert!(error.canceled_error());
     assert!(format!("{}", error).contains("canceled"));
 }
@@ -178,7 +178,7 @@ fn test_canceled_error() {
 #[test]
 fn test_invalid_param_required() {
     let error = new_err_param_required("BucketName");
-    
+
     assert_eq!(error.field(), "BucketName");
     assert!(format!("{}", error).contains("missing required field"));
     assert!(format!("{}", error).contains("BucketName"));
@@ -187,7 +187,7 @@ fn test_invalid_param_required() {
 #[test]
 fn test_invalid_param_invalid() {
     let error = new_err_param_invalid("ObjectKey");
-    
+
     assert_eq!(error.field(), "ObjectKey");
     assert!(format!("{}", error).contains("invalid field"));
 }
@@ -195,7 +195,7 @@ fn test_invalid_param_invalid() {
 #[test]
 fn test_invalid_param_null() {
     let error = new_err_param_null("Region");
-    
+
     assert_eq!(error.field(), "Region");
     assert!(format!("{}", error).contains("null field"));
 }
@@ -203,7 +203,7 @@ fn test_invalid_param_null() {
 #[test]
 fn test_invalid_param_type_not_support() {
     let error = new_err_param_type_not_support("UploadType");
-    
+
     assert_eq!(error.field(), "UploadType");
     assert!(format!("{}", error).contains("type not support"));
 }
@@ -212,7 +212,7 @@ fn test_invalid_param_type_not_support() {
 fn test_invalid_param_with_context() {
     let mut error = new_err_param_required("FieldName");
     error.set_context("ParentField".to_string());
-    
+
     assert_eq!(error.field(), "ParentField.FieldName");
 }
 
@@ -226,7 +226,7 @@ fn test_service_error_different_status_codes() {
         StatusCode::INTERNAL_SERVER_ERROR,
         StatusCode::SERVICE_UNAVAILABLE,
     ];
-    
+
     for status in status_codes {
         let error = ServiceError {
             code: format!("Error{}", status.as_u16()),
@@ -239,7 +239,7 @@ fn test_service_error_different_status_codes() {
             request_target: "/".to_string(),
             headers: http::HeaderMap::new(),
         };
-        
+
         assert_eq!(error.http_status_code(), status);
         assert!(format!("{}", error).contains(&status.as_u16().to_string()));
     }
@@ -259,14 +259,14 @@ fn test_error_trait_implementations() {
         request_target: "/".to_string(),
         headers: http::HeaderMap::new(),
     };
-    
+
     let _: &dyn std::error::Error = &service_error;
-    
+
     let client_error = ClientError {
         code: "Test".to_string(),
         message: "Test".to_string(),
         err: Box::new(service_error),
     };
-    
+
     let _: &dyn std::error::Error = &client_error;
 }

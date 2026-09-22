@@ -146,7 +146,10 @@ mod tests {
                 bucket: config.bucket.clone(),
                 key: object_name.clone(),
                 storage_class: "Archive".to_string(),
-                body: Some(BodyContent::from_text("clean-restored-test".to_string(), None)),
+                body: Some(BodyContent::from_text(
+                    "clean-restored-test".to_string(),
+                    None,
+                )),
                 ..Default::default()
             })
             .await
@@ -173,7 +176,11 @@ mod tests {
                 ..Default::default()
             })
             .await;
-        assert!(result.is_ok(), "clean_restored_object failed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "clean_restored_object failed: {:?}",
+            result.err()
+        );
 
         // Clean up
         let _ = client

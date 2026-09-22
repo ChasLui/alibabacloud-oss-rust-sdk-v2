@@ -13,7 +13,10 @@ use crate::{BodyContent, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TY
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ExtendWormConfiguration {
     /// The number of days for which objects can be retained.
-    #[serde(rename = "RetentionPeriodInDays", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "RetentionPeriodInDays",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub retention_period_in_days: Option<i32>,
 }
 
@@ -129,8 +132,8 @@ mod tests {
     use super::*;
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
-    use crate::SignatureVersionType;
     use crate::test_utils::load_test_config;
+    use crate::SignatureVersionType;
 
     #[test]
     fn test_extend_worm_configuration_serde_round_trip() {
@@ -181,10 +184,9 @@ mod tests {
         let worm_id = client
             .initiate_bucket_worm(&crate::api::bucket::InitiateBucketWormRequest {
                 bucket: bucket_name.clone(),
-                initiate_worm_configuration:
-                    crate::api::bucket::InitiateWormConfiguration {
-                        retention_period_in_days: Some(1),
-                    },
+                initiate_worm_configuration: crate::api::bucket::InitiateWormConfiguration {
+                    retention_period_in_days: Some(1),
+                },
                 ..Default::default()
             })
             .await

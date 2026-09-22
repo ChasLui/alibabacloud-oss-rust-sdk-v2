@@ -9,7 +9,8 @@ use crate::signer::SUB_RESOURCE;
 use crate::utils::{modify_request, update_content_length};
 use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
-/// The container that stores the customer master key (CMK) used for SSE-KMS encryption.
+/// The container that stores the customer master key (CMK) used for SSE-KMS
+/// encryption.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct SSEKMS {
     /// The ID of the key that is managed by Key Management Service (KMS).
@@ -17,14 +18,17 @@ pub struct SSEKMS {
     pub key_id: Option<String>,
 }
 
-/// The container that stores the encryption method of the exported inventory lists.
+/// The container that stores the encryption method of the exported inventory
+/// lists.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct InventoryEncryption {
-    /// The container that stores information about the SSE-OSS encryption method.
+    /// The container that stores information about the SSE-OSS encryption
+    /// method.
     #[serde(rename = "SSE-OSS", skip_serializing_if = "Option::is_none")]
     pub sse_oss: Option<String>,
 
-    /// The container that stores the customer master key (CMK) used for SSE-KMS encryption.
+    /// The container that stores the customer master key (CMK) used for SSE-KMS
+    /// encryption.
     #[serde(rename = "SSE-KMS", skip_serializing_if = "Option::is_none")]
     pub sse_kms: Option<SSEKMS>,
 }
@@ -38,13 +42,15 @@ pub struct InventoryOSSBucketDestination {
     #[serde(rename = "Format", skip_serializing_if = "Option::is_none")]
     pub format: Option<String>,
 
-    /// The ID of the account to which permissions are granted by the bucket owner.
+    /// The ID of the account to which permissions are granted by the bucket
+    /// owner.
     #[serde(rename = "AccountId", skip_serializing_if = "Option::is_none")]
     pub account_id: Option<String>,
 
-    /// The Alibaba Cloud Resource Name (ARN) of the role that has the permissions
-    /// to read all objects from the source bucket and write objects to the
-    /// destination bucket. Format: `acs:ram::uid:role/rolename`.
+    /// The Alibaba Cloud Resource Name (ARN) of the role that has the
+    /// permissions to read all objects from the source bucket and write
+    /// objects to the destination bucket. Format:
+    /// `acs:ram::uid:role/rolename`.
     #[serde(rename = "RoleArn", skip_serializing_if = "Option::is_none")]
     pub role_arn: Option<String>,
 
@@ -56,7 +62,8 @@ pub struct InventoryOSSBucketDestination {
     #[serde(rename = "Prefix", skip_serializing_if = "Option::is_none")]
     pub prefix: Option<String>,
 
-    /// The container that stores the encryption method of the exported inventory lists.
+    /// The container that stores the encryption method of the exported
+    /// inventory lists.
     #[serde(rename = "Encryption", skip_serializing_if = "Option::is_none")]
     pub encryption: Option<InventoryEncryption>,
 }
@@ -66,7 +73,10 @@ pub struct InventoryOSSBucketDestination {
 pub struct InventoryDestination {
     /// The container that stores information about the bucket in which exported
     /// inventory lists are stored.
-    #[serde(rename = "OSSBucketDestination", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "OSSBucketDestination",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub oss_bucket_destination: Option<InventoryOSSBucketDestination>,
 }
 
@@ -89,14 +99,20 @@ pub struct InventorySchedule {
 /// whose names contain the specified prefix are included in the inventory.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct InventoryFilter {
-    /// The beginning of the time range during which the object was last modified.
-    /// Unit: seconds. Valid values: [1262275200, 253402271999].
-    #[serde(rename = "LastModifyBeginTimeStamp", skip_serializing_if = "Option::is_none")]
+    /// The beginning of the time range during which the object was last
+    /// modified. Unit: seconds. Valid values: [1262275200, 253402271999].
+    #[serde(
+        rename = "LastModifyBeginTimeStamp",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub last_modify_begin_time_stamp: Option<i64>,
 
     /// The end of the time range during which the object was last modified.
     /// Unit: seconds. Valid values: [1262275200, 253402271999].
-    #[serde(rename = "LastModifyEndTimeStamp", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "LastModifyEndTimeStamp",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub last_modify_end_time_stamp: Option<i64>,
 
     /// The minimum size of the specified object. Unit: B.
@@ -107,8 +123,8 @@ pub struct InventoryFilter {
     #[serde(rename = "UpperSizeBound", skip_serializing_if = "Option::is_none")]
     pub upper_size_bound: Option<i64>,
 
-    /// The storage class of the object. You can specify multiple storage classes.
-    /// Valid values: Standard, IA, Archive, ColdArchive, All.
+    /// The storage class of the object. You can specify multiple storage
+    /// classes. Valid values: Standard, IA, Archive, ColdArchive, All.
     #[serde(rename = "StorageClass", skip_serializing_if = "Option::is_none")]
     pub storage_class: Option<String>,
 
@@ -138,7 +154,8 @@ pub struct IncrementInventorySchedule {
 /// Configuration container for incremental inventory file attributes.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct IncrementalInventoryOptionalFields {
-    /// The configuration fields that are included in incremental inventory lists.
+    /// The configuration fields that are included in incremental inventory
+    /// lists.
     #[serde(rename = "Field", default)]
     pub fields: Vec<String>,
 }
@@ -183,9 +200,12 @@ pub struct InventoryConfiguration {
     #[serde(rename = "Filter", skip_serializing_if = "Option::is_none")]
     pub filter: Option<InventoryFilter>,
 
-    /// Specifies whether to include the version information about the objects in
-    /// inventory lists. Valid values: All, Current.
-    #[serde(rename = "IncludedObjectVersions", skip_serializing_if = "Option::is_none")]
+    /// Specifies whether to include the version information about the objects
+    /// in inventory lists. Valid values: All, Current.
+    #[serde(
+        rename = "IncludedObjectVersions",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub included_object_versions: Option<String>,
 
     /// The container that stores the configuration fields in inventory lists.
@@ -193,7 +213,10 @@ pub struct InventoryConfiguration {
     pub optional_fields: Option<OptionalFields>,
 
     /// Configuration container for incremental inventory.
-    #[serde(rename = "IncrementalInventory", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "IncrementalInventory",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub incremental_inventory: Option<IncrementalInventory>,
 }
 
@@ -339,17 +362,15 @@ mod tests {
             }),
             incremental_inventory: Some(IncrementalInventory {
                 is_enabled: Some(true),
-                schedule: Some(IncrementInventorySchedule {
-                    frequency: Some(6),
-                }),
+                schedule: Some(IncrementInventorySchedule { frequency: Some(6) }),
                 optional_fields: Some(IncrementalInventoryOptionalFields {
                     fields: vec!["Size".to_string()],
                 }),
             }),
         };
 
-        let xml = quick_xml::se::to_string_with_root("InventoryConfiguration", &configuration)
-            .unwrap();
+        let xml =
+            quick_xml::se::to_string_with_root("InventoryConfiguration", &configuration).unwrap();
         assert!(xml.contains("<InventoryConfiguration>"));
         assert!(xml.contains("<Id>report1</Id>"));
         assert!(xml.contains("<Frequency>Daily</Frequency>"));
@@ -405,7 +426,10 @@ mod tests {
             ))
             .await;
         if let Err(error) = &result {
-            eprintln!("delete_bucket_inventory rejected (expected for missing inventory): {}", error);
+            eprintln!(
+                "delete_bucket_inventory rejected (expected for missing inventory): {}",
+                error
+            );
         }
     }
 }

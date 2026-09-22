@@ -1,7 +1,6 @@
 //! Presign support: generate pre-signed URLs for a fixed set of operations
 //! without sending any HTTP request.
 
-use std::any::Any;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::{Duration, SystemTime};
@@ -53,8 +52,9 @@ pub struct PresignResult {
 pub trait PresignRequest {
     /// Builds the base [OperationInput] for the operation, merging the
     /// request's header and query fields.
-    fn to_operation_input(&self)
-        -> Result<OperationInput, Box<dyn std::error::Error + Send + Sync>>;
+    fn to_operation_input(
+        &self,
+    ) -> Result<OperationInput, Box<dyn std::error::Error + Send + Sync>>;
 }
 
 macro_rules! impl_presign_request {
@@ -169,8 +169,10 @@ impl Client {
         // Assemble options like invoke_operation_inner does, with the query
         // auth method forced.
         let mut opts = self.options.clone();
-        let mut modified_options = ClientOptions::default();
-        modified_options.auth_method = Some(AuthMethodType::Query);
+        let modified_options = ClientOptions {
+            auth_method: Some(AuthMethodType::Query),
+            ..Default::default()
+        };
         apply_operation_opt(&mut opts, &modified_options);
         apply_operation_metadata(&input, &mut opts);
 
@@ -255,9 +257,15 @@ mod tests {
             .unwrap();
 
         assert_eq!(result.method, "GET");
-        assert!(result.url.contains("x-oss-signature-version=OSS4-HMAC-SHA256"));
+        assert!(result
+            .url
+            .contains("x-oss-signature-version=OSS4-HMAC-SHA256"));
         let default_expires: u64 = presigned_url_expires(&result.url);
-        assert!((895..=900).contains(&default_expires), "expires={}", default_expires);
+        assert!(
+            (895..=900).contains(&default_expires),
+            "expires={}",
+            default_expires
+        );
         assert!(result.url.contains("x-oss-signature="));
         assert!(result.url.contains("my-bucket"));
         assert!(result.url.contains("my-object"));
@@ -290,7 +298,11 @@ mod tests {
 
         // The signer truncates sub-second precision, so 60s may surface as 59
         let expires_value: u64 = presigned_url_expires(&result.url);
-        assert!((55..=60).contains(&expires_value), "expires={}", expires_value);
+        assert!(
+            (55..=60).contains(&expires_value),
+            "expires={}",
+            expires_value
+        );
         let expiration = result.expiration.unwrap();
         let now = SystemTime::now();
         assert!(expiration > now + Duration::from_secs(50));
@@ -364,9 +376,10 @@ mod tests {
 
         assert_eq!(result.method, "POST");
         assert!(result.url.contains("uploads"));
-        assert!(result.url.contains("x-oss-signature-version=OSS4-HMAC-SHA256"));
+        assert!(result
+            .url
+            .contains("x-oss-signature-version=OSS4-HMAC-SHA256"));
     }
-
 
     fn presigned_url_expires(url: &str) -> u64 {
         url.split('?')
@@ -385,4 +398,3 @@ mod tests {
             .map(|(_, v)| v.as_str())
     }
 }
-

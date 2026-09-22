@@ -3,11 +3,9 @@ use serde::Deserialize;
 
 use super::BucketInfo;
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_md5};
 use crate::{OperationInput, OperationOutput, DEFAULT_CONTENT_TYPE, HTTP_HEADER_CONTENT_TYPE};
-use crate::client::BodyDataReader;
-
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct GetBucketInfoRequest {
@@ -113,11 +111,11 @@ impl Client {
 
         let body_bytes = output.get_all_data().await?;
         let body_data = String::from_utf8_lossy(&body_bytes).into_owned();
-        let mut result: GetBucketInfoResult =
-            quick_xml::de::from_str(&body_data)?;
+        let mut result: GetBucketInfoResult = quick_xml::de::from_str(&body_data)?;
 
         // OSS reports an unset encryption setting as the literal string
-        // "None"; normalize it to an empty value. Mirrors Go `unmarshalSseRule`.
+        // "None"; normalize it to an empty value. Mirrors Go
+        // `unmarshalSseRule`.
         normalize_sse_rule(&mut result.bucket_info.sse_rule);
 
         result.update_result(&output);
@@ -135,8 +133,8 @@ mod tests {
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
+    use crate::test_utils::{generate_unique_bucket_name, load_test_config};
     use crate::SignatureVersionType;
-    use crate::test_utils::{load_test_config, TestConfig, generate_unique_bucket_name};
 
     /// `"None"` is OSS's marker for "not set" and must become an empty string;
     /// real values must pass through untouched.
@@ -191,14 +189,17 @@ mod tests {
             bucket: bucket_name.clone(),
             ..Default::default()
         };
-        
+
         match client.create_bucket(&create_request).await {
             Ok(_) => println!("Bucket created: {}", bucket_name),
             Err(err) => panic!("Failed to create bucket: {:?}", err),
         };
 
         // Perform the test
-        match client.get_bucket_info(&GetBucketInfoRequest::new(&bucket_name)).await {
+        match client
+            .get_bucket_info(&GetBucketInfoRequest::new(&bucket_name))
+            .await
+        {
             Ok(output) => {
                 println!("{:?}", output);
                 // Clean up: delete the bucket
@@ -210,7 +211,7 @@ mod tests {
                     Ok(_) => println!("Bucket deleted: {}", bucket_name),
                     Err(err) => eprintln!("Failed to delete bucket: {:?}", err),
                 }
-            },
+            }
             Err(err) => {
                 // Even if the test fails, try to clean up
                 let delete_request = DeleteBucketRequest {

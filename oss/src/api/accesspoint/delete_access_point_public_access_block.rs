@@ -31,8 +31,8 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `request` - The `DeleteAccessPointPublicAccessBlockRequest`
-    ///   containing the bucket name and the access point name.
+    /// * `request` - The `DeleteAccessPointPublicAccessBlockRequest` containing
+    ///   the bucket name and the access point name.
     ///
     /// # Examples
     ///
@@ -82,7 +82,12 @@ impl Client {
             .op_metadata
             .set(SUB_RESOURCE, Rc::new(vec!["publicAccessBlock".to_string()]));
 
-        modify_request(&mut input, request.header_map(), request.query_map(), vec![])?;
+        modify_request(
+            &mut input,
+            request.header_map(),
+            request.query_map(),
+            vec![],
+        )?;
 
         let output = self.invoke_operation(input, vec![]).await?;
 
@@ -98,7 +103,9 @@ mod tests {
     use std::rc::Rc;
 
     use super::super::create_access_point::tests::generate_access_point_name;
-    use super::super::create_access_point::{CreateAccessPointConfiguration, CreateAccessPointRequest};
+    use super::super::create_access_point::{
+        CreateAccessPointConfiguration, CreateAccessPointRequest,
+    };
     use super::super::delete_access_point::DeleteAccessPointRequest;
     use super::super::put_access_point_public_access_block::PutAccessPointPublicAccessBlockRequest;
     use super::*;

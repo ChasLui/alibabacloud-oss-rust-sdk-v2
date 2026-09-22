@@ -3,7 +3,7 @@ use serde::Deserialize;
 
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
-use crate::utils::{acl_grant_de, modify_request};
+use crate::utils::modify_request;
 use crate::{OperationInput, OperationOutput, ServiceError};
 
 #[derive(Debug, Default, OssRequestModel)]
@@ -26,8 +26,7 @@ pub struct GetObjectMetaRequest {
     pub common: RequestCommon,
 }
 
-
-#[derive(Debug, Default,Deserialize, OssResultModel)]
+#[derive(Debug, Default, Deserialize, OssResultModel)]
 pub struct GetObjectMetaResult {
     #[field(type = "header", rename = "Content-Length")]
     pub content_length: Option<u64>,
@@ -63,9 +62,9 @@ pub struct GetObjectMetaResult {
 impl Client {
     /// Retrieves the metadata for an object in the OSS bucket.
     ///
-    /// This method sends a HEAD request to the OSS server to retrieve the metadata
-    /// for the specified object. It returns a `GetObjectMetaResult` struct
-    /// containing the metadata information.
+    /// This method sends a HEAD request to the OSS server to retrieve the
+    /// metadata for the specified object. It returns a
+    /// `GetObjectMetaResult` struct containing the metadata information.
     ///
     /// # Arguments
     ///
@@ -129,7 +128,8 @@ impl Client {
         let output = self.invoke_operation(input, vec![]).await?;
 
         // let mut result: GetObjectMetaResult =
-        //     quick_xml::de::from_str(output.body.clone().unwrap_or_default().as_str())?;
+        //     quick_xml::de::from_str(output.body.clone().unwrap_or_default().
+        // as_str())?;
 
         let mut result: GetObjectMetaResult = GetObjectMetaResult::default();
 
@@ -218,18 +218,20 @@ mod tests {
                 .with_endpoint(server.url().as_str())
                 .with_region("cn-hangzhou")
                 .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
-                    "test-ak", "test-sk", &[],
+                    "test-ak",
+                    "test-sk",
+                    &[],
                 )))
                 .with_signature_version(SignatureVersionType::V1)
                 .with_log_level(LogLevel::Off),
         )
     }
-    use crate::api::object::tests::{delete_multiple, put, put_with_meta, TEST_OBJECT_CONTENT, TEST_OBJECT_NAME, generate_unique_object_name};
+    use crate::api::object::tests::generate_unique_object_name;
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
-    use crate::{SignatureVersionType, HTTP_HEADER_CONTENT_RANGE};
-    use crate::test_utils::{load_test_config, TestConfig};
+    use crate::test_utils::load_test_config;
+    use crate::SignatureVersionType;
 
     /// A missing object is reported as `false`, not as an error.
     #[tokio::test]
@@ -350,14 +352,17 @@ mod tests {
         let test_object_name = generate_unique_object_name("basic");
 
         // Create a PutObjectRequest with the unique test object name
-        use std::sync::{Arc, Mutex};
-        use crate::api::object::PutObjectRequest;
+
         use crate::api::object::tests::TEST_OBJECT_CONTENT;
+        use crate::api::object::PutObjectRequest;
 
         let put_request = PutObjectRequest {
             bucket: config.bucket.to_string(),
             key: test_object_name.clone(), // Use unique test object name
-            body: Some(crate::BodyContent::from_text(TEST_OBJECT_CONTENT.to_string(), None)),
+            body: Some(crate::BodyContent::from_text(
+                TEST_OBJECT_CONTENT.to_string(),
+                None,
+            )),
             ..Default::default()
         };
 
@@ -367,12 +372,14 @@ mod tests {
             Err(err) => panic!("Invoke operation failed: {:?}", err),
         }
 
-       match client.get_object_meta(&GetObjectMetaRequest {
-            bucket: config.bucket.to_string(),
-            key: test_object_name.to_string(), // Use unique test object name
-            ..Default::default()
-        })
-        .await {
+        match client
+            .get_object_meta(&GetObjectMetaRequest {
+                bucket: config.bucket.to_string(),
+                key: test_object_name.to_string(), // Use unique test object name
+                ..Default::default()
+            })
+            .await
+        {
             Ok(result) => {
                 println!("getObjectMeta Result {:?}", result);
                 // check status
@@ -382,16 +389,18 @@ mod tests {
         }
 
         // delete object using delete_multiple_objects with single object
-        use crate::api::object::DeleteMultipleObjectsRequest;
-        use crate::api::object::DeleteObject;
-        match client.delete_multiple_objects(DeleteMultipleObjectsRequest {
-            bucket: config.bucket.to_string(),
-            objects: vec![DeleteObject {
-                key: test_object_name, // Use unique test object name
+        use crate::api::object::{DeleteMultipleObjectsRequest, DeleteObject};
+        match client
+            .delete_multiple_objects(DeleteMultipleObjectsRequest {
+                bucket: config.bucket.to_string(),
+                objects: vec![DeleteObject {
+                    key: test_object_name, // Use unique test object name
+                    ..Default::default()
+                }],
                 ..Default::default()
-            }],
-            ..Default::default()
-        }).await {
+            })
+            .await
+        {
             Ok(output) => println!("{:?}", output),
             Err(err) => panic!("Invoke operation failed: {:?}", err),
         }
@@ -424,14 +433,17 @@ mod tests {
         let test_object_name = generate_unique_object_name("meta");
 
         // Create a PutObjectRequest with custom metadata
-        use std::sync::{Arc, Mutex};
-        use crate::api::object::PutObjectRequest;
+
         use crate::api::object::tests::TEST_OBJECT_CONTENT;
+        use crate::api::object::PutObjectRequest;
 
         let mut put_request = PutObjectRequest {
             bucket: config.bucket.to_string(),
             key: test_object_name.clone(), // Use unique test object name
-            body: Some(crate::BodyContent::from_text(TEST_OBJECT_CONTENT.to_string(), None)),
+            body: Some(crate::BodyContent::from_text(
+                TEST_OBJECT_CONTENT.to_string(),
+                None,
+            )),
             ..Default::default()
         };
 
@@ -446,18 +458,21 @@ mod tests {
             Err(err) => panic!("Invoke operation failed: {:?}", err),
         }
 
-        match client.get_object_meta(&GetObjectMetaRequest {
-            bucket: config.bucket.to_string(),
-            key: test_object_name.to_string(), // Use unique test object name
-            ..Default::default()
-        })
-            .await {
+        match client
+            .get_object_meta(&GetObjectMetaRequest {
+                bucket: config.bucket.to_string(),
+                key: test_object_name.to_string(), // Use unique test object name
+                ..Default::default()
+            })
+            .await
+        {
             Ok(result) => {
                 println!("getObjectMeta Result {:?}", result);
                 // check status
                 assert_eq!(result.common.status, http::StatusCode::OK);
 
-                // Note: User-defined metadata headers (x-oss-meta-*) do not return in the response
+                // Note: User-defined metadata headers (x-oss-meta-*) do not
+                // return in the response
                 assert_eq!(result.common.headers.get("x-oss-meta-author"), None);
                 assert_eq!(result.common.headers.get("x-oss-meta-version"), None);
                 assert_eq!(result.common.headers.get("x-oss-meta-description"), None);
@@ -466,20 +481,20 @@ mod tests {
         }
 
         // delete object using delete_multiple_objects with single object
-        use crate::api::object::DeleteMultipleObjectsRequest;
-        use crate::api::object::DeleteObject;
-        match client.delete_multiple_objects(DeleteMultipleObjectsRequest {
-            bucket: config.bucket.to_string(),
-            objects: vec![DeleteObject {
-                key: test_object_name, // Use unique test object name
+        use crate::api::object::{DeleteMultipleObjectsRequest, DeleteObject};
+        match client
+            .delete_multiple_objects(DeleteMultipleObjectsRequest {
+                bucket: config.bucket.to_string(),
+                objects: vec![DeleteObject {
+                    key: test_object_name, // Use unique test object name
+                    ..Default::default()
+                }],
                 ..Default::default()
-            }],
-            ..Default::default()
-        }).await {
+            })
+            .await
+        {
             Ok(output) => println!("{:?}", output),
             Err(err) => panic!("Invoke operation failed: {:?}", err),
         }
     }
 }
-
-

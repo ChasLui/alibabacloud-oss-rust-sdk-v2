@@ -63,7 +63,6 @@ impl Client {
     /// # };
     /// # use alibabacloud_oss_sdk_rust_v2::client::Client;
     /// # use alibabacloud_oss_sdk_rust_v2::config::Config;
-
     /// #
     /// # tokio_test::block_on(async {
     /// let client = Client::new(&Config::default());
@@ -122,12 +121,12 @@ mod tests {
     use std::rc::Rc;
 
     use super::*;
-    use crate::api::object::{GetObjectAclRequest, PutObjectRequest, DeleteObjectRequest};
+    use crate::api::object::{DeleteObjectRequest, GetObjectAclRequest, PutObjectRequest};
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
+    use crate::test_utils::{generate_unique_object_name, load_test_config};
     use crate::SignatureVersionType;
-    use crate::test_utils::{load_test_config, TestConfig, generate_unique_object_name};
 
     // Configuration structure to hold test credentials
     // Using shared TestConfig from test_utils
@@ -192,15 +191,18 @@ mod tests {
 
         // Generate a unique object name for this test
         let test_object_name = generate_unique_object_name("put-object-acl");
-        
+
         // First create an object
         let put_request = PutObjectRequest {
             bucket: config.bucket.to_string(),
             key: test_object_name.clone(),
-            body: Some(crate::BodyContent::from_text("Test content for ACL test".to_string(), None)),
+            body: Some(crate::BodyContent::from_text(
+                "Test content for ACL test".to_string(),
+                None,
+            )),
             ..Default::default()
         };
-        
+
         match client.put_object(put_request).await {
             Ok(output) => println!("Object created for ACL test: {:?}", output),
             Err(err) => panic!("Failed to create object for ACL test: {:?}", err),
@@ -210,26 +212,23 @@ mod tests {
         put_acl(&client, &config.bucket, &test_object_name, "public-read").await;
 
         // check whether modification is made
-        assert_acl(
-            &client,
-            &config.bucket,
-            &test_object_name,
-            "public-read",
-        )
-        .await;
+        assert_acl(&client, &config.bucket, &test_object_name, "public-read").await;
 
         // revert to default
         put_acl(&client, &config.bucket, &test_object_name, "default").await;
 
         // check whether modification is reverted
         assert_acl(&client, &config.bucket, &test_object_name, "default").await;
-        
+
         // Clean up: delete the test object
-        match client.delete_object(DeleteObjectRequest {
-            bucket: config.bucket.to_string(),
-            key: test_object_name.clone(),
-            ..Default::default()
-        }).await {
+        match client
+            .delete_object(DeleteObjectRequest {
+                bucket: config.bucket.to_string(),
+                key: test_object_name.clone(),
+                ..Default::default()
+            })
+            .await
+        {
             Ok(_) => println!("Test object cleaned up successfully"),
             Err(err) => eprintln!("Failed to clean up test object: {:?}", err),
         }

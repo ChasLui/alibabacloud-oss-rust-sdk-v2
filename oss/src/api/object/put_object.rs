@@ -1,12 +1,9 @@
 use std::collections::HashMap;
-use std::io::Read;
-use std::sync::{Arc, Mutex};
 
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::Client;
-use crate::client::BodyDataReader;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{add_crc64_check, modify_request, update_content_length};
 use crate::{BodyContent, FeatureFlagsType, OperationInput, OperationOutput};
 
@@ -101,7 +98,7 @@ pub struct PutObjectRequest {
 
     /// Object data.
     pub body: Option<BodyContent>, /* TODO find if rust supports Seek at
-                                                           * runtime */
+                                    * runtime */
 
     /// Progress callback function
     pub progress_fn: Option<Box<dyn Fn(i64, i64) + Send + Sync>>,
@@ -169,7 +166,10 @@ impl Client {
     /// let request = PutObjectRequest {
     ///     bucket: "my-bucket".to_string(),
     ///     key: "my-object".to_string(),
-    ///     body: Some(BodyContent::from_text("Content of the object".to_string(), None)),
+    ///     body: Some(BodyContent::from_text(
+    ///         "Content of the object".to_string(),
+    ///         None,
+    ///     )),
     ///     object_acl: "default".to_string(),
     ///     ..Default::default()
     /// };
@@ -202,12 +202,7 @@ impl Client {
             ..Default::default()
         };
 
-        modify_request(
-            &mut input,
-            headers,
-            queries,
-            vec![update_content_length],
-        )?;
+        modify_request(&mut input, headers, queries, vec![update_content_length])?;
 
         // Client-side CRC64 check over the bytes actually sent. Mirrors Go
         // `Client.PutObject`'s `c.addCrcCheck`.
@@ -278,18 +273,17 @@ impl Client {
 mod tests {
     use std::rc::Rc;
 
+    use bytes::Bytes;
+    use futures_util::StreamExt;
+
     use super::*;
     use crate::api::object::{DeleteObjectRequest, GetObjectRequest};
+    use crate::client::BodyDataReader;
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
+    use crate::test_utils::{generate_unique_object_name, load_test_config};
     use crate::SignatureVersionType;
-    use crate::test_utils::{load_test_config, TestConfig, generate_unique_object_name};
-    use crate::client::BodyDataReader;
-    use bytes::Bytes;
-    use futures_util::stream;
-    use std::pin::Pin;
-    use futures_util::StreamExt;
 
     /// The uploaded file's bytes must arrive intact, and the request must
     /// carry the file's real length — a stream without a known length would
@@ -318,7 +312,9 @@ mod tests {
                 .with_endpoint(server.url().as_str())
                 .with_region("cn-hangzhou")
                 .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
-                    "test-ak", "test-sk", &[],
+                    "test-ak",
+                    "test-sk",
+                    &[],
                 )))
                 .with_signature_version(SignatureVersionType::V1)
                 .with_log_level(LogLevel::Off),
@@ -361,7 +357,9 @@ mod tests {
                 .with_endpoint(server.url().as_str())
                 .with_region("cn-hangzhou")
                 .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
-                    "test-ak", "test-sk", &[],
+                    "test-ak",
+                    "test-sk",
+                    &[],
                 )))
                 .with_signature_version(SignatureVersionType::V1)
                 .with_log_level(LogLevel::Off),
@@ -407,7 +405,9 @@ mod tests {
                 .with_endpoint(server.url().as_str())
                 .with_region("cn-hangzhou")
                 .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
-                    "test-ak", "test-sk", &[],
+                    "test-ak",
+                    "test-sk",
+                    &[],
                 )))
                 .with_signature_version(SignatureVersionType::V1)
                 .with_log_level(LogLevel::Off)
@@ -417,7 +417,10 @@ mod tests {
         let request = PutObjectRequest {
             bucket: "test-bucket".to_string(),
             key: "crc-op-object".to_string(),
-            body: Some(BodyContent::from_bytes(Bytes::from_static(b"payload"), None)),
+            body: Some(BodyContent::from_bytes(
+                Bytes::from_static(b"payload"),
+                None,
+            )),
             ..Default::default()
         };
 
@@ -446,7 +449,10 @@ mod tests {
         let request = PutObjectRequest {
             bucket: "test-bucket".to_string(),
             key: "crc-op-object".to_string(),
-            body: Some(BodyContent::from_bytes(Bytes::from_static(b"payload"), None)),
+            body: Some(BodyContent::from_bytes(
+                Bytes::from_static(b"payload"),
+                None,
+            )),
             ..Default::default()
         };
 
@@ -483,32 +489,36 @@ mod tests {
         // Generate a unique object name for this test
         let test_object_name = generate_unique_object_name("put-object-basic");
         let test_content = "Test content for basic put object operation";
-        
+
         // Create a PutObjectRequest
         let put_request = PutObjectRequest {
             bucket: config.bucket.to_string(),
             key: test_object_name.clone(),
-            body: Some(crate::BodyContent::from_text(test_content.to_string(), None)),
+            body: Some(crate::BodyContent::from_text(
+                test_content.to_string(),
+                None,
+            )),
             object_acl: "default".to_string(),
             ..Default::default()
         };
-        
+
         // Execute the put_object operation
         match client.put_object(put_request).await {
             Ok(result) => {
                 println!("Object uploaded successfully: {:?}", result);
-                assert!(result.etag.is_some()); // ETag should be returned upon successful upload
+                assert!(result.etag.is_some()); // ETag should be returned upon
+                                                // successful upload
             }
             Err(err) => panic!("Put object failed: {:?}", err),
         }
-        
+
         // Verify the object was uploaded by getting it back
         let get_request = GetObjectRequest {
             bucket: config.bucket.to_string(),
             key: test_object_name.clone(),
             ..Default::default()
         };
-        
+
         match client.get_object(get_request).await {
             Ok(mut result) => {
                 let content_bytes = result.get_all_data().await.unwrap_or_default();
@@ -518,18 +528,21 @@ mod tests {
             }
             Err(err) => panic!("Failed to get object after upload: {:?}", err),
         }
-        
+
         // Clean up: delete the test object
-        match client.delete_object(DeleteObjectRequest {
-            bucket: config.bucket.to_string(),
-            key: test_object_name.clone(),
-            ..Default::default()
-        }).await {
+        match client
+            .delete_object(DeleteObjectRequest {
+                bucket: config.bucket.to_string(),
+                key: test_object_name.clone(),
+                ..Default::default()
+            })
+            .await
+        {
             Ok(_) => println!("Test object cleaned up successfully"),
             Err(err) => eprintln!("Failed to clean up test object: {:?}", err),
         }
     }
-    
+
     #[tokio::test]
     #[serial_test::serial]
     async fn test_put_object_with_custom_headers() {
@@ -556,24 +569,27 @@ mod tests {
         // Generate a unique object name for this test
         let test_object_name = generate_unique_object_name("put-object-headers");
         let test_content = "Test content with custom headers";
-        
+
         // Create a PutObjectRequest with custom headers
         let mut put_request = PutObjectRequest {
             bucket: config.bucket.to_string(),
             key: test_object_name.clone(),
-            body: Some(crate::BodyContent::from_text(test_content.to_string(), None)),
+            body: Some(crate::BodyContent::from_text(
+                test_content.to_string(),
+                None,
+            )),
             object_acl: "private".to_string(),
             content_type: Some("text/plain".to_string()),
             cache_control: Some("max-age=3600".to_string()),
             ..Default::default()
         };
-        
+
         // Add custom headers via common field
-        put_request.common.headers.insert(
-            "x-oss-meta-author".to_string(), 
-            "test-user".to_string()
-        );
-        
+        put_request
+            .common
+            .headers
+            .insert("x-oss-meta-author".to_string(), "test-user".to_string());
+
         // Execute the put_object operation
         match client.put_object(put_request).await {
             Ok(result) => {
@@ -582,18 +598,21 @@ mod tests {
             }
             Err(err) => panic!("Put object with custom headers failed: {:?}", err),
         }
-        
+
         // Clean up: delete the test object
-        match client.delete_object(DeleteObjectRequest {
-            bucket: config.bucket.to_string(),
-            key: test_object_name.clone(),
-            ..Default::default()
-        }).await {
+        match client
+            .delete_object(DeleteObjectRequest {
+                bucket: config.bucket.to_string(),
+                key: test_object_name.clone(),
+                ..Default::default()
+            })
+            .await
+        {
             Ok(_) => println!("Test object with custom headers cleaned up successfully"),
             Err(err) => eprintln!("Failed to clean up test object: {:?}", err),
         }
     }
-    
+
     #[tokio::test]
     #[serial_test::serial]
     async fn test_put_object_empty_content() {
@@ -620,16 +639,19 @@ mod tests {
         // Generate a unique object name for this test
         let test_object_name = generate_unique_object_name("put-object-empty");
         let test_content = ""; // Empty content
-        
+
         // Create a PutObjectRequest with empty content
         let put_request = PutObjectRequest {
             bucket: config.bucket.to_string(),
             key: test_object_name.clone(),
-            body: Some(crate::BodyContent::from_text(test_content.to_string(), None)),
+            body: Some(crate::BodyContent::from_text(
+                test_content.to_string(),
+                None,
+            )),
             object_acl: "default".to_string(),
             ..Default::default()
         };
-        
+
         // Execute the put_object operation
         match client.put_object(put_request).await {
             Ok(result) => {
@@ -638,14 +660,14 @@ mod tests {
             }
             Err(err) => panic!("Put object with empty content failed: {:?}", err),
         }
-        
+
         // Verify the object was uploaded with empty content
         let get_request = GetObjectRequest {
             bucket: config.bucket.to_string(),
             key: test_object_name.clone(),
             ..Default::default()
         };
-        
+
         match client.get_object(get_request).await {
             Ok(mut result) => {
                 let content_bytes = result.get_all_data().await.unwrap_or_default();
@@ -655,18 +677,21 @@ mod tests {
             }
             Err(err) => panic!("Failed to get empty object after upload: {:?}", err),
         }
-        
+
         // Clean up: delete the test object
-        match client.delete_object(DeleteObjectRequest {
-            bucket: config.bucket.to_string(),
-            key: test_object_name.clone(),
-            ..Default::default()
-        }).await {
+        match client
+            .delete_object(DeleteObjectRequest {
+                bucket: config.bucket.to_string(),
+                key: test_object_name.clone(),
+                ..Default::default()
+            })
+            .await
+        {
             Ok(_) => println!("Empty test object cleaned up successfully"),
             Err(err) => eprintln!("Failed to clean up test object: {:?}", err),
         }
     }
-    
+
     #[tokio::test]
     #[serial_test::serial]
     async fn test_put_object_with_bytes() {
@@ -693,7 +718,7 @@ mod tests {
         // Generate a unique object name for this test
         let test_object_name = generate_unique_object_name("put-object-bytes");
         let test_content = b"Test content using bytes";
-        
+
         // Create a PutObjectRequest with bytes content
         let put_request = PutObjectRequest {
             bucket: config.bucket.to_string(),
@@ -702,7 +727,7 @@ mod tests {
             object_acl: "default".to_string(),
             ..Default::default()
         };
-        
+
         // Execute the put_object operation
         match client.put_object(put_request).await {
             Ok(result) => {
@@ -711,14 +736,14 @@ mod tests {
             }
             Err(err) => panic!("Put object with bytes failed: {:?}", err),
         }
-        
+
         // Verify the object was uploaded with bytes content
         let get_request = GetObjectRequest {
             bucket: config.bucket.to_string(),
             key: test_object_name.clone(),
             ..Default::default()
         };
-        
+
         match client.get_object(get_request).await {
             Ok(mut result) => {
                 let content_bytes = result.get_all_data().await.unwrap_or_default();
@@ -728,18 +753,21 @@ mod tests {
             }
             Err(err) => panic!("Failed to get object after bytes upload: {:?}", err),
         }
-        
+
         // Clean up: delete the test object
-        match client.delete_object(DeleteObjectRequest {
-            bucket: config.bucket.to_string(),
-            key: test_object_name.clone(),
-            ..Default::default()
-        }).await {
+        match client
+            .delete_object(DeleteObjectRequest {
+                bucket: config.bucket.to_string(),
+                key: test_object_name.clone(),
+                ..Default::default()
+            })
+            .await
+        {
             Ok(_) => println!("Test object with bytes cleaned up successfully"),
             Err(err) => eprintln!("Failed to clean up test object: {:?}", err),
         }
     }
-    
+
     #[tokio::test]
     #[serial_test::serial]
     async fn test_put_object_with_stream() {
@@ -765,38 +793,43 @@ mod tests {
 
         // Generate a unique object name for this test
         let test_object_name = generate_unique_object_name("put-object-stream");
-        
+
         // Create 10MB of test data
         const SIZE_10MB: usize = 10 * 1024 * 1024;
         let mut test_content = Vec::with_capacity(SIZE_10MB);
         for i in 0..SIZE_10MB {
             // Generate predictable pattern: A-Z repeating
-            test_content.push((b'A' + (i % 26) as u8) as u8);
+            test_content.push(b'A' + (i % 26) as u8);
         }
 
         // Create a stream from the 10MB test content
         // Split the data into chunks for streaming
         const CHUNK_SIZE: usize = 64 * 1024; // 64KB chunks
-        let stream = futures_util::stream::unfold((test_content.clone(), 0), |(data, pos)| async move {
-            if pos >= data.len() {
-                None
-            } else {
-                let end = std::cmp::min(pos + CHUNK_SIZE, data.len());
-                let chunk = Bytes::from(data[pos..end].to_vec());
-                Some((Ok(chunk), (data, end)))
-            }
-        });
+        let stream =
+            futures_util::stream::unfold((test_content.clone(), 0), |(data, pos)| async move {
+                if pos >= data.len() {
+                    None
+                } else {
+                    let end = std::cmp::min(pos + CHUNK_SIZE, data.len());
+                    let chunk = Bytes::from(data[pos..end].to_vec());
+                    Some((Ok(chunk), (data, end)))
+                }
+            });
         let byte_stream = crate::client::ByteStream::new(stream);
-        
+
         // Create a PutObjectRequest with stream content
         let put_request = PutObjectRequest {
             bucket: config.bucket.to_string(),
             key: test_object_name.clone(),
-            body: Some(crate::BodyContent::from_stream(byte_stream, SIZE_10MB as u64, None)),
+            body: Some(crate::BodyContent::from_stream(
+                byte_stream,
+                SIZE_10MB as u64,
+                None,
+            )),
             object_acl: "default".to_string(),
             ..Default::default()
         };
-        
+
         // Execute the put_object operation
         match client.put_object(put_request).await {
             Ok(result) => {
@@ -805,35 +838,41 @@ mod tests {
             }
             Err(err) => panic!("Put object with stream failed: {:?}", err),
         }
-        
+
         // Verify the object was uploaded with stream content
         let get_request = GetObjectRequest {
             bucket: config.bucket.to_string(),
             key: test_object_name.clone(),
             ..Default::default()
         };
-        
+
         match client.get_object(get_request).await {
             Ok(mut result) => {
                 let content_bytes = result.get_all_data().await.unwrap_or_default();
                 assert_eq!(content_bytes.len(), SIZE_10MB);
                 assert_eq!(content_bytes, test_content);
-                println!("Verified object content matches stream content ({} bytes)", content_bytes.len());
+                println!(
+                    "Verified object content matches stream content ({} bytes)",
+                    content_bytes.len()
+                );
             }
             Err(err) => panic!("Failed to get object after stream upload: {:?}", err),
         }
-        
+
         // Clean up: delete the test object
-        match client.delete_object(DeleteObjectRequest {
-            bucket: config.bucket.to_string(),
-            key: test_object_name.clone(),
-            ..Default::default()
-        }).await {
+        match client
+            .delete_object(DeleteObjectRequest {
+                bucket: config.bucket.to_string(),
+                key: test_object_name.clone(),
+                ..Default::default()
+            })
+            .await
+        {
             Ok(_) => println!("Test object with stream cleaned up successfully"),
             Err(err) => eprintln!("Failed to clean up test object: {:?}", err),
         }
     }
-    
+
     #[tokio::test]
     #[serial_test::serial]
     async fn test_put_object_with_large_file_stream() {
@@ -859,21 +898,24 @@ mod tests {
 
         // Generate a unique object name for this test
         let test_object_name = generate_unique_object_name("put-object-large-file-stream");
-        
+
         // Create a temporary 4MB file for testing
         const SIZE_4MB: u64 = 4 * 1024 * 1024; // Changed to 1MB to avoid issues
         let temp_file_path = std::env::temp_dir().join("test_4mb_file_stream.txt");
-        
+
         // Write 4MB of data to the temporary file
         let mut file_data = Vec::with_capacity(SIZE_4MB as usize);
         for i in 0..SIZE_4MB {
             file_data.push((i % 256) as u8); // Generate some pattern
         }
-        
+
         std::fs::write(&temp_file_path, &file_data).expect("Failed to write temp file");
-        
-        // Create a file-based stream using tokio::fs::File and tokio-util - this reads the file in chunks
-        let file = tokio::fs::File::open(&temp_file_path).await.expect("Failed to open temp file");
+
+        // Create a file-based stream using tokio::fs::File and tokio-util -
+        // this reads the file in chunks
+        let file = tokio::fs::File::open(&temp_file_path)
+            .await
+            .expect("Failed to open temp file");
         let stream = tokio_util::codec::FramedRead::new(file, tokio_util::codec::BytesCodec::new());
         let byte_stream = crate::client::ByteStream::new(stream.map(|result| {
             result
@@ -882,30 +924,29 @@ mod tests {
                     Box::new(e) // std::io::Error → Box<dyn Error + Send + Sync>
                 })
         }));
-        
+
         // Create a PutObjectRequest with file content as stream
         let put_request = PutObjectRequest {
             bucket: config.bucket.to_string(),
             key: test_object_name.clone(),
-            body: Some(crate::BodyContent::from_stream(
-                byte_stream, 
-                SIZE_4MB, 
-                None
-            )),
+            body: Some(crate::BodyContent::from_stream(byte_stream, SIZE_4MB, None)),
             object_acl: "default".to_string(),
             ..Default::default()
         };
-        
+
         // Execute the put_object operation
         match client.put_object(put_request).await {
             Ok(result) => {
-                println!("Large object with file stream uploaded successfully {}: {:?}", test_object_name,result);
+                println!(
+                    "Large object with file stream uploaded successfully {}: {:?}",
+                    test_object_name, result
+                );
                 assert!(result.etag.is_some());
                 println!("Uploaded 4MB file stream with ETag: {:?}", result.etag);
             }
             Err(err) => panic!("Put large object with file stream failed: {:?}", err),
         }
-        
+
         // Verify the object was uploaded with correct size
         let get_request = GetObjectRequest {
             bucket: config.bucket.to_string(),
@@ -914,34 +955,44 @@ mod tests {
         };
 
         match client.get_object(get_request).await {
-            Ok(mut result) => {
-                match result.get_all_data().await {
-                    Ok(content) => {
-                        assert_eq!(content.len(), SIZE_4MB as usize);
-                        println!("Verified large object content size: {} bytes", content.len());
-                    },
-                    Err(err) => panic!("Failed to get large object after file stream upload: {:?}", err),
+            Ok(mut result) => match result.get_all_data().await {
+                Ok(content) => {
+                    assert_eq!(content.len(), SIZE_4MB as usize);
+                    println!(
+                        "Verified large object content size: {} bytes",
+                        content.len()
+                    );
                 }
-            }
-            Err(err) => panic!("Failed to get large object after file stream upload: {:?}", err),
+                Err(err) => panic!(
+                    "Failed to get large object after file stream upload: {:?}",
+                    err
+                ),
+            },
+            Err(err) => panic!(
+                "Failed to get large object after file stream upload: {:?}",
+                err
+            ),
         }
-        
+
         // Clean up: delete the test object
-        match client.delete_object(DeleteObjectRequest {
-            bucket: config.bucket.to_string(),
-            key: test_object_name.clone(),
-            ..Default::default()
-        }).await {
+        match client
+            .delete_object(DeleteObjectRequest {
+                bucket: config.bucket.to_string(),
+                key: test_object_name.clone(),
+                ..Default::default()
+            })
+            .await
+        {
             Ok(_) => println!("Large test object with file stream cleaned up successfully"),
             Err(err) => eprintln!("Failed to clean up large test object: {:?}", err),
         }
-        
+
         // Remove the temporary file
         if temp_file_path.exists() {
             std::fs::remove_file(temp_file_path).expect("Failed to remove temp file");
         }
     }
-    
+
     #[tokio::test]
     #[serial_test::serial]
     async fn test_put_object_with_file_stream_content() {
@@ -967,14 +1018,17 @@ mod tests {
 
         // Generate a unique object name for this test
         let test_object_name = generate_unique_object_name("put-object-file-stream");
-        
+
         // Create a temporary file for testing
         let temp_file_path = std::env::temp_dir().join("test_file_stream.txt");
         let file_content = "This is test content for file stream upload functionality";
         std::fs::write(&temp_file_path, file_content).expect("Failed to write temp file");
-        
-        // Create a file-based stream using tokio::fs::File and tokio-util - this reads the file in chunks
-        let file = tokio::fs::File::open(&temp_file_path).await.expect("Failed to open temp file");
+
+        // Create a file-based stream using tokio::fs::File and tokio-util -
+        // this reads the file in chunks
+        let file = tokio::fs::File::open(&temp_file_path)
+            .await
+            .expect("Failed to open temp file");
         let stream = tokio_util::codec::FramedRead::new(file, tokio_util::codec::BytesCodec::new());
         let byte_stream = crate::client::ByteStream::new(stream.map(|result| {
             result
@@ -983,37 +1037,40 @@ mod tests {
                     Box::new(e) // std::io::Error → Box<dyn Error + Send + Sync>
                 })
         }));
-        
+
         // Create a PutObjectRequest with file content as stream
         let put_request = PutObjectRequest {
             bucket: config.bucket.to_string(),
             key: test_object_name.clone(),
             body: Some(crate::BodyContent::from_stream(
-                byte_stream, 
-                file_content.len() as u64, 
-                None
+                byte_stream,
+                file_content.len() as u64,
+                None,
             )),
             object_acl: "default".to_string(),
             ..Default::default()
         };
-        
+
         // Execute the put_object operation
         match client.put_object(put_request).await {
             Ok(result) => {
-                println!("Object with file stream content uploaded successfully: {:?}", result);
+                println!(
+                    "Object with file stream content uploaded successfully: {:?}",
+                    result
+                );
                 assert!(result.etag.is_some());
                 println!("Uploaded file with ETag: {:?}", result.etag);
             }
             Err(err) => panic!("Put object with file stream content failed: {:?}", err),
         }
-        
+
         // Verify the object was uploaded with correct content
         let get_request = GetObjectRequest {
             bucket: config.bucket.to_string(),
             key: test_object_name.clone(),
             ..Default::default()
         };
-        
+
         match client.get_object(get_request).await {
             Ok(mut result) => {
                 let content_bytes = result.get_all_data().await.unwrap_or_default();
@@ -1023,17 +1080,20 @@ mod tests {
             }
             Err(err) => panic!("Failed to get object after file stream upload: {:?}", err),
         }
-        
+
         // Clean up: delete the test object
-        match client.delete_object(DeleteObjectRequest {
-            bucket: config.bucket.to_string(),
-            key: test_object_name.clone(),
-            ..Default::default()
-        }).await {
+        match client
+            .delete_object(DeleteObjectRequest {
+                bucket: config.bucket.to_string(),
+                key: test_object_name.clone(),
+                ..Default::default()
+            })
+            .await
+        {
             Ok(_) => println!("Test object with file stream content cleaned up successfully"),
             Err(err) => eprintln!("Failed to clean up test object: {:?}", err),
         }
-        
+
         // Remove the temporary file
         if temp_file_path.exists() {
             std::fs::remove_file(temp_file_path).expect("Failed to remove temp file");

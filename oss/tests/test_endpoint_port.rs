@@ -1,4 +1,3 @@
-
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::rc::Rc;
@@ -28,7 +27,12 @@ fn endpoint_port_is_preserved_in_host() {
             loop {
                 match stream.read(&mut buf) {
                     Ok(0) => break,
-                    Ok(n) => { acc.extend_from_slice(&buf[..n]); if acc.windows(4).any(|w| w == b"\r\n\r\n") { break; } }
+                    Ok(n) => {
+                        acc.extend_from_slice(&buf[..n]);
+                        if acc.windows(4).any(|w| w == b"\r\n\r\n") {
+                            break;
+                        }
+                    }
                     Err(_) => break,
                 }
             }
@@ -37,7 +41,10 @@ fn endpoint_port_is_preserved_in_host() {
         }
     });
 
-    let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
     let (err, observed) = rt.block_on(async move {
         // Path style keeps the port in the Host header (virtual-hosted would
         // prefix the bucket, which cannot carry a port).
@@ -48,11 +55,13 @@ fn endpoint_port_is_preserved_in_host() {
             .with_credentials_provider(Rc::new(StaticCredentialsProvider::new("ak", "sk", &[])))
             .with_signature_version(SignatureVersionType::V1);
         let client = Client::new(&config);
-        let res = client.get_object(GetObjectRequest {
-            bucket: "probe-bucket".to_string(),
-            key: "probe-key".to_string(),
-            ..Default::default()
-        }).await;
+        let res = client
+            .get_object(GetObjectRequest {
+                bucket: "probe-bucket".to_string(),
+                key: "probe-key".to_string(),
+                ..Default::default()
+            })
+            .await;
         let err = match res {
             Ok(_) => "OK".to_string(),
             Err(e) => format!("ERR: {}", e),

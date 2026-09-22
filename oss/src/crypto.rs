@@ -7,16 +7,16 @@
 //!
 //! Two properties of the construction drive most of the code here:
 //!
-//! - AES-CTR turns a block cipher into a stream cipher by encrypting a
-//!   counter, so the keystream for a byte offset depends only on the IV and
-//!   the offset — not on any preceding bytes. That is what makes a ranged read
-//!   of an encrypted object possible at all: the counter is advanced to the
-//!   offset instead of the data being re-read. It is also why the IV's low 8
-//!   bytes are treated as a big-endian counter that can be seeked.
+//! - AES-CTR turns a block cipher into a stream cipher by encrypting a counter,
+//!   so the keystream for a byte offset depends only on the IV and the offset —
+//!   not on any preceding bytes. That is what makes a ranged read of an
+//!   encrypted object possible at all: the counter is advanced to the offset
+//!   instead of the data being re-read. It is also why the IV's low 8 bytes are
+//!   treated as a big-endian counter that can be seeked.
 //! - The IV must stay in step between the writer and the reader. A multipart
 //!   upload encrypts each part from a counter derived from its part number, so
-//!   a part can be re-uploaded or downloaded independently and still decrypt
-//!   to the same bytes.
+//!   a part can be re-uploaded or downloaded independently and still decrypt to
+//!   the same bytes.
 //!
 //! AES-CTR provides no integrity on its own: a modified ciphertext decrypts to
 //! modified plaintext without any error. The envelope records the plaintext
@@ -25,7 +25,7 @@
 
 use std::io::Read;
 
-use aes::cipher::{KeyIvInit, StreamCipher, StreamCipherSeek};
+use aes::cipher::{KeyIvInit, StreamCipher};
 use base64::engine::general_purpose;
 use base64::Engine;
 use rand::{Rng, RngCore};
@@ -240,7 +240,7 @@ impl MasterCipher for MasterRsaCipher {
     }
 
     fn decrypt(&self, crypto_data: &[u8]) -> Result<Vec<u8>, String> {
-        let mut rng = rand::thread_rng();
+        let _rng = rand::thread_rng();
         self.private_key()?
             .decrypt(rsa::Pkcs1v15Encrypt, crypto_data)
             .map_err(|err| err.to_string())
@@ -422,8 +422,7 @@ pub mod headers {
         pub const UNENCRYPTED_CONTENT_LENGTH: &str =
             "client-side-encryption-unencrypted-content-length";
         /// The plaintext MD5.
-        pub const UNENCRYPTED_CONTENT_MD5: &str =
-            "client-side-encryption-unencrypted-content-md5";
+        pub const UNENCRYPTED_CONTENT_MD5: &str = "client-side-encryption-unencrypted-content-md5";
         /// The plaintext length of a multipart upload.
         pub const DATA_SIZE: &str = "client-side-encryption-data-size";
         /// The part size of a multipart upload.
@@ -612,8 +611,14 @@ hO92gGc+4ajL
             headers::wire::START.to_string(),
             general_purpose::STANDARD.encode(&cipher_data.encrypted_iv),
         );
-        headers.insert(headers::wire::CEK_ALG.to_string(), AES_CTR_ALGORITHM.to_string());
-        headers.insert(headers::wire::WRAP_ALG.to_string(), RSA_CRYPTO_WRAP.to_string());
+        headers.insert(
+            headers::wire::CEK_ALG.to_string(),
+            AES_CTR_ALGORITHM.to_string(),
+        );
+        headers.insert(
+            headers::wire::WRAP_ALG.to_string(),
+            RSA_CRYPTO_WRAP.to_string(),
+        );
         headers.insert(headers::wire::MAT_DESC.to_string(), "{}".to_string());
 
         assert!(has_encrypted_header(&headers));

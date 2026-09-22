@@ -2,8 +2,7 @@ use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::Deserialize;
 
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_length, update_content_md5};
 use crate::{OperationInput, OperationOutput, DEFAULT_CONTENT_TYPE, HTTP_HEADER_CONTENT_TYPE};
 
@@ -109,8 +108,8 @@ mod tests {
     use super::*;
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
-    use crate::SignatureVersionType;
     use crate::test_utils::load_test_config;
+    use crate::SignatureVersionType;
 
     #[test]
     fn test_location_chardata_deserialize() {
@@ -156,7 +155,8 @@ mod tests {
         let result = result.unwrap();
         assert_eq!(result.common.status, http::StatusCode::OK);
         let location = result.location_constraint.unwrap_or_default();
-        // LocationConstraint uses the "oss-<region>" form, e.g. "oss-cn-hangzhou"
+        // LocationConstraint uses the "oss-<region>" form, e.g.
+        // "oss-cn-hangzhou"
         assert!(
             location.contains(&config.region),
             "unexpected location: {}",

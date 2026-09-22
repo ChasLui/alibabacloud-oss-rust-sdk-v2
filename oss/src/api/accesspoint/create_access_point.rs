@@ -1,13 +1,10 @@
 use std::rc::Rc;
 
-
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::{Deserialize, Serialize};
 
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
-use crate::api::service::PublicAccessBlockConfiguration;
+use crate::client::{BodyDataReader, Client};
 use crate::signer::SUB_RESOURCE;
 use crate::utils::{modify_request, update_content_length, update_content_md5};
 use crate::{BodyContent, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
@@ -154,10 +151,11 @@ pub(crate) mod tests {
     use std::rc::Rc;
 
     use super::*;
+    use crate::api::service::PublicAccessBlockConfiguration;
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
-    use crate::SignatureVersionType;
     use crate::test_utils::load_test_config;
+    use crate::SignatureVersionType;
 
     pub(crate) fn generate_access_point_name() -> String {
         use std::time::{SystemTime, UNIX_EPOCH};
@@ -179,8 +177,8 @@ pub(crate) mod tests {
             }),
         };
 
-        let xml = quick_xml::se::to_string_with_root("CreateAccessPointConfiguration", &config)
-            .unwrap();
+        let xml =
+            quick_xml::se::to_string_with_root("CreateAccessPointConfiguration", &config).unwrap();
         assert!(xml.contains("<CreateAccessPointConfiguration>"));
         assert!(xml.contains("<AccessPointName>my-ap</AccessPointName>"));
         assert!(xml.contains("<NetworkOrigin>vpc</NetworkOrigin>"));
@@ -257,7 +255,11 @@ pub(crate) mod tests {
                 ..Default::default()
             })
             .await;
-        assert!(result.is_ok(), "create_access_point failed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "create_access_point failed: {:?}",
+            result.err()
+        );
 
         // Clean up
         let _ = client

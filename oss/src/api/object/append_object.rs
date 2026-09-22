@@ -14,9 +14,10 @@ pub struct AppendObjectRequest {
     pub key: String,
 
     /// The position from which the AppendObject operation starts.
-    /// Each time an AppendObject operation succeeds, the x-oss-next-append-position
-    /// header is included in the response to specify the position from which the
-    /// next AppendObject operation starts.
+    /// Each time an AppendObject operation succeeds, the
+    /// x-oss-next-append-position header is included in the response to
+    /// specify the position from which the next AppendObject operation
+    /// starts.
     #[field(type = "query", rename = "position")]
     pub position: Option<i64>,
 
@@ -94,7 +95,8 @@ pub struct AppendObjectRequest {
     /// Object data.
     pub body: Option<BodyContent>,
 
-    /// Specify the initial value of CRC64. If not set, the crc check is ignored.
+    /// Specify the initial value of CRC64. If not set, the crc check is
+    /// ignored.
     pub init_hash_crc64: Option<String>,
 
     /// To indicate that the requester is aware that the request and data
@@ -144,7 +146,8 @@ pub struct AppendObjectResult {
 
 impl Client {
     /// Uploads an object by appending the object to an existing object.
-    /// Objects created by using the AppendObject operation are appendable objects.
+    /// Objects created by using the AppendObject operation are appendable
+    /// objects.
     ///
     /// # Arguments
     ///
@@ -295,7 +298,11 @@ mod tests {
                 ..Default::default()
             })
             .await;
-        assert!(result.is_ok(), "second append_object failed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "second append_object failed: {:?}",
+            result.err()
+        );
 
         // Clean up
         let _ = client

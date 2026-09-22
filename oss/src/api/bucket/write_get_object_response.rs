@@ -1,10 +1,9 @@
-use crate::HTTP_HEADER_CONTENT_TYPE;
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-use crate::{BodyContent, OperationInput, OperationOutput};
+use crate::{BodyContent, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct WriteGetObjectResponseRequest {
@@ -59,13 +58,13 @@ pub struct WriteGetObjectResponseRequest {
     #[field(type = "header", rename = "x-oss-fwd-header-ETag")]
     pub fwd_header_etag: Option<String>,
 
-    /// The HTTP response header returned by the backend server. It specifies the
-    /// absolute expiration time of the cache.
+    /// The HTTP response header returned by the backend server. It specifies
+    /// the absolute expiration time of the cache.
     #[field(type = "header", rename = "x-oss-fwd-header-Expires")]
     pub fwd_header_expires: Option<String>,
 
-    /// The HTTP response header returned by the backend server. It specifies the
-    /// time when the requested resource was last modified.
+    /// The HTTP response header returned by the backend server. It specifies
+    /// the time when the requested resource was last modified.
     #[field(type = "header", rename = "x-oss-fwd-header-Last-Modified")]
     pub fwd_header_last_modified: Option<String>,
 

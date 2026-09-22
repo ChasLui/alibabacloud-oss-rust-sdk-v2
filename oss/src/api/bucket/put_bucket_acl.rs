@@ -3,9 +3,7 @@ use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
 use crate::utils::{modify_request, update_content_length};
-use crate::{
-    OperationInput, OperationOutput, DEFAULT_CONTENT_TYPE, HTTP_HEADER_CONTENT_TYPE,
-};
+use crate::{OperationInput, OperationOutput, DEFAULT_CONTENT_TYPE, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct PutBucketAclRequest {
@@ -54,7 +52,6 @@ impl Client {
     /// # use alibabacloud_oss_sdk_rust_v2::api::bucket::PutBucketAclRequest;
     /// # use alibabacloud_oss_sdk_rust_v2::client::Client;
     /// # use alibabacloud_oss_sdk_rust_v2::config::Config;
-
     /// #
     /// # tokio_test::block_on(async {
     /// let client = Client::new(&Config::default());
@@ -115,8 +112,8 @@ mod tests {
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
+    use crate::test_utils::{generate_unique_bucket_name, load_test_config};
     use crate::SignatureVersionType;
-    use crate::test_utils::{load_test_config, TestConfig, generate_unique_bucket_name};
 
     async fn put_acl(client: &Client, bucket: &str, acl: &str) {
         match client
@@ -172,7 +169,7 @@ mod tests {
             bucket: bucket_name.clone(),
             ..Default::default()
         };
-        
+
         match client.create_bucket(&create_request).await {
             Ok(_) => println!("Bucket created: {}", bucket_name),
             Err(err) => panic!("Failed to create bucket: {:?}", err),

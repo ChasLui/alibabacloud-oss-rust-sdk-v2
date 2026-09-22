@@ -1,74 +1,74 @@
+mod abort_multipart_upload;
+mod append_object;
+mod async_process_object;
+mod clean_restored_object;
+mod complete_multipart_upload;
 mod copy_object;
+mod create_select_object_meta;
 mod delete_multiple_objects;
 mod delete_object;
+mod delete_object_tagging;
 mod get_object;
 mod get_object_acl;
-mod put_object;
-mod put_object_acl;
+mod get_object_legal_hold;
 mod get_object_meta;
+mod get_object_retention;
+mod get_object_tagging;
+mod get_symlink;
 mod head_object;
 mod initiate_multipart_upload;
-mod upload_part;
-mod complete_multipart_upload;
-mod abort_multipart_upload;
 mod list_multipart_uploads;
 mod list_parts;
-mod upload_part_copy;
-mod append_object;
-mod seal_append_object;
-mod restore_object;
-mod clean_restored_object;
-mod put_symlink;
-mod get_symlink;
-mod put_object_tagging;
-mod get_object_tagging;
-mod delete_object_tagging;
 mod process_object;
-mod async_process_object;
-mod put_object_retention;
-mod get_object_retention;
+mod put_object;
+mod put_object_acl;
 mod put_object_legal_hold;
-mod get_object_legal_hold;
+mod put_object_retention;
+mod put_object_tagging;
+mod put_symlink;
+mod restore_object;
+mod seal_append_object;
 mod select_object;
-mod create_select_object_meta;
+mod upload_part;
+mod upload_part_copy;
 
 use std::time::SystemTime;
 
 use serde::Deserialize;
 
+pub use self::abort_multipart_upload::*;
+pub use self::append_object::*;
+pub use self::async_process_object::*;
+pub use self::clean_restored_object::*;
+pub use self::complete_multipart_upload::*;
 pub use self::copy_object::*;
+pub use self::create_select_object_meta::*;
 pub use self::delete_multiple_objects::*;
 pub use self::delete_object::*;
+pub use self::delete_object_tagging::*;
 pub use self::get_object::*;
 pub use self::get_object_acl::*;
-pub use self::put_object::*;
-pub use self::put_object_acl::*;
+pub use self::get_object_legal_hold::*;
 pub use self::get_object_meta::*;
+pub use self::get_object_retention::*;
+pub use self::get_object_tagging::*;
+pub use self::get_symlink::*;
 pub use self::head_object::*;
 pub use self::initiate_multipart_upload::*;
-pub use self::upload_part::*;
-pub use self::complete_multipart_upload::*;
-pub use self::abort_multipart_upload::*;
 pub use self::list_multipart_uploads::*;
 pub use self::list_parts::*;
-pub use self::upload_part_copy::*;
-pub use self::append_object::*;
-pub use self::seal_append_object::*;
-pub use self::restore_object::*;
-pub use self::clean_restored_object::*;
-pub use self::put_symlink::*;
-pub use self::get_symlink::*;
-pub use self::put_object_tagging::*;
-pub use self::get_object_tagging::*;
-pub use self::delete_object_tagging::*;
 pub use self::process_object::*;
-pub use self::async_process_object::*;
-pub use self::put_object_retention::*;
-pub use self::get_object_retention::*;
+pub use self::put_object::*;
+pub use self::put_object_acl::*;
 pub use self::put_object_legal_hold::*;
-pub use self::get_object_legal_hold::*;
+pub use self::put_object_retention::*;
+pub use self::put_object_tagging::*;
+pub use self::put_symlink::*;
+pub use self::restore_object::*;
+pub use self::seal_append_object::*;
 pub use self::select_object::*;
-pub use self::create_select_object_meta::*;
+pub use self::upload_part::*;
+pub use self::upload_part_copy::*;
 use crate::api::bucket::Owner;
 use crate::utils::option_time_rfc3339_serde;
 
@@ -110,21 +110,17 @@ pub struct ObjectProperties {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
     use std::rc::Rc;
-    use std::sync::{Arc, Mutex};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::*;
     use crate::api::object::GetObjectRequest;
-    use crate::client::Client;
+    use crate::client::{BodyDataReader, Client};
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
+    use crate::test_utils::load_test_config;
     use crate::SignatureVersionType;
-    use crate::test_utils::{load_test_config, TestConfig};
-use crate::client::BodyDataReader;
-
 
     pub(super) const TEST_OBJECT_NAME: &str = "aliyun-oss-sdk-rust-test-object";
     pub(super) const TEST_OBJECT_CONTENT: &str = "Call me Ishmael. Some years ago...";
@@ -146,12 +142,14 @@ use crate::client::BodyDataReader;
             .put_object(PutObjectRequest {
                 bucket: bucket.to_string(),
                 key: TEST_OBJECT_NAME.to_string(),
-                body: Some(crate::BodyContent::from_text(TEST_OBJECT_CONTENT.to_string(), None)),
+                body: Some(crate::BodyContent::from_text(
+                    TEST_OBJECT_CONTENT.to_string(),
+                    None,
+                )),
                 ..Default::default()
             })
             .await
     }
-
 
     pub(super) async fn put_with_size(
         client: &Client,
@@ -169,42 +167,6 @@ use crate::client::BodyDataReader;
                 bucket: bucket.to_string(),
                 key: TEST_OBJECT_NAME.to_string(),
                 body: Some(crate::BodyContent::from_bytes(content, None)),
-                ..Default::default()
-            })
-            .await
-    }
-
-    pub(super) async fn put_with_meta(
-        client: &Client,
-        bucket: &str,
-        user_defined_meta: &HashMap<&str, &str>
-    ) -> Result<PutObjectResult, Box<dyn std::error::Error + Send + Sync>> {
-
-        let mut put_object_request = PutObjectRequest {
-            bucket: bucket.to_string(),
-            key: TEST_OBJECT_NAME.to_string(),
-            body: Some(crate::BodyContent::from_text(TEST_OBJECT_CONTENT.to_string(), None)),
-            ..Default::default()
-        };
-
-        for (key, value) in user_defined_meta.iter() {
-            put_object_request.add_header( key, value);
-        }
-
-        client
-            .put_object(put_object_request)
-            .await
-    }
-
-
-    pub(super) async fn get(
-        client: &Client,
-        bucket: &str,
-    ) -> Result<GetObjectResult, Box<dyn std::error::Error + Send + Sync>> {
-        client
-            .get_object(GetObjectRequest {
-                bucket: bucket.to_string(),
-                key: TEST_OBJECT_NAME.to_string(),
                 ..Default::default()
             })
             .await
@@ -253,22 +215,31 @@ use crate::client::BodyDataReader;
         );
 
         // put object with unique name
-        match client.put_object(PutObjectRequest {
-            bucket: config.bucket.to_string(),
-            key: test_object_name.clone(),
-            body: Some(crate::BodyContent::from_text(TEST_OBJECT_CONTENT.to_string(), None)),
-            ..Default::default()
-        }).await {
+        match client
+            .put_object(PutObjectRequest {
+                bucket: config.bucket.to_string(),
+                key: test_object_name.clone(),
+                body: Some(crate::BodyContent::from_text(
+                    TEST_OBJECT_CONTENT.to_string(),
+                    None,
+                )),
+                ..Default::default()
+            })
+            .await
+        {
             Ok(output) => println!("{:?}", output),
             Err(err) => panic!("Invoke operation failed: {:?}", err),
         }
 
         // get object and check equivalence
-        match client.get_object(GetObjectRequest {
-            bucket: config.bucket.to_string(),
-            key: test_object_name.clone(),
-            ..Default::default()
-        }).await {
+        match client
+            .get_object(GetObjectRequest {
+                bucket: config.bucket.to_string(),
+                key: test_object_name.clone(),
+                ..Default::default()
+            })
+            .await
+        {
             Ok(mut result) => {
                 println!("{:?}", result);
                 let content_bytes = result.get_all_data().await.unwrap_or_default();
@@ -279,14 +250,17 @@ use crate::client::BodyDataReader;
         }
 
         // delete object
-        match client.delete_multiple_objects(DeleteMultipleObjectsRequest {
-            bucket: config.bucket.to_string(),
-            objects: vec![DeleteObject {
-                key: test_object_name, // Use unique test object name
+        match client
+            .delete_multiple_objects(DeleteMultipleObjectsRequest {
+                bucket: config.bucket.to_string(),
+                objects: vec![DeleteObject {
+                    key: test_object_name, // Use unique test object name
+                    ..Default::default()
+                }],
                 ..Default::default()
-            }],
-            ..Default::default()
-        }).await {
+            })
+            .await
+        {
             Ok(output) => println!("{:?}", output),
             Err(err) => panic!("Invoke operation failed: {:?}", err),
         }
@@ -303,7 +277,8 @@ use crate::client::BodyDataReader;
             }
         };
 
-        // Use the versioned bucket from config, or fall back to regular bucket if not available
+        // Use the versioned bucket from config, or fall back to regular bucket
+        // if not available
         let versioned_bucket = config.version_bucket.as_ref().unwrap_or(&config.bucket);
 
         let client = Client::new(
@@ -325,12 +300,18 @@ use crate::client::BodyDataReader;
         let content_v2 = "This is the updated second version of the object.";
 
         // Upload first version of the object
-        let put_result_v1 = match client.put_object(PutObjectRequest {
-            bucket: versioned_bucket.to_string(),
-            key: test_object_name.clone(),
-            body: Some(crate::BodyContent::from_bytes(content_v1.as_bytes().to_vec(), None)),
-            ..Default::default()
-        }).await {
+        let put_result_v1 = match client
+            .put_object(PutObjectRequest {
+                bucket: versioned_bucket.to_string(),
+                key: test_object_name.clone(),
+                body: Some(crate::BodyContent::from_bytes(
+                    content_v1.as_bytes().to_vec(),
+                    None,
+                )),
+                ..Default::default()
+            })
+            .await
+        {
             Ok(result) => {
                 println!("Uploaded first version: {:?}", result);
                 result
@@ -342,12 +323,18 @@ use crate::client::BodyDataReader;
         };
 
         // Upload second version of the object (same key, different content)
-        let put_result_v2 = match client.put_object(PutObjectRequest {
-            bucket: versioned_bucket.to_string(),
-            key: test_object_name.clone(),
-            body: Some(crate::BodyContent::from_bytes(content_v2.as_bytes().to_vec(), None)),
-            ..Default::default()
-        }).await {
+        let put_result_v2 = match client
+            .put_object(PutObjectRequest {
+                bucket: versioned_bucket.to_string(),
+                key: test_object_name.clone(),
+                body: Some(crate::BodyContent::from_bytes(
+                    content_v2.as_bytes().to_vec(),
+                    None,
+                )),
+                ..Default::default()
+            })
+            .await
+        {
             Ok(result) => {
                 println!("Uploaded second version: {:?}", result);
                 result
@@ -358,37 +345,54 @@ use crate::client::BodyDataReader;
             }
         };
 
-        // List object versions to verify both versions exist (if versioning is enabled on the bucket)
-        // Note: Listing object versions requires a separate API call that may not exist in this SDK
+        // List object versions to verify both versions exist (if versioning is
+        // enabled on the bucket) Note: Listing object versions requires
+        // a separate API call that may not exist in this SDK
         // So we'll just verify that both put operations returned version IDs
         println!("First version ID: {:?}", put_result_v1.version_id);
         println!("Second version ID: {:?}", put_result_v2.version_id);
 
         // If version IDs are present, we can test getting specific versions
         if let Some(first_version_id) = &put_result_v1.version_id {
-            match client.get_object(GetObjectRequest {
-                bucket: versioned_bucket.to_string(),
-                key: test_object_name.clone(),
-                version_id: Some(first_version_id.clone()),
-                ..Default::default()
-            }).await {
+            match client
+                .get_object(GetObjectRequest {
+                    bucket: versioned_bucket.to_string(),
+                    key: test_object_name.clone(),
+                    version_id: Some(first_version_id.clone()),
+                    ..Default::default()
+                })
+                .await
+            {
                 Ok(mut get_result) => {
                     println!("Retrieved first version: {:?}", get_result);
                     let content_bytes = get_result.get_all_data().await.unwrap_or_default();
                     let content = String::from_utf8_lossy(&content_bytes).into_owned();
                     assert_eq!(content, content_v1);
-                    assert_eq!(get_result.version_id.as_deref(), Some(first_version_id.as_str()));
+                    assert_eq!(
+                        get_result.version_id.as_deref(),
+                        Some(first_version_id.as_str())
+                    );
                 }
                 Err(err) => {
                     eprintln!("Failed to get first version: {:?}", err);
-                    // If versioning is not enabled on the bucket, this might fail, which is expected
-                    // But if we know the bucket should support versioning, we should fail the test
+                    // If versioning is not enabled on the bucket, this might
+                    // fail, which is expected
+                    // But if we know the bucket should support versioning, we
+                    // should fail the test
                     match config.version_bucket.as_ref() {
-                        Some(expected_versioned_bucket) if expected_versioned_bucket == versioned_bucket => {
-                            panic!("Expected to be able to get first version from versioned bucket, but failed: {:?}", err);
+                        Some(expected_versioned_bucket)
+                            if expected_versioned_bucket == versioned_bucket =>
+                        {
+                            panic!(
+                                "Expected to be able to get first version from versioned bucket, \
+                                 but failed: {:?}",
+                                err
+                            );
                         }
                         _ => {
-                            println!("This might be expected if versioning is not enabled on the bucket");
+                            println!(
+                                "This might be expected if versioning is not enabled on the bucket"
+                            );
                         }
                     }
                 }
@@ -397,29 +401,45 @@ use crate::client::BodyDataReader;
 
         // Get second version by specifying version_id
         if let Some(second_version_id) = &put_result_v2.version_id {
-            match client.get_object(GetObjectRequest {
-                bucket: versioned_bucket.to_string(),
-                key: test_object_name.clone(),
-                version_id: Some(second_version_id.clone()),
-                ..Default::default()
-            }).await {
+            match client
+                .get_object(GetObjectRequest {
+                    bucket: versioned_bucket.to_string(),
+                    key: test_object_name.clone(),
+                    version_id: Some(second_version_id.clone()),
+                    ..Default::default()
+                })
+                .await
+            {
                 Ok(mut get_result) => {
                     println!("Retrieved second version: {:?}", get_result);
                     let content_bytes = get_result.get_all_data().await.unwrap_or_default();
                     let content = String::from_utf8_lossy(&content_bytes).into_owned();
                     assert_eq!(content, content_v2);
-                    assert_eq!(get_result.version_id.as_deref(), Some(second_version_id.as_str()));
+                    assert_eq!(
+                        get_result.version_id.as_deref(),
+                        Some(second_version_id.as_str())
+                    );
                 }
                 Err(err) => {
                     eprintln!("Failed to get second version: {:?}", err);
-                    // If versioning is not enabled on the bucket, this might fail, which is expected
-                    // But if we know the bucket should support versioning, we should fail the test
+                    // If versioning is not enabled on the bucket, this might
+                    // fail, which is expected
+                    // But if we know the bucket should support versioning, we
+                    // should fail the test
                     match config.version_bucket.as_ref() {
-                        Some(expected_versioned_bucket) if expected_versioned_bucket == versioned_bucket => {
-                            panic!("Expected to be able to get second version from versioned bucket, but failed: {:?}", err);
+                        Some(expected_versioned_bucket)
+                            if expected_versioned_bucket == versioned_bucket =>
+                        {
+                            panic!(
+                                "Expected to be able to get second version from versioned bucket, \
+                                 but failed: {:?}",
+                                err
+                            );
                         }
                         _ => {
-                            println!("This might be expected if versioning is not enabled on the bucket");
+                            println!(
+                                "This might be expected if versioning is not enabled on the bucket"
+                            );
                         }
                     }
                 }
@@ -427,11 +447,14 @@ use crate::client::BodyDataReader;
         }
 
         // Get latest version (without specifying version_id)
-        match client.get_object(GetObjectRequest {
-            bucket: versioned_bucket.to_string(),
-            key: test_object_name.clone(),
-            ..Default::default()
-        }).await {
+        match client
+            .get_object(GetObjectRequest {
+                bucket: versioned_bucket.to_string(),
+                key: test_object_name.clone(),
+                ..Default::default()
+            })
+            .await
+        {
             Ok(mut get_result) => {
                 println!("Retrieved latest version: {:?}", get_result);
                 // Should get the second (latest) version
@@ -448,25 +471,38 @@ use crate::client::BodyDataReader;
         // Delete specific versions (if version IDs are available)
         // Delete first version
         if let Some(first_version_id) = &put_result_v1.version_id {
-            match client.delete_object(crate::api::object::DeleteObjectRequest {
-                bucket: versioned_bucket.to_string(),
-                key: test_object_name.clone(),
-                version_id: Some(first_version_id.clone()),
-                ..Default::default()
-            }).await {
+            match client
+                .delete_object(crate::api::object::DeleteObjectRequest {
+                    bucket: versioned_bucket.to_string(),
+                    key: test_object_name.clone(),
+                    version_id: Some(first_version_id.clone()),
+                    ..Default::default()
+                })
+                .await
+            {
                 Ok(delete_result) => {
                     println!("Deleted first version: {:?}", delete_result);
                 }
                 Err(err) => {
                     eprintln!("Failed to delete first version: {:?}", err);
-                    // If versioning is not enabled on the bucket, this might fail, which is expected
-                    // But if we know the bucket should support versioning, we should fail the test
+                    // If versioning is not enabled on the bucket, this might
+                    // fail, which is expected
+                    // But if we know the bucket should support versioning, we
+                    // should fail the test
                     match config.version_bucket.as_ref() {
-                        Some(expected_versioned_bucket) if expected_versioned_bucket == versioned_bucket => {
-                            panic!("Expected to be able to delete first version from versioned bucket, but failed: {:?}", err);
+                        Some(expected_versioned_bucket)
+                            if expected_versioned_bucket == versioned_bucket =>
+                        {
+                            panic!(
+                                "Expected to be able to delete first version from versioned \
+                                 bucket, but failed: {:?}",
+                                err
+                            );
                         }
                         _ => {
-                            println!("This might be expected if versioning is not enabled on the bucket");
+                            println!(
+                                "This might be expected if versioning is not enabled on the bucket"
+                            );
                         }
                     }
                 }
@@ -475,25 +511,38 @@ use crate::client::BodyDataReader;
 
         // Delete second version
         if let Some(second_version_id) = &put_result_v2.version_id {
-            match client.delete_object(crate::api::object::DeleteObjectRequest {
-                bucket: versioned_bucket.to_string(),
-                key: test_object_name.clone(),
-                version_id: Some(second_version_id.clone()),
-                ..Default::default()
-            }).await {
+            match client
+                .delete_object(crate::api::object::DeleteObjectRequest {
+                    bucket: versioned_bucket.to_string(),
+                    key: test_object_name.clone(),
+                    version_id: Some(second_version_id.clone()),
+                    ..Default::default()
+                })
+                .await
+            {
                 Ok(delete_result) => {
                     println!("Deleted second version: {:?}", delete_result);
                 }
                 Err(err) => {
                     eprintln!("Failed to delete second version: {:?}", err);
-                    // If versioning is not enabled on the bucket, this might fail, which is expected
-                    // But if we know the bucket should support versioning, we should fail the test
+                    // If versioning is not enabled on the bucket, this might
+                    // fail, which is expected
+                    // But if we know the bucket should support versioning, we
+                    // should fail the test
                     match config.version_bucket.as_ref() {
-                        Some(expected_versioned_bucket) if expected_versioned_bucket == versioned_bucket => {
-                            panic!("Expected to be able to delete second version from versioned bucket, but failed: {:?}", err);
+                        Some(expected_versioned_bucket)
+                            if expected_versioned_bucket == versioned_bucket =>
+                        {
+                            panic!(
+                                "Expected to be able to delete second version from versioned \
+                                 bucket, but failed: {:?}",
+                                err
+                            );
                         }
                         _ => {
-                            println!("This might be expected if versioning is not enabled on the bucket");
+                            println!(
+                                "This might be expected if versioning is not enabled on the bucket"
+                            );
                         }
                     }
                 }
@@ -502,13 +551,19 @@ use crate::client::BodyDataReader;
 
         // If versioning is not enabled, just delete the object normally
         if put_result_v1.version_id.is_none() && put_result_v2.version_id.is_none() {
-            match client.delete_object(crate::api::object::DeleteObjectRequest {
-                bucket: versioned_bucket.to_string(),
-                key: test_object_name.clone(),
-                ..Default::default()
-            }).await {
+            match client
+                .delete_object(crate::api::object::DeleteObjectRequest {
+                    bucket: versioned_bucket.to_string(),
+                    key: test_object_name.clone(),
+                    ..Default::default()
+                })
+                .await
+            {
                 Ok(delete_result) => {
-                    println!("Deleted object (versioning not enabled): {:?}", delete_result);
+                    println!(
+                        "Deleted object (versioning not enabled): {:?}",
+                        delete_result
+                    );
                 }
                 Err(err) => {
                     eprintln!("Failed to delete object: {:?}", err);

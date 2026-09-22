@@ -10,9 +10,7 @@ use tokio::io::{AsyncRead, ReadBuf};
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-use crate::{
-    BodyContent, BodyStream, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE,
-};
+use crate::{BodyContent, BodyStream, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 // Frame types of the select object response framing protocol.
 const DATA_FRAME_TYPE: i32 = 8388609;
@@ -63,7 +61,8 @@ pub struct InputSerializationSelect {
 /// The CSV input format.
 #[derive(Debug, Default, Clone, Serialize)]
 pub struct CsvSelectInput {
-    /// The header information of the CSV object. Valid values: USE, IGNORE and NONE.
+    /// The header information of the CSV object. Valid values: USE, IGNORE and
+    /// NONE.
     #[serde(rename = "FileHeaderInfo", skip_serializing_if = "Option::is_none")]
     pub file_header_info: Option<String>,
 
@@ -93,7 +92,8 @@ pub struct CsvSelectInput {
     #[serde(skip)]
     pub split_range: Option<String>,
 
-    /// Specifies whether the record delimiter can be enclosed in quotation marks.
+    /// Specifies whether the record delimiter can be enclosed in quotation
+    /// marks.
     #[serde(
         rename = "AllowQuotedRecordDelimiter",
         skip_serializing_if = "Option::is_none"
@@ -352,11 +352,7 @@ impl std::fmt::Debug for SelectObjectBodyReader {
 
 impl SelectObjectBodyReader {
     /// Creates a reader over the raw response body stream.
-    pub(crate) fn new(
-        stream: BodyStream,
-        output_raw_data: bool,
-        enable_payload_crc: bool,
-    ) -> Self {
+    pub(crate) fn new(stream: BodyStream, output_raw_data: bool, enable_payload_crc: bool) -> Self {
         SelectObjectBodyReader {
             stream,
             in_buf: Vec::new(),
@@ -461,9 +457,7 @@ impl SelectObjectBodyReader {
                 self.in_buf.extend_from_slice(&chunk);
                 Poll::Ready(Ok(true))
             }
-            Poll::Ready(Some(Err(e))) => {
-                Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, e)))
-            }
+            Poll::Ready(Some(Err(e))) => Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, e))),
             Poll::Ready(None) => {
                 self.stream_done = true;
                 Poll::Ready(Ok(false))
@@ -493,8 +487,7 @@ impl SelectObjectBodyReader {
     fn parse_header(&mut self) -> io::Result<()> {
         let start = self.in_pos;
         let header = &self.in_buf[start..start + 20];
-        let frame_type =
-            u32::from_be_bytes([0, header[1], header[2], header[3]]) as i32;
+        let frame_type = u32::from_be_bytes([0, header[1], header[2], header[3]]) as i32;
         if frame_type != DATA_FRAME_TYPE
             && frame_type != CONTINUOUS_FRAME_TYPE
             && frame_type != END_FRAME_TYPE
@@ -510,8 +503,8 @@ impl SelectObjectBodyReader {
         self.payload_length =
             i32::from_be_bytes([header[4], header[5], header[6], header[7]]) as i64;
         let offset_bytes: [u8; 8] = [
-            header[12], header[13], header[14], header[15], header[16], header[17],
-            header[18], header[19],
+            header[12], header[13], header[14], header[15], header[16], header[17], header[18],
+            header[19],
         ];
         self.feed_crc(&offset_bytes);
         self.advance(20);
@@ -561,9 +554,7 @@ impl SelectObjectBodyReader {
     /// when the server reported a non-2xx status code.
     fn finalize_frame(&mut self) -> io::Result<Option<io::Error>> {
         let start = self.in_pos;
-        let server_crc32 = u32::from_be_bytes(
-            self.in_buf[start..start + 4].try_into().unwrap(),
-        );
+        let server_crc32 = u32::from_be_bytes(self.in_buf[start..start + 4].try_into().unwrap());
         self.advance(4);
         if self.enable_payload_crc && server_crc32 != 0 {
             let client_crc32 = match self.crc_digest.take() {
@@ -724,8 +715,7 @@ impl AsyncRead for SelectObjectBodyReader {
 
             match this.frame_type {
                 DATA_FRAME_TYPE => {
-                    let frame_remaining =
-                        (this.payload_length - 8 - this.consumed_bytes) as usize;
+                    let frame_remaining = (this.payload_length - 8 - this.consumed_bytes) as usize;
                     let want = frame_remaining.min(buf.remaining());
                     let avail = want.min(this.buffered().len());
                     if avail > 0 {
@@ -929,12 +919,13 @@ impl Client {
 mod tests {
     use std::rc::Rc;
 
+    use tokio::io::AsyncReadExt;
+
     use super::*;
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::test_utils::load_test_config;
     use crate::SignatureVersionType;
-    use tokio::io::AsyncReadExt;
 
     fn stream_from_chunks(chunks: Vec<Vec<u8>>) -> BodyStream {
         let items: Vec<Result<bytes::Bytes, reqwest::Error>> = chunks
@@ -1174,14 +1165,11 @@ mod tests {
         };
 
         encode_base64_select(&mut select_request);
-        let xml =
-            quick_xml::se::to_string_with_root("SelectRequest", &select_request).unwrap();
+        let xml = quick_xml::se::to_string_with_root("SelectRequest", &select_request).unwrap();
 
         assert!(xml.contains("<SelectRequest>"));
         // base64("select * from ossobject")
-        assert!(xml.contains(
-            "<Expression>c2VsZWN0ICogZnJvbSBvc3NvYmplY3Q=</Expression>"
-        ));
+        assert!(xml.contains("<Expression>c2VsZWN0ICogZnJvbSBvc3NvYmplY3Q=</Expression>"));
         // base64("\n") == "Cg==", base64(",") == "LA==", base64("\"") == "Ig=="
         assert!(xml.contains("<RecordDelimiter>Cg==</RecordDelimiter>"));
         assert!(xml.contains("<FieldDelimiter>LA==</FieldDelimiter>"));
@@ -1205,8 +1193,7 @@ mod tests {
         };
 
         encode_base64_select(&mut select_request);
-        let xml =
-            quick_xml::se::to_string_with_root("SelectRequest", &select_request).unwrap();
+        let xml = quick_xml::se::to_string_with_root("SelectRequest", &select_request).unwrap();
 
         assert!(xml.contains("<Range>split-range=0-3</Range>"));
         // SplitRange itself is not serialized.
@@ -1234,13 +1221,10 @@ mod tests {
         };
 
         encode_base64_select(&mut select_request);
-        let xml =
-            quick_xml::se::to_string_with_root("SelectRequest", &select_request).unwrap();
+        let xml = quick_xml::se::to_string_with_root("SelectRequest", &select_request).unwrap();
 
         // base64("select s.a from ossobject s")
-        assert!(xml.contains(
-            "<Expression>c2VsZWN0IHMuYSBmcm9tIG9zc29iamVjdCBz</Expression>"
-        ));
+        assert!(xml.contains("<Expression>c2VsZWN0IHMuYSBmcm9tIG9zc29iamVjdCBz</Expression>"));
         assert!(xml.contains("<Type>LINES</Type>"));
         assert!(xml.contains("<RecordDelimiter>Cg==</RecordDelimiter>"));
     }
@@ -1285,9 +1269,7 @@ mod tests {
             bucket: config.bucket.clone(),
             key: object_name.clone(),
             select_request: SelectRequest {
-                expression: Some(
-                    "select * from ossobject where score > 75".to_string(),
-                ),
+                expression: Some("select * from ossobject where score > 75".to_string()),
                 input_serialization: InputSerializationSelect {
                     csv: Some(CsvSelectInput {
                         file_header_info: Some("USE".to_string()),

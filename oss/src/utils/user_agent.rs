@@ -23,7 +23,6 @@ mod tests {
 
     #[test]
     fn test_default_user_agent() {
-        println!("{}", *DEFAULT_USER_AGENT);
         assert!(DEFAULT_USER_AGENT.starts_with("alibabacloud-oss-sdk-rust-v2/"));
     }
 }

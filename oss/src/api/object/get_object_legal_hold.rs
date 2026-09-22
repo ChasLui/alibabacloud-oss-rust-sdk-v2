@@ -158,13 +158,17 @@ mod tests {
             .put_object(crate::api::object::PutObjectRequest {
                 bucket: config.bucket.clone(),
                 key: object_name.clone(),
-                body: Some(crate::BodyContent::from_text("legal-hold-test".to_string(), None)),
+                body: Some(crate::BodyContent::from_text(
+                    "legal-hold-test".to_string(),
+                    None,
+                )),
                 ..Default::default()
             })
             .await
             .unwrap();
 
-        // Objects without a legal hold configuration are rejected by the server.
+        // Objects without a legal hold configuration are rejected by the
+        // server.
         let result = client
             .get_object_legal_hold(&GetObjectLegalHoldRequest {
                 bucket: config.bucket.clone(),
@@ -173,7 +177,10 @@ mod tests {
             })
             .await;
         if let Err(error) = &result {
-            eprintln!("get_object_legal_hold rejected (no legal hold set): {}", error);
+            eprintln!(
+                "get_object_legal_hold rejected (no legal hold set): {}",
+                error
+            );
         }
 
         // Clean up

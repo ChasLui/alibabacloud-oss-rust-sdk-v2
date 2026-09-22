@@ -116,12 +116,12 @@ mod tests {
 
     #[test]
     fn test_archive_direct_read_configuration_serde() {
-        let configuration = ArchiveDirectReadConfiguration { enabled: Some(true) };
-        let xml = quick_xml::se::to_string_with_root(
-            "ArchiveDirectReadConfiguration",
-            &configuration,
-        )
-        .unwrap();
+        let configuration = ArchiveDirectReadConfiguration {
+            enabled: Some(true),
+        };
+        let xml =
+            quick_xml::se::to_string_with_root("ArchiveDirectReadConfiguration", &configuration)
+                .unwrap();
         assert!(xml.contains("<ArchiveDirectReadConfiguration>"));
         assert!(xml.contains("<Enabled>true</Enabled>"));
     }

@@ -1,10 +1,9 @@
-use crate::HTTP_HEADER_CONTENT_TYPE;
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-use crate::{OperationInput, OperationOutput};
+use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct DeleteBucketPublicAccessBlockRequest {
@@ -44,7 +43,10 @@ impl Client {
     ///
     /// match client.delete_bucket_public_access_block(&request).await {
     ///     Ok(result) => {
-    ///         println!("Bucket public access block deleted: {:?}", result.common.status);
+    ///         println!(
+    ///             "Bucket public access block deleted: {:?}",
+    ///             result.common.status
+    ///         );
     ///     }
     ///     Err(error) => {
     ///         eprintln!("Failed to delete bucket public access block: {}", error);

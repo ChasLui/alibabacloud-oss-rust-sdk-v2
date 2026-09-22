@@ -93,7 +93,7 @@ impl Retryer for Standard {
     fn retry_delay(
         &self,
         attempt: u32,
-        _err: &(dyn std::error::Error),
+        _err: &dyn std::error::Error,
     ) -> Result<Duration, Box<dyn std::error::Error + Send + Sync>> {
         self.backoff.backoff_delay(attempt)
     }

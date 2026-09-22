@@ -3,11 +3,9 @@ use serde::Deserialize;
 
 use crate::api::bucket::Owner;
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{acl_grant_de, modify_request};
 use crate::{OperationInput, OperationOutput};
-use crate::client::BodyDataReader;
-
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct GetObjectAclRequest {
@@ -119,8 +117,7 @@ impl Client {
 
         let body_data = output.get_all_data().await?;
         let data_str = String::from_utf8_lossy(&body_data);
-        let mut result: GetObjectAclResult =
-            quick_xml::de::from_str(&data_str)?;
+        let mut result: GetObjectAclResult = quick_xml::de::from_str(&data_str)?;
 
         result.update_result(&output);
 
@@ -133,12 +130,12 @@ mod tests {
     use std::rc::Rc;
 
     use super::*;
-    use crate::api::object::{PutObjectRequest, DeleteObjectRequest};
+    use crate::api::object::{DeleteObjectRequest, PutObjectRequest};
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
+    use crate::test_utils::{generate_unique_object_name, load_test_config};
     use crate::SignatureVersionType;
-    use crate::test_utils::{load_test_config, TestConfig, generate_unique_object_name};
 
     #[tokio::test]
     #[serial_test::serial]
@@ -166,13 +163,16 @@ mod tests {
         // Step 1: Create a test object
         let test_object_name = generate_unique_object_name("get-object-acl");
         let test_content = "Test content for get object ACL operation";
-        
+
         println!("Step 1: Creating test object '{}'", test_object_name);
-        
+
         let put_request = PutObjectRequest {
             bucket: config.bucket.to_string(),
             key: test_object_name.clone(),
-            body: Some(crate::BodyContent::from_text(test_content.to_string(), None)),
+            body: Some(crate::BodyContent::from_text(
+                test_content.to_string(),
+                None,
+            )),
             ..Default::default()
         };
 
@@ -188,7 +188,7 @@ mod tests {
 
         // Step 2: Get object ACL
         println!("Step 2: Getting ACL for object '{}'", test_object_name);
-        
+
         let get_acl_request = GetObjectAclRequest {
             bucket: config.bucket.to_string(),
             key: test_object_name.clone(),
@@ -198,18 +198,26 @@ mod tests {
         match client.get_object_acl(&get_acl_request).await {
             Ok(result) => {
                 println!("Get object ACL result: {:?}", result);
-                
+
                 // Verify the result contains expected fields
-                assert!(result.owner.is_some(), "ACL result should contain owner information");
-                assert!(result.acl.is_some(), "ACL result should contain ACL information");
-                
+                assert!(
+                    result.owner.is_some(),
+                    "ACL result should contain owner information"
+                );
+                assert!(
+                    result.acl.is_some(),
+                    "ACL result should contain ACL information"
+                );
+
                 // Print ACL details
                 if let Some(owner) = &result.owner {
-                    println!("Object owner: ID={}, DisplayName={}", 
-                             owner.id.as_deref().unwrap_or("N/A"), 
-                             owner.display_name.as_deref().unwrap_or("N/A"));
+                    println!(
+                        "Object owner: ID={}, DisplayName={}",
+                        owner.id.as_deref().unwrap_or("N/A"),
+                        owner.display_name.as_deref().unwrap_or("N/A")
+                    );
                 }
-                
+
                 if let Some(acl) = &result.acl {
                     println!("Object ACL: {}", acl);
                 }
@@ -221,7 +229,7 @@ mod tests {
 
         // Step 3: Clean up - Delete the test object
         println!("Step 3: Cleaning up test object '{}'", test_object_name);
-        
+
         let delete_request = DeleteObjectRequest {
             bucket: config.bucket.to_string(),
             key: test_object_name.clone(),
@@ -232,12 +240,16 @@ mod tests {
             Ok(result) => {
                 println!("Object deleted successfully: {:?}", result);
                 // Status should be 204 (No Content) for successful deletion
-                assert_eq!(result.common.status, http::StatusCode::NO_CONTENT, 
-                          "Deletion should return 204 No Content status");
+                assert_eq!(
+                    result.common.status,
+                    http::StatusCode::NO_CONTENT,
+                    "Deletion should return 204 No Content status"
+                );
             }
             Err(err) => {
                 eprintln!("Warning: Failed to delete test object: {:?}", err);
-                // Don't panic here as the main test objective (get ACL) was achieved
+                // Don't panic here as the main test objective (get ACL) was
+                // achieved
             }
         }
 

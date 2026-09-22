@@ -231,7 +231,13 @@ mod tests {
                 .with_signature_version(SignatureVersionType::V4),
         );
 
-        let result = client.list_cloud_boxes(&ListCloudBoxesRequest::default()).await;
-        assert!(result.is_ok(), "list_cloud_boxes failed: {:?}", result.err());
+        let result = client
+            .list_cloud_boxes(&ListCloudBoxesRequest::default())
+            .await;
+        assert!(
+            result.is_ok(),
+            "list_cloud_boxes failed: {:?}",
+            result.err()
+        );
     }
 }

@@ -26,7 +26,8 @@ pub struct LoggingEnabled {
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct BucketLoggingStatus {
     /// Indicates the container used to store access logging information. This
-    /// element is returned if it is enabled and is not returned if it is disabled.
+    /// element is returned if it is enabled and is not returned if it is
+    /// disabled.
     #[serde(rename = "LoggingEnabled", skip_serializing_if = "Option::is_none")]
     pub logging_enabled: Option<LoggingEnabled>,
 }
@@ -116,8 +117,10 @@ impl Client {
             std::rc::Rc::new(vec!["logging".to_string()]),
         );
 
-        let xml_body =
-            quick_xml::se::to_string_with_root("BucketLoggingStatus", &request.bucket_logging_status)?;
+        let xml_body = quick_xml::se::to_string_with_root(
+            "BucketLoggingStatus",
+            &request.bucket_logging_status,
+        )?;
         input.body = Some(BodyContent::from_text(xml_body, None));
 
         modify_request(
@@ -141,7 +144,9 @@ mod tests {
     use std::rc::Rc;
 
     use super::*;
-    use crate::api::bucket::{CreateBucketRequest, DeleteBucketLoggingRequest, DeleteBucketRequest};
+    use crate::api::bucket::{
+        CreateBucketRequest, DeleteBucketLoggingRequest, DeleteBucketRequest,
+    };
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::test_utils::{generate_unique_bucket_name, load_test_config};
@@ -215,7 +220,11 @@ mod tests {
                 ..Default::default()
             })
             .await;
-        assert!(result.is_ok(), "put_bucket_logging failed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "put_bucket_logging failed: {:?}",
+            result.err()
+        );
 
         // Clean up
         let _ = client

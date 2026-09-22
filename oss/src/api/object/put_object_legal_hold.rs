@@ -43,8 +43,8 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `request` - The `PutObjectLegalHoldRequest` containing the bucket name,
-    ///   object key and the legal hold status to set.
+    /// * `request` - The `PutObjectLegalHoldRequest` containing the bucket
+    ///   name, object key and the legal hold status to set.
     ///
     /// # Examples
     ///
@@ -190,7 +190,10 @@ mod tests {
             })
             .await;
         if let Err(error) = &result {
-            eprintln!("put_object_legal_hold rejected (bucket may lack WORM config): {}", error);
+            eprintln!(
+                "put_object_legal_hold rejected (bucket may lack WORM config): {}",
+                error
+            );
         }
 
         // Clean up

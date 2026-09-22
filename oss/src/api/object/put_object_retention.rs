@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
-use crate::utils::{modify_request, option_time_rfc3339_serde, update_content_length, update_content_md5};
+use crate::utils::{
+    modify_request, option_time_rfc3339_serde, update_content_length, update_content_md5,
+};
 use crate::{BodyContent, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 /// The container that stores the object-level retention policy.
@@ -58,8 +60,8 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `request` - The `PutObjectRetentionRequest` containing the bucket name,
-    ///   object key and the retention policy to set.
+    /// * `request` - The `PutObjectRetentionRequest` containing the bucket
+    ///   name, object key and the retention policy to set.
     ///
     /// # Examples
     ///
@@ -213,7 +215,10 @@ mod tests {
             })
             .await;
         if let Err(error) = &result {
-            eprintln!("put_object_retention rejected (bucket may lack WORM config): {}", error);
+            eprintln!(
+                "put_object_retention rejected (bucket may lack WORM config): {}",
+                error
+            );
         }
 
         // Clean up

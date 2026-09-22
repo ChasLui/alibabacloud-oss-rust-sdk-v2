@@ -2,8 +2,7 @@ use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::Deserialize;
 
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_md5};
 use crate::{OperationInput, OperationOutput};
 
@@ -126,7 +125,8 @@ mod tests {
 
     #[test]
     fn test_async_process_object_result_deserialize() {
-        let json = r#"{"EventId":"3D8-1vB","RequestId":"57B7D2F1A04ED2908095F87C","TaskId":"task-123"}"#;
+        let json =
+            r#"{"EventId":"3D8-1vB","RequestId":"57B7D2F1A04ED2908095F87C","TaskId":"task-123"}"#;
         let result: AsyncProcessObjectResult = serde_json::from_str(json).unwrap();
         assert_eq!(result.event_id, "3D8-1vB");
         assert_eq!(result.request_id, "57B7D2F1A04ED2908095F87C");

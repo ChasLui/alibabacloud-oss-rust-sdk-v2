@@ -11,7 +11,10 @@ use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ServerSideEncryptionRule {
     /// The container that stores the default server-side encryption method.
-    #[serde(rename = "ApplyServerSideEncryptionByDefault", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "ApplyServerSideEncryptionByDefault",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub apply_server_side_encryption_by_default: Option<SSERule>,
 }
 
@@ -85,7 +88,12 @@ impl Client {
             std::rc::Rc::new(vec!["encryption".to_string()]),
         );
 
-        modify_request(&mut input, request.header_map(), request.query_map(), vec![])?;
+        modify_request(
+            &mut input,
+            request.header_map(),
+            request.query_map(),
+            vec![],
+        )?;
 
         let output = self.invoke_operation(input, vec![]).await?;
 

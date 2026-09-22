@@ -1,21 +1,17 @@
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt;
-use std::io::Read;
-use std::marker::PhantomData;
+use std::path::PathBuf;
+use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use crate::utils::{is_valid_bucket_name, is_valid_method, is_valid_object_name, read_to_string};
-use futures_util::StreamExt;
-use std::pin::Pin;
 use bytes::Bytes;
-use std::path::PathBuf;
-use futures_util::stream::TryStreamExt;
+use futures_util::stream::Stream;
 use reqwest;
-use tokio::fs;
-use futures_util::stream::{BoxStream, Stream};
+
 use crate::client::ByteStream;
+use crate::utils::{is_valid_bucket_name, is_valid_method, is_valid_object_name};
 
 /// 用户可传入的数据源类型，支持惰性上传
 pub enum BodyContent {
@@ -34,8 +30,8 @@ pub enum BodyContent {
         len: u64,
         md5: Option<[u8; 16]>, // 自动计算
     },
-    Stream{
-        stream:ByteStream,
+    Stream {
+        stream: ByteStream,
         len: u64,
         md5: Option<[u8; 16]>, //非必选
     },
@@ -44,19 +40,27 @@ pub enum BodyContent {
 impl fmt::Debug for BodyContent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BodyContent::File { path, len, md5: _ } => f.debug_struct("BodyContent::File")
+            BodyContent::File { path, len, md5: _ } => f
+                .debug_struct("BodyContent::File")
                 .field("path", path)
                 .field("len", len)
                 .finish(),
-            BodyContent::Bytes { data, len, md5: _ } => f.debug_struct("BodyContent::Bytes")
+            BodyContent::Bytes { data, len, md5: _ } => f
+                .debug_struct("BodyContent::Bytes")
                 .field("data_len", &data.len())
                 .field("len", len)
                 .finish(),
-            BodyContent::Text { data, len, md5: _ } => f.debug_struct("BodyContent::Text")
+            BodyContent::Text { data, len, md5: _ } => f
+                .debug_struct("BodyContent::Text")
                 .field("text_len", &data.len())
                 .field("len", len)
                 .finish(),
-            BodyContent::Stream { stream: _, len, md5: _ } => f.debug_struct("BodyContent::Stream")
+            BodyContent::Stream {
+                stream: _,
+                len,
+                md5: _,
+            } => f
+                .debug_struct("BodyContent::Stream")
                 .field("len", len)
                 .finish(),
         }
@@ -108,13 +112,14 @@ impl BodyContent {
         match self {
             BodyContent::File { path, .. } => {
                 let file = tokio::fs::File::open(path).await?;
-                let stream = tokio_util::codec::FramedRead::new(file, tokio_util::codec::BytesCodec::new());
+                let stream =
+                    tokio_util::codec::FramedRead::new(file, tokio_util::codec::BytesCodec::new());
                 let limiter_for_file = limiter.clone();
                 let mapped = stream
                     .map(|result| {
                         result
                             .map(|bytes| bytes.freeze())
-                            .map_err(|e| Box::<dyn std::error::Error + Send + Sync>::from(e))
+                            .map_err(Box::<dyn std::error::Error + Send + Sync>::from)
                     })
                     .then(move |result| {
                         let limiter = limiter_for_file.clone();
@@ -176,8 +181,6 @@ impl BodyContent {
     pub fn from_stream(stream: ByteStream, len: u64, md5: Option<[u8; 16]>) -> Self {
         BodyContent::Stream { stream, len, md5 }
     }
-
-
 
     pub fn content_length(&self) -> Option<u64> {
         match self {
@@ -281,64 +284,6 @@ impl BodyTracker for Crc64Tracker {
 // 假设你的 SDK 错误类型是 SdkError
 pub type BodyStream = Pin<Box<dyn Stream<Item = Result<Bytes, reqwest::Error>> + Send>>;
 
-// 定义一个通用 trait 用于从包含 body 流的结构中读取数据
-pub trait BodyDataReader {
-    /// 读取 body 流中的所有数据并返回字节数组
-    /// 这会消费 body 流并为后续访问缓存结果
-    async fn get_all_data(&mut self) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
-        // 如果已经缓存了数据，直接返回
-        if let Some(cached_data) = self.get_cached_body_data() {
-            return Ok(cached_data.into_bytes());
-        }
-        
-        // 如果没有缓存数据但有body流，则读取流并缓存
-        if let Some(body_stream) = self.take_body() {
-            let mut full_data = Vec::new();
-            
-            // 使用 StreamExt 来处理流
-            futures_util::pin_mut!(body_stream);
-            while let Some(chunk_result) = body_stream.next().await {
-                let chunk = chunk_result?;
-                full_data.extend_from_slice(&chunk);
-            }
-            
-            // 缓存数据以便将来访问（如果是有效的UTF-8字符串）
-            if let Ok(s) = String::from_utf8(full_data.clone()) {
-                self.set_body_data(Arc::new(s));
-            }
-            
-            Ok(full_data)
-        } else if let Some(cached_data) = self.get_cached_body_data() {
-            // 再次检查以防万一
-            Ok(cached_data.into_bytes())
-        } else {
-            // 没有body数据的情况
-            Ok(Vec::new())
-        }
-    }
-    
-    /// 读取 body 流中的所有数据并返回字符串（安全版本）
-    /// 这会消费 body 流并为后续访问缓存结果
-    async fn get_all_data_as_string(&mut self) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-        match self.get_all_data().await {
-            Ok(bytes) => {
-                // 使用 from_utf8_lossy 来安全地处理非UTF-8序列
-                Ok(String::from_utf8_lossy(&bytes).into_owned())
-            }
-            Err(e) => Err(e),
-        }
-    }
-    
-    /// 获取 body 流，如果有的话
-    fn take_body(&mut self) -> Option<BodyStream>;
-    
-    /// 设置 body 数据缓存
-    fn set_body_data(&mut self, data: Arc<String>);
-    
-    /// 获取已缓存的 body 数据
-    fn get_cached_body_data(&self) -> Option<String>;
-}
-
 #[derive(Default, Debug, Clone)]
 pub struct OperationMetadata {
     values: HashMap<String, Vec<Rc<dyn Any>>>,
@@ -435,7 +380,7 @@ impl crate::client::BodyDataReader for OperationOutput {
         self.body.take()
     }
 
-    fn set_body(&mut self, body: Option<crate::client::BodyStream>){
+    fn set_body(&mut self, body: Option<crate::client::BodyStream>) {
         self.body = body;
     }
 }
@@ -452,7 +397,7 @@ impl Clone for OperationOutput {
     fn clone(&self) -> Self {
         OperationOutput {
             input: self.input.clone(),
-            status: self.status.clone(),
+            status: self.status,
             headers: self.headers.clone(),
             body: None, // 无法克隆流，所以设置为 None
             // body_data: self.body_data.clone(), // Arc 可以安全克隆
@@ -496,16 +441,18 @@ impl OperationInput {
 
     /// Retrieves the body content as a `String` from the `OperationInput`
     /// struct.
-    ///
     pub fn get_body(&self) -> Option<String> {
-        // Currently only returns the string representation of the body if it exists
+        // Currently only returns the string representation of the body if it
+        // exists
         match &self.body {
             Some(BodyContent::Text { data, .. }) => Some(data.clone()),
-            Some(BodyContent::Bytes { data, .. }) => Some(String::from_utf8_lossy(data.as_ref()).to_string()),
+            Some(BodyContent::Bytes { data, .. }) => {
+                Some(String::from_utf8_lossy(data.as_ref()).to_string())
+            }
             Some(BodyContent::Stream { .. }) => {
                 // 对于流类型，我们不能直接获取内容，因为它可能很大或不可用
                 None
-            },
+            }
             _ => None,
         }
     }

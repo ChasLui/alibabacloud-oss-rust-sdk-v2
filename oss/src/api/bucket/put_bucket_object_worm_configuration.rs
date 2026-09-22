@@ -2,9 +2,7 @@ use std::rc::Rc;
 
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 
-use super::get_bucket_object_worm_configuration::{
-    ObjectWormConfiguration,
-};
+use super::get_bucket_object_worm_configuration::ObjectWormConfiguration;
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
 use crate::signer::SUB_RESOURCE;
@@ -104,7 +102,8 @@ impl Client {
     pub async fn put_bucket_object_worm_configuration(
         &self,
         request: &PutBucketObjectWormConfigurationRequest,
-    ) -> Result<PutBucketObjectWormConfigurationResult, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<PutBucketObjectWormConfigurationResult, Box<dyn std::error::Error + Send + Sync>>
+    {
         check_object_worm_configuration(&request.object_worm_configuration)?;
 
         let mut input = OperationInput {
@@ -157,8 +156,8 @@ mod tests {
     };
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
-    use crate::SignatureVersionType;
     use crate::test_utils::load_test_config;
+    use crate::SignatureVersionType;
 
     #[test]
     fn test_check_object_worm_configuration() {
@@ -242,22 +241,20 @@ mod tests {
             .unwrap();
 
         let result = client
-            .put_bucket_object_worm_configuration(
-                &PutBucketObjectWormConfigurationRequest {
-                    bucket: bucket_name.clone(),
-                    object_worm_configuration: ObjectWormConfiguration {
-                        object_worm_enabled: Some("Enabled".to_string()),
-                        rule: Some(ObjectWormRule {
-                            default_retention: Some(ObjectWormDefaultRetention {
-                                mode: Some("COMPLIANCE".to_string()),
-                                days: Some(10),
-                                years: None,
-                            }),
+            .put_bucket_object_worm_configuration(&PutBucketObjectWormConfigurationRequest {
+                bucket: bucket_name.clone(),
+                object_worm_configuration: ObjectWormConfiguration {
+                    object_worm_enabled: Some("Enabled".to_string()),
+                    rule: Some(ObjectWormRule {
+                        default_retention: Some(ObjectWormDefaultRetention {
+                            mode: Some("COMPLIANCE".to_string()),
+                            days: Some(10),
+                            years: None,
                         }),
-                    },
-                    ..Default::default()
+                    }),
                 },
-            )
+                ..Default::default()
+            })
             .await;
         assert!(
             result.is_ok(),

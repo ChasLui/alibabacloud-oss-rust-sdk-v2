@@ -150,8 +150,8 @@ mod tests {
     use super::*;
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
-    use crate::SignatureVersionType;
     use crate::test_utils::load_test_config;
+    use crate::SignatureVersionType;
 
     #[test]
     fn test_tagging_serde_round_trip() {
@@ -235,7 +235,11 @@ mod tests {
                 ..Default::default()
             })
             .await;
-        assert!(result.is_ok(), "put_object_tagging failed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "put_object_tagging failed: {:?}",
+            result.err()
+        );
 
         // Clean up
         let _ = client

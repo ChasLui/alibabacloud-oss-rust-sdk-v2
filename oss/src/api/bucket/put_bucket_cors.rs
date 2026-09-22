@@ -13,7 +13,8 @@ pub struct CORSConfiguration {
     #[serde(rename = "CORSRule", default)]
     pub cors_rules: Vec<CORSRule>,
 
-    /// Indicates whether the Vary: Origin header was returned. Default value: false.
+    /// Indicates whether the Vary: Origin header was returned. Default value:
+    /// false.
     #[serde(rename = "ResponseVary", skip_serializing_if = "Option::is_none")]
     pub response_vary: Option<bool>,
 }
@@ -178,7 +179,10 @@ mod tests {
         let parsed: CORSConfiguration = quick_xml::de::from_str(&xml).unwrap();
         assert_eq!(parsed.cors_rules.len(), 1);
         let rule = &parsed.cors_rules[0];
-        assert_eq!(rule.allowed_origins, vec!["https://example.com".to_string()]);
+        assert_eq!(
+            rule.allowed_origins,
+            vec!["https://example.com".to_string()]
+        );
         assert_eq!(rule.allowed_methods.len(), 2);
         assert_eq!(rule.allowed_headers, vec!["Authorization".to_string()]);
         assert_eq!(rule.expose_headers, vec!["x-oss-request-id".to_string()]);

@@ -1,43 +1,39 @@
 //! File Upload Example - Demonstrates various file upload methods
-//! 
+//!
 //! Features include:
 //! - Upload text content
 //! - Upload binary data
 //! - Set object metadata
 //! - Multipart upload for large files
-//! 
+//!
 //! Run command:
 //! ```bash
 //! cargo run --example 02_file_upload
 //! ```
 
-use alibabacloud_oss_sdk_rust_v2::{
-    api::object::{
-        PutObjectRequest,
-        InitiateMultipartUploadRequest,
-        UploadPartRequest,
-        CompleteMultipartUploadRequest, CompleteMultipartUploadPart,
-    },
-    client::Client,
-    config::Config,
-    credential::providers::StaticCredentialsProvider,
-    BodyContent,
-};
 use std::rc::Rc;
-use http::HeaderMap;
+
+use alibabacloud_oss_sdk_rust_v2::api::object::{
+    CompleteMultipartUploadPart, CompleteMultipartUploadRequest, InitiateMultipartUploadRequest,
+    PutObjectRequest, UploadPartRequest,
+};
+use alibabacloud_oss_sdk_rust_v2::client::Client;
+use alibabacloud_oss_sdk_rust_v2::config::Config;
+use alibabacloud_oss_sdk_rust_v2::credential::providers::StaticCredentialsProvider;
+use alibabacloud_oss_sdk_rust_v2::BodyContent;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let access_key_id = std::env::var("ACCESS_KEY_ID")
-        .unwrap_or_else(|_| "your-access-key-id".to_string());
-    let access_key_secret = std::env::var("ACCESS_KEY_SECRET")
-        .unwrap_or_else(|_| "your-access-key-secret".to_string());
+    let access_key_id =
+        std::env::var("ACCESS_KEY_ID").unwrap_or_else(|_| "your-access-key-id".to_string());
+    let access_key_secret =
+        std::env::var("ACCESS_KEY_SECRET").unwrap_or_else(|_| "your-access-key-secret".to_string());
     let region = std::env::var("OSS_REGION").unwrap_or_else(|_| "cn-hangzhou".to_string());
     let bucket = std::env::var("OSS_BUCKET").unwrap_or_else(|_| "your-bucket-name".to_string());
 
     println!("OSS File Upload Example");
     println!("===========================================");
-    
+
     let config = Config::default()
         .with_region(&region)
         .with_credentials_provider(Rc::new(StaticCredentialsProvider::new(
@@ -53,7 +49,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n1. Upload Text String");
     let text_key = "examples/upload/hello.txt";
     let text_content = "这是一段简单的文本内容，用于测试 OSS 上传功能。";
-    
+
     let put_request = PutObjectRequest {
         bucket: bucket.clone(),
         key: text_key.to_string(),
@@ -63,7 +59,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match client.put_object(put_request).await {
         Ok(result) => {
-            println!("   Text upload successful, ETag: {:?}", result.common.headers.get("etag"));
+            println!(
+                "   Text upload successful, ETag: {:?}",
+                result.common.headers.get("etag")
+            );
         }
         Err(e) => {
             println!("   Upload failed: {}", e);
@@ -74,7 +73,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n2. Upload Byte Array");
     let binary_key = "examples/upload/data.bin";
     let binary_data = vec![0x48, 0x65, 0x6C, 0x6C, 0x6F]; // "Hello" 的 ASCII 码
-    
+
     let put_request = PutObjectRequest {
         bucket: bucket.clone(),
         key: binary_key.to_string(),
@@ -84,7 +83,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match client.put_object(put_request).await {
         Ok(result) => {
-            println!("   Binary data upload successful, ETag: {:?}", result.common.headers.get("etag"));
+            println!(
+                "   Binary data upload successful, ETag: {:?}",
+                result.common.headers.get("etag")
+            );
         }
         Err(e) => {
             println!("   Upload failed: {}", e);
@@ -95,18 +97,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n3. Upload with Custom Metadata");
     let metadata_key = "examples/upload/metadata.txt";
     let metadata_content = "File with metadata";
-    
+
     let mut put_request = PutObjectRequest {
         bucket: bucket.clone(),
         key: metadata_key.to_string(),
         body: Some(BodyContent::from_text(metadata_content.to_string(), None)),
         ..Default::default()
     };
-    
+
     // Add custom metadata via common.headers
-    put_request.common.headers.insert("x-oss-meta-author".to_string(), "OSS SDK User".to_string());
-    put_request.common.headers.insert("x-oss-meta-version".to_string(), "1.0.0".to_string());
-    put_request.common.headers.insert("x-oss-meta-description".to_string(), "Test file for metadata".to_string());
+    put_request
+        .common
+        .headers
+        .insert("x-oss-meta-author".to_string(), "OSS SDK User".to_string());
+    put_request
+        .common
+        .headers
+        .insert("x-oss-meta-version".to_string(), "1.0.0".to_string());
+    put_request.common.headers.insert(
+        "x-oss-meta-description".to_string(),
+        "Test file for metadata".to_string(),
+    );
 
     match client.put_object(put_request).await {
         Ok(result) => {
@@ -117,11 +128,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("   Upload failed: {}", e);
         }
     }
-    
+
     // Example 4: Multipart upload (simulating large file)
     println!("\n4. Multipart Upload Example");
     let multipart_key = "examples/upload/large-file.bin";
-    
+
     // Step 1: Initialize multipart upload
     let init_request = InitiateMultipartUploadRequest {
         bucket: bucket.clone(),
@@ -132,7 +143,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let upload_id = match client.initiate_multipart_upload(&init_request).await {
         Ok(result) => {
             let upload_id = result.upload_id.clone().unwrap_or_default();
-            println!("   Multipart upload initialization successful, UploadId: {:?}", upload_id);
+            println!(
+                "   Multipart upload initialization successful, UploadId: {:?}",
+                upload_id
+            );
             upload_id
         }
         Err(e) => {
@@ -145,7 +159,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut parts = Vec::new();
     let part_data_1 = vec![1u8; 1024]; // 1KB data
     let part_data_2 = vec![2u8; 1024];
-    
+
     // Upload part 1
     let upload_part_req_1 = UploadPartRequest {
         bucket: bucket.clone(),
@@ -157,10 +171,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     if let Ok(result) = client.upload_part(upload_part_req_1).await {
-        println!("   Part 1 upload successful, ETag: {:?}", result.common.headers.get("etag"));
+        println!(
+            "   Part 1 upload successful, ETag: {:?}",
+            result.common.headers.get("etag")
+        );
         parts.push(CompleteMultipartUploadPart {
             part_number: 1,
-            etag: result.common.headers.get("etag").map(|s| s.to_string()).unwrap_or_default(),
+            etag: result
+                .common
+                .headers
+                .get("etag")
+                .map(|s| s.to_string())
+                .unwrap_or_default(),
         });
     }
 
@@ -175,10 +197,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     if let Ok(result) = client.upload_part(upload_part_req_2).await {
-        println!("   Part 2 upload successful, ETag: {:?}", result.common.headers.get("etag"));
+        println!(
+            "   Part 2 upload successful, ETag: {:?}",
+            result.common.headers.get("etag")
+        );
         parts.push(CompleteMultipartUploadPart {
             part_number: 2,
-            etag: result.common.headers.get("etag").map(|s| s.to_string()).unwrap_or_default(),
+            etag: result
+                .common
+                .headers
+                .get("etag")
+                .map(|s| s.to_string())
+                .unwrap_or_default(),
         });
     }
 
@@ -186,8 +216,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let complete_request = CompleteMultipartUploadRequest {
         bucket: bucket.clone(),
         key: multipart_key.to_string(),
-        upload_id: upload_id,
-        parts: parts,
+        upload_id,
+        parts,
         ..Default::default()
     };
 

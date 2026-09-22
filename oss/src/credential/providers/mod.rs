@@ -16,10 +16,12 @@ pub use self::static_credentials_provider::*;
 
 /// A trait for providing credentials to authenticate.
 #[async_trait::async_trait]
+#[allow(async_fn_in_trait)] // `async_trait` rewrites the signature; the lint
+                            // fires on pre-expansion source
 pub trait CredentialsProvider: Sync + Send + std::any::Any {
-    /// Downcast support: `type_id()` on `&dyn CredentialsProvider` returns the trait
-    /// object's own TypeId (std blanket impl), so concrete-type checks must go
-    /// through this method.
+    /// Downcast support: `type_id()` on `&dyn CredentialsProvider` returns the
+    /// trait object's own TypeId (std blanket impl), so concrete-type
+    /// checks must go through this method.
     fn as_any(&self) -> &dyn std::any::Any;
 
     /// Asynchronously retrieves the credentials.
@@ -46,9 +48,9 @@ mod tests_credentials_provider_trait {
         struct MockCredentialsProvider;
         #[async_trait::async_trait]
         impl CredentialsProvider for MockCredentialsProvider {
-        fn as_any(&self) -> &dyn std::any::Any {
-            self
-        }
+            fn as_any(&self) -> &dyn std::any::Any {
+                self
+            }
             async fn get_credentials(
                 &self,
             ) -> Result<Credentials, Box<dyn std::error::Error + Send + Sync>> {
@@ -65,8 +67,8 @@ mod tests_credentials_provider_trait {
         // Create an instance of the mock credentials provider
         let credentials_provider = MockCredentialsProvider;
 
-        // Call the get_credentials function and assert that it returns the expected
-        // credentials
+        // Call the get_credentials function and assert that it returns the
+        // expected credentials
         let result = credentials_provider.get_credentials().await;
         assert!(result.is_ok());
         let credentials = result.unwrap();
@@ -82,9 +84,9 @@ mod tests_credentials_provider_trait {
         struct MockCredentialsProvider;
         #[async_trait::async_trait]
         impl CredentialsProvider for MockCredentialsProvider {
-        fn as_any(&self) -> &dyn std::any::Any {
-            self
-        }
+            fn as_any(&self) -> &dyn std::any::Any {
+                self
+            }
             async fn get_credentials(
                 &self,
             ) -> Result<Credentials, Box<dyn std::error::Error + Send + Sync>> {

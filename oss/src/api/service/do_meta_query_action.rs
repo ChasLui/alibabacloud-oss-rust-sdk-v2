@@ -54,8 +54,8 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `request` - The `DoMetaQueryActionRequest` containing the bucket
-    ///   name, the action and the request body.
+    /// * `request` - The `DoMetaQueryActionRequest` containing the bucket name,
+    ///   the action and the request body.
     ///
     /// # Examples
     ///
@@ -70,7 +70,10 @@ impl Client {
     /// let request = DoMetaQueryActionRequest {
     ///     bucket: "my-bucket".to_string(),
     ///     action: Some("my-action".to_string()),
-    ///     body: Some(BodyContent::from_text("<MetaQuery></MetaQuery>".to_string(), None)),
+    ///     body: Some(BodyContent::from_text(
+    ///         "<MetaQuery></MetaQuery>".to_string(),
+    ///         None,
+    ///     )),
     ///     ..Default::default()
     /// };
     ///
@@ -108,7 +111,12 @@ impl Client {
             ..Default::default()
         };
 
-        modify_request(&mut input, headers, queries, vec![update_content_md5, update_content_length])?;
+        modify_request(
+            &mut input,
+            headers,
+            queries,
+            vec![update_content_md5, update_content_length],
+        )?;
 
         let output = self.invoke_operation(input, vec![]).await?;
 

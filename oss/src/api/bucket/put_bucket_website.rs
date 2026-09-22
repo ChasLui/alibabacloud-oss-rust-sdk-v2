@@ -24,7 +24,8 @@ pub struct MirrorHeadersSet {
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct MirrorHeaders {
     /// Specifies whether to pass through all request headers to the origin.
-    /// This parameter takes effect only when the value of RedirectType is Mirror.
+    /// This parameter takes effect only when the value of RedirectType is
+    /// Mirror.
     #[serde(rename = "PassAll", skip_serializing_if = "Option::is_none")]
     pub pass_all: Option<bool>,
 
@@ -68,7 +69,10 @@ pub struct RoutingRuleCondition {
 
     /// The HTTP status code. The rule is matched only when the specified
     /// object is accessed and the specified HTTP status code is returned.
-    #[serde(rename = "HttpErrorCodeReturnedEquals", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "HttpErrorCodeReturnedEquals",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub http_error_code_returned_equals: Option<i64>,
 
     /// The headers that must be included in the request for the rule to match.
@@ -152,19 +156,31 @@ pub struct MirrorReturnHeaders {
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct MirrorMultiAlternate {
     /// The region for a specific origin.
-    #[serde(rename = "MirrorMultiAlternateDstRegion", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "MirrorMultiAlternateDstRegion",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub mirror_multi_alternate_dst_region: Option<String>,
 
     /// The distinct number of a specific origin.
-    #[serde(rename = "MirrorMultiAlternateNumber", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "MirrorMultiAlternateNumber",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub mirror_multi_alternate_number: Option<i64>,
 
     /// The URL for a specific origin.
-    #[serde(rename = "MirrorMultiAlternateURL", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "MirrorMultiAlternateURL",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub mirror_multi_alternate_url: Option<String>,
 
     /// The VPC ID for a specific origin.
-    #[serde(rename = "MirrorMultiAlternateVpcId", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "MirrorMultiAlternateVpcId",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub mirror_multi_alternate_vpc_id: Option<String>,
 }
 
@@ -186,12 +202,18 @@ pub struct RoutingRuleRedirect {
 
     /// Specifies whether to redirect the access to the address specified by
     /// Location if the origin returns an HTTP 3xx status code.
-    #[serde(rename = "MirrorFollowRedirect", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "MirrorFollowRedirect",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub mirror_follow_redirect: Option<bool>,
 
     /// Specifies whether the prefix of the object names is replaced with the
     /// value specified by ReplaceKeyPrefixWith.
-    #[serde(rename = "EnableReplacePrefix", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "EnableReplacePrefix",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub enable_replace_prefix: Option<bool>,
 
     /// The string that is used to replace the requested object name when the
@@ -215,7 +237,10 @@ pub struct RoutingRuleRedirect {
 
     /// The string that is used to replace the prefix of the object name
     /// during redirection.
-    #[serde(rename = "ReplaceKeyPrefixWith", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "ReplaceKeyPrefixWith",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub replace_key_prefix_with: Option<String>,
 
     /// The redirection type. Valid values: Mirror, External, and AliCDN.
@@ -240,12 +265,18 @@ pub struct RoutingRuleRedirect {
     pub http_redirect_code: Option<i64>,
 
     /// Is it transmitted transparently '/' to the source site.
-    #[serde(rename = "MirrorPassOriginalSlashes", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "MirrorPassOriginalSlashes",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub mirror_pass_original_slashes: Option<bool>,
 
     /// This parameter plays the same role as PassQueryString and has a higher
     /// priority than PassQueryString.
-    #[serde(rename = "MirrorPassQueryString", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "MirrorPassQueryString",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub mirror_pass_query_string: Option<bool>,
 
     /// The HTTP status codes that trigger the asynchronous pull mode in
@@ -263,7 +294,10 @@ pub struct RoutingRuleRedirect {
     pub mirror_url_probe: Option<String>,
 
     /// Whether to allow take video snapshot in mirroring-based back-to-origin.
-    #[serde(rename = "MirrorAllowVideoSnapshot", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "MirrorAllowVideoSnapshot",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub mirror_allow_video_snapshot: Option<bool>,
 
     /// The slave URL for mirroring-based back-to-origin.
@@ -275,7 +309,10 @@ pub struct RoutingRuleRedirect {
     pub mirror_dst_vpc_id: Option<String>,
 
     /// Use LastModifiedTime of the file from origin.
-    #[serde(rename = "MirrorUserLastModified", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "MirrorUserLastModified",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub mirror_user_last_modified: Option<bool>,
 
     /// Whether to use role for mirroring-based back-to-origin.
@@ -283,7 +320,10 @@ pub struct RoutingRuleRedirect {
     pub mirror_using_role: Option<bool>,
 
     /// Mirroring-based back-to-origin with express tunnel.
-    #[serde(rename = "MirrorIsExpressTunnel", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "MirrorIsExpressTunnel",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub mirror_is_express_tunnel: Option<bool>,
 
     /// Not save data in web-based back-to-origin.
@@ -296,7 +336,10 @@ pub struct RoutingRuleRedirect {
     pub mirror_taggings: Option<MirrorTaggings>,
 
     /// The slave VPC ID for mirroring-based back-to-origin express tunnel.
-    #[serde(rename = "MirrorDstSlaveVpcId", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "MirrorDstSlaveVpcId",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub mirror_dst_slave_vpc_id: Option<String>,
 
     /// The VPC region for mirroring-based back-to-origin express tunnel.
@@ -304,7 +347,10 @@ pub struct RoutingRuleRedirect {
     pub mirror_dst_region: Option<String>,
 
     /// Used for determining the state of primary-secondary switching.
-    #[serde(rename = "MirrorSwitchAllErrors", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "MirrorSwitchAllErrors",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub mirror_switch_all_errors: Option<bool>,
 
     /// The tunnel ID for mirroring-based back-to-origin.
@@ -317,7 +363,10 @@ pub struct RoutingRuleRedirect {
 
     /// Whether to allow get image information in mirroring-based
     /// back-to-origin.
-    #[serde(rename = "MirrorAllowGetImageInfo", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "MirrorAllowGetImageInfo",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub mirror_allow_get_image_info: Option<bool>,
 
     /// Whether to store the user defined metadata in mirroring-based
@@ -326,22 +375,34 @@ pub struct RoutingRuleRedirect {
     pub mirror_save_oss_meta: Option<bool>,
 
     /// Whether to allow take HeadObject in mirroring-based back-to-origin.
-    #[serde(rename = "MirrorAllowHeadObject", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "MirrorAllowHeadObject",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub mirror_allow_head_object: Option<bool>,
 
     /// The container to store the configuration for multiple origins in
     /// mirroring-based back-to-origin.
-    #[serde(rename = "MirrorMultiAlternates", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "MirrorMultiAlternates",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub mirror_multi_alternates: Option<MirrorMultiAlternates>,
 
     /// The status codes returned by the origin server that should be passed
     /// through to the client along with the body, separated by commas.
-    #[serde(rename = "TransparentMirrorResponseCodes", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "TransparentMirrorResponseCodes",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub transparent_mirror_response_codes: Option<String>,
 
     /// Container to store the rules for setting response headers in
     /// mirroring-based back-to-origin.
-    #[serde(rename = "MirrorReturnHeaders", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "MirrorReturnHeaders",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub mirror_return_headers: Option<MirrorReturnHeaders>,
 }
 
@@ -505,8 +566,10 @@ impl Client {
             std::rc::Rc::new(vec!["website".to_string()]),
         );
 
-        let xml_body =
-            quick_xml::se::to_string_with_root("WebsiteConfiguration", &request.website_configuration)?;
+        let xml_body = quick_xml::se::to_string_with_root(
+            "WebsiteConfiguration",
+            &request.website_configuration,
+        )?;
         input.body = Some(BodyContent::from_text(xml_body, None));
 
         modify_request(
@@ -530,7 +593,9 @@ mod tests {
     use std::rc::Rc;
 
     use super::*;
-    use crate::api::bucket::{CreateBucketRequest, DeleteBucketRequest, DeleteBucketWebsiteRequest};
+    use crate::api::bucket::{
+        CreateBucketRequest, DeleteBucketRequest, DeleteBucketWebsiteRequest,
+    };
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::test_utils::{generate_unique_bucket_name, load_test_config};
@@ -663,7 +728,11 @@ mod tests {
                 ..Default::default()
             })
             .await;
-        assert!(result.is_ok(), "put_bucket_website failed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "put_bucket_website failed: {:?}",
+            result.err()
+        );
 
         // Clean up
         let _ = client

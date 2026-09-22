@@ -3,8 +3,7 @@ use serde::Deserialize;
 
 use super::Owner;
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{acl_grant_de, modify_request};
 use crate::{
     OperationInput, OperationOutput, ServiceError, DEFAULT_CONTENT_TYPE, HTTP_HEADER_CONTENT_TYPE,
@@ -106,8 +105,7 @@ impl Client {
 
         let body_data = output.get_all_data().await?;
         let data_str = String::from_utf8_lossy(&body_data);
-        let mut result: GetBucketAclResult =
-            quick_xml::de::from_str(&data_str)?;
+        let mut result: GetBucketAclResult = quick_xml::de::from_str(&data_str)?;
 
         result.update_result(&output);
 
@@ -151,7 +149,7 @@ mod tests {
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
-    use crate::test_utils::{generate_unique_bucket_name, load_test_config, TestConfig};
+    use crate::test_utils::{generate_unique_bucket_name, load_test_config};
     use crate::SignatureVersionType;
 
     /// Builds a client pointed at a mock server.
@@ -199,7 +197,10 @@ mod tests {
             .mock("GET", mockito::Matcher::Any)
             .with_status(200)
             .with_header("content-type", "application/xml")
-            .with_body("<AccessControlPolicy><AccessControlList><Grant>private</Grant></AccessControlList><Owner><ID>o</ID></Owner></AccessControlPolicy>")
+            .with_body(
+                "<AccessControlPolicy><AccessControlList><Grant>private</Grant></\
+                 AccessControlList><Owner><ID>o</ID></Owner></AccessControlPolicy>",
+            )
             .create_async()
             .await;
 
@@ -275,7 +276,10 @@ mod tests {
         };
 
         // Perform the test
-        match client.get_bucket_acl(&GetBucketAclRequest::new(&bucket_name)).await {
+        match client
+            .get_bucket_acl(&GetBucketAclRequest::new(&bucket_name))
+            .await
+        {
             Ok(output) => {
                 println!("{:?}", output);
                 // Clean up: delete the bucket

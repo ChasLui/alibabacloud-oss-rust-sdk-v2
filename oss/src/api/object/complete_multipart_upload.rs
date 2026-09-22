@@ -1,16 +1,11 @@
-use std::sync::{Arc, Mutex};
-use crate::BodyContent;
-use urlencoding;
-
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::{Deserialize, Serialize};
+use urlencoding;
 
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_length, update_content_md5, xml_escape_str_ser};
-use crate::{OperationInput, OperationOutput};
-use crate::client::BodyDataReader;
-
+use crate::{BodyContent, OperationInput, OperationOutput};
 
 #[derive(Debug, Default, Serialize, Clone)]
 pub struct CompleteMultipartUploadPart {
@@ -23,7 +18,8 @@ pub struct CompleteMultipartUploadPart {
     pub etag: String,
 }
 
-/// The `CompleteMultipartUpload` request body: a `Part` list in ascending order.
+/// The `CompleteMultipartUpload` request body: a `Part` list in ascending
+/// order.
 #[derive(Serialize)]
 struct CompleteMultipartUploadBody<'a> {
     #[serde(rename = "Part")]
@@ -165,7 +161,7 @@ fn decode_result(result: &mut CompleteMultipartUploadResult) {
     }
     if let Some(key) = &mut result.key {
         *key = urlencoding::decode(key)
-            .unwrap_or_else(|_| std::borrow::Cow::Borrowed(key.as_str()))
+            .unwrap_or(std::borrow::Cow::Borrowed(key.as_str()))
             .into_owned();
     }
 }
@@ -173,15 +169,15 @@ fn decode_result(result: &mut CompleteMultipartUploadResult) {
 impl Client {
     /// Completes a multipart upload to the OSS bucket.
     ///
-    /// This method sends a POST request with the upload ID parameter to complete
-    /// a multipart upload. It takes a list of parts (with their part numbers and ETags)
-    /// and combines them into a single object.
+    /// This method sends a POST request with the upload ID parameter to
+    /// complete a multipart upload. It takes a list of parts (with their
+    /// part numbers and ETags) and combines them into a single object.
     ///
     /// # Arguments
     ///
-    /// * `request` - The `CompleteMultipartUploadRequest` containing the necessary
-    ///   information for the multipart upload completion, including bucket, key,
-    ///   upload ID, and the list of parts to combine.
+    /// * `request` - The `CompleteMultipartUploadRequest` containing the
+    ///   necessary information for the multipart upload completion, including
+    ///   bucket, key, upload ID, and the list of parts to combine.
     ///
     /// # Returns
     ///
@@ -233,16 +229,21 @@ impl Client {
             method: http::Method::POST,
             bucket: Some(request.bucket.clone()),
             key: Some(request.key.clone()),
-            parameters: [("uploadId", request.upload_id.clone()), ("encoding-type", "url".to_string())]
-                .iter()
-                .map(|(k, v)| (k.to_string(), v.to_string()))
-                .collect(),
+            parameters: [
+                ("uploadId", request.upload_id.clone()),
+                ("encoding-type", "url".to_string()),
+            ]
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
             ..Default::default()
         };
 
         // A caller-supplied encoding type overrides the hardcoded default.
         if let Some(encoding_type) = &request.encoding_type {
-            input.parameters.insert("encoding-type".to_string(), encoding_type.clone());
+            input
+                .parameters
+                .insert("encoding-type".to_string(), encoding_type.clone());
         }
 
         // Serialize the parts as XML body (sorted ascending, like the Go SDK).
@@ -265,9 +266,10 @@ impl Client {
         // branch.
         if request.callback.is_some() {
             let body_data = output.get_all_data().await?;
-            let mut result = CompleteMultipartUploadResult::default();
-            result.callback_result =
-                serde_json::from_slice(&body_data).unwrap_or_default();
+            let mut result = CompleteMultipartUploadResult {
+                callback_result: serde_json::from_slice(&body_data).unwrap_or_default(),
+                ..Default::default()
+            };
             result.update_result(&output);
             return Ok(result);
         }
@@ -292,16 +294,15 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use std::rc::Rc;
-    use std::sync::{Arc, Mutex};
 
     use super::*;
-    use crate::api::object::{InitiateMultipartUploadRequest, UploadPartRequest, GetObjectRequest};
+    use crate::api::object::{GetObjectRequest, InitiateMultipartUploadRequest, UploadPartRequest};
+    use crate::client::BodyDataReader;
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
+    use crate::test_utils::{generate_unique_object_name, load_test_config};
     use crate::SignatureVersionType;
-    use crate::test_utils::{load_test_config, TestConfig, generate_unique_object_name};
-    use crate::client::BodyDataReader;
 
     /// Out-of-order parts must be serialized in ascending part-number order;
     /// OSS rejects a body where `PartNumber` does not increase.
@@ -322,9 +323,15 @@ mod tests {
             },
         ];
         let xml = serialize_complete_body(&parts).unwrap();
-        let first = xml.find("<PartNumber>1</PartNumber>").expect("part 1 present");
-        let second = xml.find("<PartNumber>2</PartNumber>").expect("part 2 present");
-        let third = xml.find("<PartNumber>3</PartNumber>").expect("part 3 present");
+        let first = xml
+            .find("<PartNumber>1</PartNumber>")
+            .expect("part 1 present");
+        let second = xml
+            .find("<PartNumber>2</PartNumber>")
+            .expect("part 2 present");
+        let third = xml
+            .find("<PartNumber>3</PartNumber>")
+            .expect("part 3 present");
         assert!(
             first < second && second < third,
             "parts must ascend, got: {}",
@@ -413,24 +420,29 @@ mod tests {
         // OSS requires all parts except the last one to be >= 100KB
         let mut expected_content = Vec::new();
         let mut parts = Vec::new();
-        
+
         // Create 3 parts: first two parts >= 100KB, last part can be smaller
-        let part_sizes = vec![100 * 1024, 150 * 1024, 50 * 1024]; // 100KB, 150KB, 50KB
-        
+        let part_sizes = [100 * 1024, 150 * 1024, 50 * 1024]; // 100KB, 150KB,
+                                                              // 50KB
+
         for (index, &size) in part_sizes.iter().enumerate() {
             let part_num = (index + 1) as i32;
-            
+
             // Create part data with specified size
             let mut part_data = Vec::with_capacity(size);
             for i in 0..size {
                 // Fill with predictable pattern for verification
-                part_data.push((b'A' + (i % 26) as u8) as u8);
+                part_data.push(b'A' + (i % 26) as u8);
             }
-            
+
             expected_content.extend_from_slice(&part_data);
-            
-            println!("Uploading part {} with size: {} bytes", part_num, part_data.len());
-            
+
+            println!(
+                "Uploading part {} with size: {} bytes",
+                part_num,
+                part_data.len()
+            );
+
             let upload_part_request = UploadPartRequest {
                 bucket: config.bucket.to_string(),
                 key: object_name.clone(),
@@ -442,8 +454,14 @@ mod tests {
 
             match client.upload_part(upload_part_request).await {
                 Ok(upload_result) => {
-                    println!("Part {} uploaded successfully: {:?}", part_num, upload_result);
-                    assert!(upload_result.etag.is_some(), "ETag should be present in the response");
+                    println!(
+                        "Part {} uploaded successfully: {:?}",
+                        part_num, upload_result
+                    );
+                    assert!(
+                        upload_result.etag.is_some(),
+                        "ETag should be present in the response"
+                    );
                     parts.push(CompleteMultipartUploadPart {
                         part_number: part_num,
                         etag: upload_result.etag.unwrap().trim_matches('"').to_string(),
@@ -465,35 +483,61 @@ mod tests {
         match client.complete_multipart_upload(&complete_request).await {
             Ok(result) => {
                 println!("Multipart upload completed successfully: {:?}", result);
-                assert!(result.etag.is_some(), "ETag should be present in the response");
+                assert!(
+                    result.etag.is_some(),
+                    "ETag should be present in the response"
+                );
                 println!("Object created with ETag: {:?}", result.etag);
                 println!("Object location: {:?}", result.location);
-                
+
                 // Verify the content of the completed object
-                match client.get_object(GetObjectRequest {
-                    bucket: config.bucket.to_string(),
-                    key: object_name.clone(),
-                    ..Default::default()
-                }).await {
+                match client
+                    .get_object(GetObjectRequest {
+                        bucket: config.bucket.to_string(),
+                        key: object_name.clone(),
+                        ..Default::default()
+                    })
+                    .await
+                {
                     Ok(mut get_result) => {
-                        let actual_content_bytes = get_result.get_all_data().await.unwrap_or_default();
-                        let expected_content_string = String::from_utf8(expected_content).unwrap_or_default();
-                        let actual_content = String::from_utf8_lossy(&actual_content_bytes).into_owned();
-                        println!("Retrieved object size: {} bytes", actual_content_bytes.len());
-                        println!("Expected object size: {} bytes", expected_content_string.len());
-                        
+                        let actual_content_bytes =
+                            get_result.get_all_data().await.unwrap_or_default();
+                        let expected_content_string =
+                            String::from_utf8(expected_content).unwrap_or_default();
+                        let actual_content =
+                            String::from_utf8_lossy(&actual_content_bytes).into_owned();
+                        println!(
+                            "Retrieved object size: {} bytes",
+                            actual_content_bytes.len()
+                        );
+                        println!(
+                            "Expected object size: {} bytes",
+                            expected_content_string.len()
+                        );
+
                         // Compare the content
-                        assert_eq!(actual_content_bytes.len(), expected_content_string.len(), 
-                                   "Retrieved content length should match expected content length");
-                        assert_eq!(actual_content, expected_content_string, 
-                                   "Retrieved content should match expected content");
-                        
-                        println!("Content verification successful! Retrieved {} bytes", actual_content_bytes.len());
-                        
+                        assert_eq!(
+                            actual_content_bytes.len(),
+                            expected_content_string.len(),
+                            "Retrieved content length should match expected content length"
+                        );
+                        assert_eq!(
+                            actual_content, expected_content_string,
+                            "Retrieved content should match expected content"
+                        );
+
+                        println!(
+                            "Content verification successful! Retrieved {} bytes",
+                            actual_content_bytes.len()
+                        );
+
                         println!("Expected content: {}", expected_content_string);
                         println!("Actual content: {}", actual_content);
-                    },
-                    Err(err) => panic!("Failed to get object after multipart upload completion: {:?}", err),
+                    }
+                    Err(err) => panic!(
+                        "Failed to get object after multipart upload completion: {:?}",
+                        err
+                    ),
                 }
             }
             Err(err) => panic!("Complete multipart upload failed: {:?}", err),

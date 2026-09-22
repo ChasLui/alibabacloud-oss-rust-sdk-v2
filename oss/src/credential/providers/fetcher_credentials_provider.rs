@@ -9,6 +9,7 @@ const DEFAULT_EXPIRED_FACTOR: f64 = 0.8;
 const DEFAULT_REFRESH_DURATION: Duration = Duration::from_secs(120);
 
 #[async_trait::async_trait]
+#[allow(async_fn_in_trait)] // `async_trait` rewrites the signature; the lint fires on pre-expansion source
 /// Trait for fetching credentials.
 pub trait CredentialsFetcher: Send + Sync {
     /// Fetches the credentials asynchronously.
@@ -148,7 +149,8 @@ impl CredentialsFetcherProvider {
             // Expires has been set
             if let Ok(time_left) = expires.duration_since(SystemTime::now()) {
                 if time_left > self.refresh_duration {
-                    // Make sure the expiry window is not longer than the refresh duration
+                    // Make sure the expiry window is not longer than the
+                    // refresh duration
                     expiry_window =
                         Duration::from_secs_f64(time_left.as_secs_f64() * self.expired_factor);
                 }

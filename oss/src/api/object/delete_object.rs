@@ -14,7 +14,8 @@ pub struct DeleteObjectRequest {
     pub key: String,
 
     /// VersionId used to reference a specific version of the object.
-    /// Used to permanently delete a specific version of an object in a versioned bucket.
+    /// Used to permanently delete a specific version of an object in a
+    /// versioned bucket.
     #[field(type = "query", rename = "versionId")]
     pub version_id: Option<String>,
 
@@ -34,7 +35,7 @@ pub struct DeleteObjectResult {
     #[field(type = "header", rename = "x-oss-delete-marker")]
     pub delete_marker: Option<bool>,
 
-    /// The version ID of the object that was deleted or the version ID of the 
+    /// The version ID of the object that was deleted or the version ID of the
     /// delete marker that was created.
     #[field(type = "header", rename = "x-oss-version-id")]
     pub version_id: Option<String>,
@@ -113,19 +114,17 @@ impl Client {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-    use std::path::Path;
+
     use std::rc::Rc;
-    use std::sync::{Arc, Mutex};
 
     use super::*;
-    use crate::api::object::{PutObjectRequest, GetObjectRequest};
+    use crate::api::object::{GetObjectRequest, PutObjectRequest};
+    use crate::client::BodyDataReader;
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
+    use crate::test_utils::{generate_unique_object_name, load_test_config};
     use crate::SignatureVersionType;
-    use crate::test_utils::{load_test_config, TestConfig, generate_unique_object_name};
-    use crate::client::BodyDataReader;
 
     // Helper function to generate unique test object names
     // Using shared generate_unique_object_name from test_utils
@@ -161,7 +160,10 @@ mod tests {
         let put_request = PutObjectRequest {
             bucket: config.bucket.to_string(),
             key: object_name.clone(),
-            body: Some(crate::BodyContent::from_text(test_content.to_string(), None)),
+            body: Some(crate::BodyContent::from_text(
+                test_content.to_string(),
+                None,
+            )),
             ..Default::default()
         };
 
@@ -211,7 +213,8 @@ mod tests {
         };
         match client.get_object(get_request_after_delete).await {
             Ok(_result) => {
-                // In some cases with versioning, the object might still be accessible
+                // In some cases with versioning, the object might still be
+                // accessible
                 println!("Object may still be accessible due to versioning");
             }
             Err(_err) => {
@@ -258,35 +261,53 @@ mod tests {
         let put_request = PutObjectRequest {
             bucket: bucket_name.to_string(),
             key: object_name.clone(),
-            body: Some(crate::BodyContent::from_text(test_content.to_string(), None)),
+            body: Some(crate::BodyContent::from_text(
+                test_content.to_string(),
+                None,
+            )),
             ..Default::default()
         };
 
         match client.put_object(put_request).await {
             Ok(output) => println!("Object created for versioned deletion test: {:?}", output),
             Err(err) => {
-                eprintln!("Failed to create object for versioned deletion test: {:?}", err);
+                eprintln!(
+                    "Failed to create object for versioned deletion test: {:?}",
+                    err
+                );
                 // If using version bucket and it fails, try with regular bucket
                 if config.version_bucket.is_some() {
                     eprintln!("Trying with regular bucket instead of version bucket...");
                     let put_request = PutObjectRequest {
                         bucket: config.bucket.to_string(),
                         key: object_name.clone(),
-                        body: Some(crate::BodyContent::from_text(test_content.to_string(), None)),
+                        body: Some(crate::BodyContent::from_text(
+                            test_content.to_string(),
+                            None,
+                        )),
                         ..Default::default()
                     };
                     match client.put_object(put_request).await {
-                        Ok(output) => println!("Object created for versioned deletion test: {:?}", output),
-                        Err(err) => panic!("Failed to create object for versioned deletion test: {:?}", err),
+                        Ok(output) => {
+                            println!("Object created for versioned deletion test: {:?}", output)
+                        }
+                        Err(err) => panic!(
+                            "Failed to create object for versioned deletion test: {:?}",
+                            err
+                        ),
                     }
                 } else {
-                    panic!("Failed to create object for versioned deletion test: {:?}", err);
+                    panic!(
+                        "Failed to create object for versioned deletion test: {:?}",
+                        err
+                    );
                 }
             }
         };
 
-        // Now delete the object with a version ID (this would typically be a real version ID)
-        // For now, we'll just test that the request can be formed with a version ID
+        // Now delete the object with a version ID (this would typically be a
+        // real version ID) For now, we'll just test that the request
+        // can be formed with a version ID
         let delete_request = DeleteObjectRequest {
             bucket: bucket_name.to_string(),
             key: object_name.clone(),

@@ -31,8 +31,8 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `request` - The `CompleteBucketWormRequest` containing the bucket
-    ///   name and the ID of the retention policy.
+    /// * `request` - The `CompleteBucketWormRequest` containing the bucket name
+    ///   and the ID of the retention policy.
     ///
     /// # Examples
     ///
@@ -100,8 +100,8 @@ mod tests {
     use super::*;
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
-    use crate::SignatureVersionType;
     use crate::test_utils::load_test_config;
+    use crate::SignatureVersionType;
 
     #[tokio::test]
     #[serial_test::serial]
@@ -138,10 +138,9 @@ mod tests {
         let worm_id = client
             .initiate_bucket_worm(&crate::api::bucket::InitiateBucketWormRequest {
                 bucket: bucket_name.clone(),
-                initiate_worm_configuration:
-                    crate::api::bucket::InitiateWormConfiguration {
-                        retention_period_in_days: Some(1),
-                    },
+                initiate_worm_configuration: crate::api::bucket::InitiateWormConfiguration {
+                    retention_period_in_days: Some(1),
+                },
                 ..Default::default()
             })
             .await

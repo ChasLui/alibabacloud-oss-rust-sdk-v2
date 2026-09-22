@@ -139,7 +139,8 @@ mod tests {
         assert_eq!(parsed.block_public_access, Some(true));
 
         let parsed_false: PublicAccessBlockConfiguration = quick_xml::de::from_str(
-            "<PublicAccessBlockConfiguration><BlockPublicAccess>false</BlockPublicAccess></PublicAccessBlockConfiguration>",
+            "<PublicAccessBlockConfiguration><BlockPublicAccess>false</BlockPublicAccess></\
+             PublicAccessBlockConfiguration>",
         )
         .unwrap();
         assert_eq!(parsed_false.block_public_access, Some(false));

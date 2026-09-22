@@ -1,14 +1,11 @@
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use urlencoding;
 
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::modify_request;
 use crate::{OperationInput, OperationOutput};
-use crate::client::BodyDataReader;
-
 
 #[derive(Debug, Default, Clone, OssRequestModel)]
 pub struct ListPartsRequest {
@@ -68,7 +65,10 @@ pub struct ListPartsResult {
     pub part_number_marker: Option<i32>,
 
     /// The next part number marker if the results are truncated.
-    #[serde(rename = "NextPartNumberMarker", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "NextPartNumberMarker",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub next_part_number_marker: Option<i32>,
 
     /// The maximum number of parts returned.
@@ -140,7 +140,8 @@ pub struct Part {
 
     /// The last modified time of the part.
     #[serde(rename = "LastModified", skip_serializing_if = "Option::is_none")]
-    pub last_modified: Option<String>,  // Using String instead of DateTime to avoid deserialization issues
+    pub last_modified: Option<String>, /* Using String instead of DateTime to avoid
+                                        * deserialization issues */
 
     /// The ETag of the part.
     #[serde(rename = "ETag")]
@@ -151,10 +152,7 @@ pub struct Part {
     pub size: i64,
 
     /// The 64-bit CRC value of the part, per the ECMA-182 standard.
-    #[serde(
-        rename = "HashCrc64ecma",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "HashCrc64ecma", skip_serializing_if = "Option::is_none")]
     pub hash_crc64: Option<String>,
 }
 
@@ -167,8 +165,8 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `request` - The `ListPartsRequest` containing the necessary information
-    ///   for listing parts, including bucket, key, and upload ID.
+    /// * `request` - The `ListPartsRequest` containing the necessary
+    ///   information for listing parts, including bucket, key, and upload ID.
     ///
     /// # Returns
     ///
@@ -196,8 +194,10 @@ impl Client {
     ///     Ok(result) => {
     ///         println!("Found {} parts", result.parts.len());
     ///         for part in result.parts {
-    ///             println!("Part {}: ETag={}, Size={} bytes", 
-    ///                      part.part_number, part.etag, part.size);
+    ///             println!(
+    ///                 "Part {}: ETag={}, Size={} bytes",
+    ///                 part.part_number, part.etag, part.size
+    ///             );
     ///         }
     ///     }
     ///     Err(error) => {
@@ -215,22 +215,32 @@ impl Client {
             method: http::Method::GET,
             bucket: Some(request.bucket.clone()),
             key: Some(request.key.clone()),
-            parameters: [("uploadId", request.upload_id.clone()), ("encoding-type", "url".to_string())]
-                .iter()
-                .map(|(k, v)| (k.to_string(), v.to_string()))
-                .collect(),
+            parameters: [
+                ("uploadId", request.upload_id.clone()),
+                ("encoding-type", "url".to_string()),
+            ]
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
             ..Default::default()
         };
 
         // Add optional parameters
         if let Some(max_parts) = request.max_parts {
-            input.parameters.insert("max-parts".to_string(), max_parts.to_string());
+            input
+                .parameters
+                .insert("max-parts".to_string(), max_parts.to_string());
         }
         if let Some(part_number_marker) = request.part_number_marker {
-            input.parameters.insert("part-number-marker".to_string(), part_number_marker.to_string());
+            input.parameters.insert(
+                "part-number-marker".to_string(),
+                part_number_marker.to_string(),
+            );
         }
         if let Some(encoding_type) = &request.encoding_type {
-            input.parameters.insert("encoding-type".to_string(), encoding_type.clone());
+            input
+                .parameters
+                .insert("encoding-type".to_string(), encoding_type.clone());
         }
 
         modify_request(
@@ -249,7 +259,7 @@ impl Client {
 
         // Update the common fields from the response
         result.update_result(&output);
-        
+
         // Decode the object key when the response is URL-encoded. Mirrors Go
         // `unmarshalEncodeType` for ListPartsResult.
         let is_url_encoding = result
@@ -260,11 +270,11 @@ impl Client {
         if is_url_encoding {
             if let Some(key) = &mut result.key {
                 *key = urlencoding::decode(key)
-                    .unwrap_or_else(|_| std::borrow::Cow::Borrowed(key.as_str()))
+                    .unwrap_or(std::borrow::Cow::Borrowed(key.as_str()))
                     .into_owned();
             }
         }
-        
+
         Ok(result)
     }
 }
@@ -274,12 +284,14 @@ mod tests {
     use std::rc::Rc;
 
     use super::*;
-    use crate::api::object::{InitiateMultipartUploadRequest, UploadPartRequest, AbortMultipartUploadRequest};
+    use crate::api::object::{
+        AbortMultipartUploadRequest, InitiateMultipartUploadRequest, UploadPartRequest,
+    };
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
+    use crate::test_utils::{generate_unique_object_name, load_test_config};
     use crate::SignatureVersionType;
-    use crate::test_utils::{load_test_config, TestConfig, generate_unique_object_name};
 
     #[tokio::test]
     #[serial_test::serial]
@@ -357,36 +369,50 @@ mod tests {
             Ok(result) => {
                 println!("Found {} parts", result.parts.len());
                 for part in result.parts {
-                    println!("Part {}: ETag={}, Size={} bytes", 
-                             part.part_number, part.etag, part.size);
+                    println!(
+                        "Part {}: ETag={}, Size={} bytes",
+                        part.part_number, part.etag, part.size
+                    );
                 }
-                
+
                 // Clean up: abort the multipart upload to release resources
-                match client.abort_multipart_upload(&AbortMultipartUploadRequest {
-                    bucket: config.bucket.to_string(),
-                    key: object_name,
-                    upload_id: upload_id.clone(),
-                    ..Default::default()
-                }).await {
+                match client
+                    .abort_multipart_upload(&AbortMultipartUploadRequest {
+                        bucket: config.bucket.to_string(),
+                        key: object_name,
+                        upload_id: upload_id.clone(),
+                        ..Default::default()
+                    })
+                    .await
+                {
                     Ok(_) => println!("Successfully aborted multipart upload for cleanup"),
-                    Err(err) => eprintln!("Failed to abort multipart upload during cleanup: {:?}", err),
+                    Err(err) => {
+                        eprintln!("Failed to abort multipart upload during cleanup: {:?}", err)
+                    }
                 }
             }
             Err(err) => {
                 // Even if list parts fails, we should still clean up
                 eprintln!("List parts failed: {:?}", err);
-                
+
                 // Clean up: abort the multipart upload to release resources
-                match client.abort_multipart_upload(&AbortMultipartUploadRequest {
-                    bucket: config.bucket.to_string(),
-                    key: object_name,
-                    upload_id: upload_id.clone(),
-                    ..Default::default()
-                }).await {
-                    Ok(_) => println!("Successfully aborted multipart upload for cleanup after failure"),
-                    Err(err) => eprintln!("Failed to abort multipart upload during cleanup: {:?}", err),
+                match client
+                    .abort_multipart_upload(&AbortMultipartUploadRequest {
+                        bucket: config.bucket.to_string(),
+                        key: object_name,
+                        upload_id: upload_id.clone(),
+                        ..Default::default()
+                    })
+                    .await
+                {
+                    Ok(_) => {
+                        println!("Successfully aborted multipart upload for cleanup after failure")
+                    }
+                    Err(err) => {
+                        eprintln!("Failed to abort multipart upload during cleanup: {:?}", err)
+                    }
                 }
-                
+
                 panic!("List parts failed: {:?}", err);
             }
         }
@@ -455,7 +481,8 @@ mod tests {
             }
         }
 
-        // List parts with a marker to get only parts with numbers greater than 2
+        // List parts with a marker to get only parts with numbers greater than
+        // 2
         let list_request = ListPartsRequest {
             bucket: config.bucket.to_string(),
             key: object_name.clone(),
@@ -469,36 +496,50 @@ mod tests {
             Ok(result) => {
                 println!("Found {} parts with number > 2", result.parts.len());
                 for part in result.parts {
-                    println!("Part {}: ETag={}, Size={} bytes", 
-                             part.part_number, part.etag, part.size);
+                    println!(
+                        "Part {}: ETag={}, Size={} bytes",
+                        part.part_number, part.etag, part.size
+                    );
                 }
-                
+
                 // Clean up: abort the multipart upload to release resources
-                match client.abort_multipart_upload(&AbortMultipartUploadRequest {
-                    bucket: config.bucket.to_string(),
-                    key: object_name,
-                    upload_id: upload_id.clone(),
-                    ..Default::default()
-                }).await {
+                match client
+                    .abort_multipart_upload(&AbortMultipartUploadRequest {
+                        bucket: config.bucket.to_string(),
+                        key: object_name,
+                        upload_id: upload_id.clone(),
+                        ..Default::default()
+                    })
+                    .await
+                {
                     Ok(_) => println!("Successfully aborted multipart upload for cleanup"),
-                    Err(err) => eprintln!("Failed to abort multipart upload during cleanup: {:?}", err),
+                    Err(err) => {
+                        eprintln!("Failed to abort multipart upload during cleanup: {:?}", err)
+                    }
                 }
             }
             Err(err) => {
                 // Even if list parts fails, we should still clean up
                 eprintln!("List parts with marker failed: {:?}", err);
-                
+
                 // Clean up: abort the multipart upload to release resources
-                match client.abort_multipart_upload(&AbortMultipartUploadRequest {
-                    bucket: config.bucket.to_string(),
-                    key: object_name,
-                    upload_id: upload_id.clone(),
-                    ..Default::default()
-                }).await {
-                    Ok(_) => println!("Successfully aborted multipart upload for cleanup after failure"),
-                    Err(err) => eprintln!("Failed to abort multipart upload during cleanup: {:?}", err),
+                match client
+                    .abort_multipart_upload(&AbortMultipartUploadRequest {
+                        bucket: config.bucket.to_string(),
+                        key: object_name,
+                        upload_id: upload_id.clone(),
+                        ..Default::default()
+                    })
+                    .await
+                {
+                    Ok(_) => {
+                        println!("Successfully aborted multipart upload for cleanup after failure")
+                    }
+                    Err(err) => {
+                        eprintln!("Failed to abort multipart upload during cleanup: {:?}", err)
+                    }
                 }
-                
+
                 panic!("List parts with marker failed: {:?}", err);
             }
         }

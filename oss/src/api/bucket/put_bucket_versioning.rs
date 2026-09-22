@@ -112,11 +112,13 @@ mod tests {
     use std::rc::Rc;
 
     use super::*;
-    use crate::api::bucket::{CreateBucketRequest, DeleteBucketRequest, GetBucketVersioningRequest};
+    use crate::api::bucket::{
+        CreateBucketRequest, DeleteBucketRequest, GetBucketVersioningRequest,
+    };
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
-    use crate::SignatureVersionType;
     use crate::test_utils::{generate_unique_bucket_name, load_test_config};
+    use crate::SignatureVersionType;
 
     #[test]
     fn test_versioning_configuration_serde_round_trip() {
@@ -191,15 +193,8 @@ mod tests {
         let got = client
             .get_bucket_versioning(&GetBucketVersioningRequest::new(&bucket_name))
             .await;
-        assert!(
-            got.is_ok(),
-            "get_bucket_versioning failed: {:?}",
-            got.err()
-        );
-        assert_eq!(
-            got.unwrap().version_status.as_deref(),
-            Some("Enabled")
-        );
+        assert!(got.is_ok(), "get_bucket_versioning failed: {:?}", got.err());
+        assert_eq!(got.unwrap().version_status.as_deref(), Some("Enabled"));
 
         // Clean up: delete the bucket
         let _ = client

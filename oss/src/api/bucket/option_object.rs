@@ -1,10 +1,9 @@
-use crate::HTTP_HEADER_CONTENT_TYPE;
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-use crate::{OperationInput, OperationOutput};
+use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct OptionObjectRequest {
@@ -14,7 +13,8 @@ pub struct OptionObjectRequest {
     /// The full path of the object.
     pub key: String,
 
-    /// The origin of the request. It is used to identify a cross-origin request.
+    /// The origin of the request. It is used to identify a cross-origin
+    /// request.
     #[field(type = "header", rename = "Origin")]
     pub origin: Option<String>,
 
@@ -40,7 +40,8 @@ pub struct OptionObjectResult {
     #[field(type = "header", rename = "Access-Control-Allow-Headers")]
     pub access_control_allow_headers: Option<String>,
 
-    /// The list of headers that can be accessed by JavaScript applications on a client.
+    /// The list of headers that can be accessed by JavaScript applications on a
+    /// client.
     #[field(type = "header", rename = "Access-Control-Expose-Headers")]
     pub access_control_expose_headers: Option<String>,
 
@@ -62,13 +63,14 @@ pub struct OptionObjectResult {
 impl Client {
     /// Determines whether to send a cross-origin request. Before a cross-origin
     /// request is sent, the browser sends a preflight OPTIONS request that
-    /// includes a specific origin, HTTP method, and header information to Object
-    /// Storage Service (OSS) to determine whether to send the cross-origin request.
+    /// includes a specific origin, HTTP method, and header information to
+    /// Object Storage Service (OSS) to determine whether to send the
+    /// cross-origin request.
     ///
     /// # Arguments
     ///
-    /// * `request` - The `OptionObjectRequest` containing the bucket name, object
-    ///   key and the preflight origin/method/headers.
+    /// * `request` - The `OptionObjectRequest` containing the bucket name,
+    ///   object key and the preflight origin/method/headers.
     ///
     /// # Examples
     ///

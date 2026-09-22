@@ -110,7 +110,8 @@ fn serve_with_interruption(
                 )
             } else {
                 format!(
-                    "HTTP/1.1 206 Partial Content\r\nContent-Length: {}\r\nContent-Range: bytes {}-{}/{}\r\nETag: {}\r\n\r\n",
+                    "HTTP/1.1 206 Partial Content\r\nContent-Length: {}\r\nContent-Range: bytes \
+                     {}-{}/{}\r\nETag: {}\r\n\r\n",
                     remaining.len(),
                     start,
                     body.len() - 1,
@@ -145,7 +146,11 @@ fn a_dropped_connection_resumes_from_the_byte_it_stopped_at() {
     const SIZE: usize = 48 * 1024;
     let body: Vec<u8> = (0..SIZE).map(|i| (i % 251) as u8).collect();
     let split = SIZE / 3;
-    let (addr, server) = serve_with_interruption(body.clone(), split, vec!["\"v1\"".to_string(), "\"v1\"".to_string()]);
+    let (addr, server) = serve_with_interruption(
+        body.clone(),
+        split,
+        vec!["\"v1\"".to_string(), "\"v1\"".to_string()],
+    );
 
     let path = temp_path("resumed.bin");
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -233,7 +238,11 @@ fn a_changed_object_is_not_spliced_into_the_file() {
     let body: Vec<u8> = (0..SIZE).map(|i| (i % 131) as u8).collect();
     let split = SIZE / 2;
     // The object is replaced between the two attempts.
-    let (addr, server) = serve_with_interruption(body, split, vec!["\"v1\"".to_string(), "\"v2\"".to_string()]);
+    let (addr, server) = serve_with_interruption(
+        body,
+        split,
+        vec!["\"v1\"".to_string(), "\"v2\"".to_string()],
+    );
 
     let path = temp_path("changed.bin");
     let rt = tokio::runtime::Builder::new_current_thread()

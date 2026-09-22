@@ -5,8 +5,7 @@ use serde::Deserialize;
 
 use super::{CommonPrefix, Owner};
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, option_time_rfc3339_serde, update_content_md5};
 use crate::{OperationInput, OperationOutput};
 #[derive(Debug, Default, Clone, OssRequestModel)]
@@ -181,7 +180,10 @@ pub struct ListObjectVersionsResult {
     /// NextVersionIdMarker parameter is included in the response to indicate
     /// the version-id-marker value of the next ListObjectVersions
     /// (GetBucketVersions) request.
-    #[serde(rename = "NextVersionIdMarker", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "NextVersionIdMarker",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub next_version_id_marker: Option<String>,
 
     /// The container that stores delete markers.
@@ -242,23 +244,24 @@ fn decode_result(result: &mut ListObjectVersionsResult) {
         return;
     }
 
-    for field in [
+    for value in [
         &mut result.prefix,
         &mut result.key_marker,
         &mut result.delimiter,
         &mut result.next_key_marker,
-    ] {
-        if let Some(value) = field {
-            *value = urlencoding::decode(value)
-                .unwrap_or_else(|_| std::borrow::Cow::Borrowed(value.as_str()))
-                .into_owned();
-        }
+    ]
+    .into_iter()
+    .flatten()
+    {
+        *value = urlencoding::decode(value)
+            .unwrap_or(std::borrow::Cow::Borrowed(value.as_str()))
+            .into_owned();
     }
 
     for version in &mut result.object_versions {
         if let Some(key) = &mut version.key {
             *key = urlencoding::decode(key)
-                .unwrap_or_else(|_| std::borrow::Cow::Borrowed(key.as_str()))
+                .unwrap_or(std::borrow::Cow::Borrowed(key.as_str()))
                 .into_owned();
         }
     }
@@ -266,7 +269,7 @@ fn decode_result(result: &mut ListObjectVersionsResult) {
     for marker in &mut result.object_delete_markers {
         if let Some(key) = &mut marker.key {
             *key = urlencoding::decode(key)
-                .unwrap_or_else(|_| std::borrow::Cow::Borrowed(key.as_str()))
+                .unwrap_or(std::borrow::Cow::Borrowed(key.as_str()))
                 .into_owned();
         }
     }
@@ -274,14 +277,14 @@ fn decode_result(result: &mut ListObjectVersionsResult) {
     for mix in &mut result.object_versions_delete_markers {
         if let Some(key) = &mut mix.key {
             *key = urlencoding::decode(key)
-                .unwrap_or_else(|_| std::borrow::Cow::Borrowed(key.as_str()))
+                .unwrap_or(std::borrow::Cow::Borrowed(key.as_str()))
                 .into_owned();
         }
     }
 
     for prefix in &mut result.common_prefixes {
         prefix.prefix = urlencoding::decode(&prefix.prefix)
-            .unwrap_or_else(|_| std::borrow::Cow::Borrowed(prefix.prefix.as_str()))
+            .unwrap_or(std::borrow::Cow::Borrowed(prefix.prefix.as_str()))
             .into_owned();
     }
 }
@@ -476,8 +479,7 @@ mod tests {
             .replace("</Version>", "</ObjectMix>")
             .replace("<DeleteMarker>", "<ObjectMix>")
             .replace("</DeleteMarker>", "</ObjectMix>");
-        let mut result: ListObjectVersionsResult =
-            quick_xml::de::from_str(&replaced).unwrap();
+        let mut result: ListObjectVersionsResult = quick_xml::de::from_str(&replaced).unwrap();
         decode_result(&mut result);
 
         assert!(result.object_versions.is_empty());

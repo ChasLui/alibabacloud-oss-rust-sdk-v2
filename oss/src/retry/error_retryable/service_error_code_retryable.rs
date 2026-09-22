@@ -3,10 +3,7 @@ use crate::ServiceError;
 
 pub struct ServiceErrorCodeRetryable;
 
-static RETRY_SERVICE_ERROR_CODES: &[&str] = &[
-    "RequestTimeTooSkewed",
-    "BadRequest",
-];
+static RETRY_SERVICE_ERROR_CODES: &[&str] = &["RequestTimeTooSkewed", "BadRequest"];
 
 impl ErrorRetryable for ServiceErrorCodeRetryable {
     fn is_error_retryable(&self, err: &(dyn std::error::Error + 'static)) -> bool {
@@ -61,8 +58,7 @@ mod tests {
         err.message = "the request was a BadRequest in the past".to_string();
         assert!(!retryable.is_error_retryable(&err));
 
-        let non_service_error =
-            std::io::Error::new(std::io::ErrorKind::Other, "BadRequest");
+        let non_service_error = std::io::Error::new(std::io::ErrorKind::Other, "BadRequest");
         assert!(!retryable.is_error_retryable(&non_service_error));
     }
 }

@@ -1,14 +1,11 @@
-use crate::HTTP_HEADER_CONTENT_TYPE;
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::Deserialize;
 
 use super::put_bucket_replication::{ReplicationDestination, ReplicationPrefixSet};
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-use crate::OperationInput;
-use crate::OperationOutput;
+use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 /// The container that stores the progress of the data replication task.
 #[derive(Debug, Default, Deserialize)]
@@ -39,7 +36,10 @@ pub struct ReplicationProgressRule {
 
     /// Specifies whether to replicate historical data that exists before data
     /// replication is enabled.
-    #[serde(rename = "HistoricalObjectReplication", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "HistoricalObjectReplication",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub historical_object_replication: Option<String>,
 
     /// The container that stores the progress of the data replication task.

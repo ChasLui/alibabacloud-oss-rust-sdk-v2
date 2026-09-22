@@ -130,7 +130,12 @@ impl Client {
             std::rc::Rc::new(vec!["httpsConfig".to_string()]),
         );
 
-        modify_request(&mut input, request.header_map(), request.query_map(), vec![])?;
+        modify_request(
+            &mut input,
+            request.header_map(),
+            request.query_map(),
+            vec![],
+        )?;
 
         let mut output = self.invoke_operation(input, vec![]).await?;
 
@@ -176,12 +181,17 @@ mod tests {
         assert!(xml.contains("<TLSVersion>TLSv1.3</TLSVersion>"));
         assert!(xml.contains("<StrongCipherSuite>true</StrongCipherSuite>"));
         assert!(xml.contains("<CustomCipherSuite>ECDHE-RSA-AES128-GCM-SHA256</CustomCipherSuite>"));
-        assert!(xml.contains("<TLS13CustomCipherSuite>TLS_AES_128_GCM_SHA256</TLS13CustomCipherSuite>"));
+        assert!(
+            xml.contains("<TLS13CustomCipherSuite>TLS_AES_128_GCM_SHA256</TLS13CustomCipherSuite>")
+        );
 
         let parsed: HttpsConfiguration = quick_xml::de::from_str(&xml).unwrap();
         let tls = parsed.tls.unwrap();
         assert_eq!(tls.enable, Some(true));
-        assert_eq!(tls.tls_versions, vec!["TLSv1.2".to_string(), "TLSv1.3".to_string()]);
+        assert_eq!(
+            tls.tls_versions,
+            vec!["TLSv1.2".to_string(), "TLSv1.3".to_string()]
+        );
         let cipher_suite = parsed.cipher_suite.unwrap();
         assert_eq!(cipher_suite.strong_cipher_suite, Some(true));
         assert_eq!(

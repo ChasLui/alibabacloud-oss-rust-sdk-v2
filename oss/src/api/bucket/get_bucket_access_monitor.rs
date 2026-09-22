@@ -2,10 +2,9 @@ use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::{Deserialize, Serialize};
 
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_length};
-use crate::{OperationOutput, OperationInput, HTTP_HEADER_CONTENT_TYPE};
+use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 /// The container that stores the access monitor configuration.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct AccessMonitorConfiguration {
@@ -116,6 +115,7 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use std::rc::Rc;
+
     use super::*;
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;

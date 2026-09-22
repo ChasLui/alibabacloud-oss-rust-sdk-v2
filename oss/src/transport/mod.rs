@@ -1,14 +1,10 @@
-mod dialer;
 mod http;
 
-use std::io;
-use std::sync::Arc;
 use std::time::Duration;
 
 use reqwest::tls;
 use url::Url;
 
-pub use self::dialer::*;
 pub use self::http::*;
 
 pub const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -24,7 +20,6 @@ pub const DEFAULT_TLS_MIN_VERSION: tls::Version = tls::Version::TLS_1_2;
 /// # Note
 ///
 /// All fields are optional for merging other configurations
-#[allow(clippy::type_complexity)]
 #[derive(Clone)]
 pub struct TransportConfig {
     /// The timeout for establishing a connection.
@@ -37,16 +32,6 @@ pub struct TransportConfig {
     pub keep_alive_timeout: Option<Duration>,
     /// Indicates whether redirects are enabled.
     pub enabled_redirect: Option<bool>,
-    /// A list of functions to be executed after reading from the connection.
-    ///
-    /// Each callback receives the result of the read and the number of bytes
-    /// it moved.
-    pub post_read: Option<Vec<Arc<dyn Fn(&io::Result<usize>, usize) + Send + Sync>>>,
-    /// A list of functions to be executed after writing to the connection.
-    ///
-    /// Each callback receives the result of the write and the number of bytes
-    /// it moved.
-    pub post_write: Option<Vec<Arc<dyn Fn(&io::Result<usize>, usize) + Send + Sync>>>,
     /// Indicates whether to skip verification of TLS certificates.
     pub insecure_skip_verify: Option<bool>,
     /// The maximum number of connections to keep open.
@@ -68,8 +53,6 @@ impl Default for TransportConfig {
             idle_connection_timeout: Some(DEFAULT_IDLE_CONNECTION_TIMEOUT),
             keep_alive_timeout: Some(DEFAULT_KEEP_ALIVE_TIMEOUT),
             enabled_redirect: None,
-            post_read: None,
-            post_write: None,
             insecure_skip_verify: None,
             max_connections: None,
             tls_min_version: None,
@@ -97,12 +80,6 @@ impl TransportConfig {
         }
         if let Some(enabled_redirect) = other.enabled_redirect {
             self.enabled_redirect = Some(enabled_redirect);
-        }
-        if let Some(post_read) = &other.post_read {
-            self.post_read = Some(post_read.clone());
-        }
-        if let Some(post_write) = &other.post_write {
-            self.post_write = Some(post_write.clone());
         }
         if let Some(insecure_skip_verify) = other.insecure_skip_verify {
             self.insecure_skip_verify = Some(insecure_skip_verify);
@@ -142,8 +119,6 @@ mod tests {
             tls_min_version: Some(tls::Version::TLS_1_3),
             all_proxy: Some(Url::parse("http://proxy.example.com").unwrap()),
             use_env_proxy: Some(false),
-            post_read: Some(vec![Arc::new(|_, _| {})]),
-            post_write: Some(vec![Arc::new(|_, _| {})]),
         };
 
         // Merge config2 into config1
@@ -166,7 +141,5 @@ mod tests {
             Some(Url::parse("http://proxy.example.com").unwrap())
         );
         assert_eq!(config1.use_env_proxy, Some(false));
-        assert_eq!(config1.post_read.unwrap().len(), 1);
-        assert_eq!(config1.post_write.unwrap().len(), 1);
     }
 }

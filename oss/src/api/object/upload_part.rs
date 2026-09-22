@@ -1,6 +1,3 @@
-use std::io::Read;
-use std::sync::{Arc, Mutex};
-
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 
 use crate::api::{RequestCommon, ResultCommon};
@@ -23,7 +20,8 @@ pub struct UploadPartRequest {
     pub part_number: i32,
 
     /// The upload ID of the multipart upload.
-    /// uploadId is used to uniquely identify which Object the uploaded Part belongs to.
+    /// uploadId is used to uniquely identify which Object the uploaded Part
+    /// belongs to.
     #[field(type = "query", rename = "uploadId")]
     pub upload_id: String,
 
@@ -72,15 +70,16 @@ pub struct UploadPartResult {
 impl Client {
     /// Uploads a part to the OSS bucket as part of a multipart upload.
     ///
-    /// This method sends a PUT request with the part number and upload ID parameters
-    /// to upload a part of the object as part of a multipart upload. The part number
-    /// must be between 1 and 10000. Each upload of the same part number will overwrite
-    /// the previous data.
+    /// This method sends a PUT request with the part number and upload ID
+    /// parameters to upload a part of the object as part of a multipart
+    /// upload. The part number must be between 1 and 10000. Each upload of
+    /// the same part number will overwrite the previous data.
     ///
     /// # Arguments
     ///
-    /// * `request` - The `UploadPartRequest` containing the necessary information
-    ///   for the part upload, including bucket, key, part number, upload ID, and the part data.
+    /// * `request` - The `UploadPartRequest` containing the necessary
+    ///   information for the part upload, including bucket, key, part number,
+    ///   upload ID, and the part data.
     ///
     /// # Returns
     ///
@@ -101,7 +100,7 @@ impl Client {
     /// let request = UploadPartRequest {
     ///     bucket: "my-bucket".to_string(),
     ///     key: "my-object".to_string(),
-    ///     part_number: 1,  // part number must be between 1 and 10000
+    ///     part_number: 1, // part number must be between 1 and 10000
     ///     upload_id: "upload-id-from-initiate-multipart-upload".to_string(),
     ///     body: Some(BodyContent::from_bytes(part_data.to_vec(), None)),
     ///     ..Default::default()
@@ -142,12 +141,7 @@ impl Client {
             ..Default::default()
         };
 
-        modify_request(
-            &mut input,
-            headers,
-            queries,
-            vec![update_content_length],
-        )?;
+        modify_request(&mut input, headers, queries, vec![update_content_length])?;
 
         // Client-side CRC64 check over the bytes actually sent. Mirrors Go
         // `Client.UploadPart`'s `c.addCrcCheck`.
@@ -182,15 +176,14 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use std::rc::Rc;
-    use std::sync::{Arc, Mutex};
 
     use super::*;
-    use crate::api::object::{InitiateMultipartUploadRequest, AbortMultipartUploadRequest};
+    use crate::api::object::{AbortMultipartUploadRequest, InitiateMultipartUploadRequest};
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
+    use crate::test_utils::{generate_unique_object_name, load_test_config};
     use crate::SignatureVersionType;
-    use crate::test_utils::{load_test_config, TestConfig, generate_unique_object_name};
 
     #[tokio::test]
     #[serial_test::serial]
@@ -240,7 +233,7 @@ mod tests {
         let upload_part_request = UploadPartRequest {
             bucket: config.bucket.to_string(),
             key: object_name.clone(),
-            part_number: 1,  // part number must be between 1 and 10000
+            part_number: 1, // part number must be between 1 and 10000
             upload_id: upload_id.clone(),
             body: Some(crate::BodyContent::from_bytes(part_data.to_vec(), None)),
             ..Default::default()
@@ -249,34 +242,49 @@ mod tests {
         match client.upload_part(upload_part_request).await {
             Ok(result) => {
                 println!("Part uploaded successfully: {:?}", result);
-                assert!(result.etag.is_some(), "ETag should be present in the response");
+                assert!(
+                    result.etag.is_some(),
+                    "ETag should be present in the response"
+                );
                 println!("Got ETag: {:?}", result.etag);
 
                 // Clean up: abort the multipart upload to release resources
-                match client.abort_multipart_upload(&AbortMultipartUploadRequest {
-                    bucket: config.bucket.to_string(),
-                    key: object_name,
-                    upload_id: upload_id.clone(),
-                    ..Default::default()
-                }).await {
+                match client
+                    .abort_multipart_upload(&AbortMultipartUploadRequest {
+                        bucket: config.bucket.to_string(),
+                        key: object_name,
+                        upload_id: upload_id.clone(),
+                        ..Default::default()
+                    })
+                    .await
+                {
                     Ok(_) => println!("Successfully aborted multipart upload for cleanup"),
-                    Err(err) => eprintln!("Failed to abort multipart upload during cleanup: {:?}", err),
+                    Err(err) => {
+                        eprintln!("Failed to abort multipart upload during cleanup: {:?}", err)
+                    }
                 }
             }
             Err(err) => {
                 eprintln!("Upload part failed: {:?}", err);
-                
+
                 // Even if upload part fails, we should still clean up
-                match client.abort_multipart_upload(&AbortMultipartUploadRequest {
-                    bucket: config.bucket.to_string(),
-                    key: object_name,
-                    upload_id: upload_id.clone(),
-                    ..Default::default()
-                }).await {
-                    Ok(_) => println!("Successfully aborted multipart upload for cleanup after failure"),
-                    Err(err) => eprintln!("Failed to abort multipart upload during cleanup: {:?}", err),
+                match client
+                    .abort_multipart_upload(&AbortMultipartUploadRequest {
+                        bucket: config.bucket.to_string(),
+                        key: object_name,
+                        upload_id: upload_id.clone(),
+                        ..Default::default()
+                    })
+                    .await
+                {
+                    Ok(_) => {
+                        println!("Successfully aborted multipart upload for cleanup after failure")
+                    }
+                    Err(err) => {
+                        eprintln!("Failed to abort multipart upload during cleanup: {:?}", err)
+                    }
                 }
-                
+
                 panic!("Upload part failed: {:?}", err);
             }
         }
@@ -342,22 +350,32 @@ mod tests {
             match client.upload_part(upload_part_request).await {
                 Ok(result) => {
                     println!("Part {} uploaded successfully: {:?}", part_num, result);
-                    assert!(result.etag.is_some(), "ETag should be present in the response");
+                    assert!(
+                        result.etag.is_some(),
+                        "ETag should be present in the response"
+                    );
                     part_etags.push(result.etag.unwrap());
                 }
                 Err(err) => panic!("Upload part {} failed: {:?}", part_num, err),
             }
         }
 
-        println!("Uploaded {} parts with ETags: {:?}", part_etags.len(), part_etags);
-        
+        println!(
+            "Uploaded {} parts with ETags: {:?}",
+            part_etags.len(),
+            part_etags
+        );
+
         // Clean up: abort the multipart upload to release resources
-        match client.abort_multipart_upload(&AbortMultipartUploadRequest {
-            bucket: config.bucket.to_string(),
-            key: object_name,
-            upload_id: upload_id.clone(),
-            ..Default::default()
-        }).await {
+        match client
+            .abort_multipart_upload(&AbortMultipartUploadRequest {
+                bucket: config.bucket.to_string(),
+                key: object_name,
+                upload_id: upload_id.clone(),
+                ..Default::default()
+            })
+            .await
+        {
             Ok(_) => println!("Successfully aborted multipart upload for cleanup"),
             Err(err) => eprintln!("Failed to abort multipart upload during cleanup: {:?}", err),
         }

@@ -14,14 +14,14 @@
 //!   the completed multipart upload and compared with the source's CRC from
 //!   `HeadObject`. A mismatch means the copy is known to be wrong, and the
 //!   parts are aborted rather than completed.
-//! - `MetadataDirective: COPY` must send *no* metadata: the service fills it
-//!   in from the source. Sending the caller's own headers under `COPY` would
+//! - `MetadataDirective: COPY` must send *no* metadata: the service fills it in
+//!   from the source. Sending the caller's own headers under `COPY` would
 //!   silently override them, so they are filtered out of the initiate request
 //!   and the source's own metadata is supplied instead.
-//! - A part copy takes no conditional headers of its own: `IfMatch` and
-//!   friends describe the *source* and belong on the single-copy path, which
-//!   is where a race between the source changing and the copy taking place is
-//!   actually detectable.
+//! - A part copy takes no conditional headers of its own: `IfMatch` and friends
+//!   describe the *source* and belong on the single-copy path, which is where a
+//!   race between the source changing and the copy taking place is actually
+//!   detectable.
 
 use std::collections::HashMap;
 
@@ -274,7 +274,7 @@ impl Client {
             match attempt.await {
                 Ok(Ok(result)) => return Ok(result),
                 Ok(Err(err)) => {
-                    if !is_entity_too_large(&err) {
+                    if !is_entity_too_large(&*err) {
                         return Err(err);
                     }
                 }
@@ -454,12 +454,10 @@ impl Client {
                             ..Default::default()
                         })
                         .await?;
-                    Ok::<_, Box<dyn std::error::Error + Send + Sync>>(
-                        CompleteMultipartUploadPart {
-                            part_number,
-                            etag: result.etag.clone().unwrap_or_default(),
-                        },
-                    )
+                    Ok::<_, Box<dyn std::error::Error + Send + Sync>>(CompleteMultipartUploadPart {
+                        part_number,
+                        etag: result.etag.clone().unwrap_or_default(),
+                    })
                 }
             },
         ))
@@ -622,7 +620,7 @@ const SHALLOW_COPY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs
 
 /// Whether the service rejected the copy specifically for exceeding its
 /// single-request limit, which is the one rejection a multipart copy can fix.
-fn is_entity_too_large(err: &Box<dyn std::error::Error + Send + Sync>) -> bool {
+fn is_entity_too_large(err: &(dyn std::error::Error + Send + Sync + 'static)) -> bool {
     err.downcast_ref::<crate::ServiceError>()
         .map(|service_error| service_error.error_code() == "EntityTooLarge")
         .unwrap_or(false)
@@ -761,7 +759,10 @@ mod tests {
             .mock("POST", mockito::Matcher::Any)
             .match_query(mockito::Matcher::Regex("uploads".to_string()))
             .with_status(200)
-            .with_body("<InitiateMultipartUploadResult><Bucket>dest-bucket</Bucket><Key>dest-key</Key><UploadId>upload-9</UploadId></InitiateMultipartUploadResult>")
+            .with_body(
+                "<InitiateMultipartUploadResult><Bucket>dest-bucket</Bucket><Key>dest-key</\
+                 Key><UploadId>upload-9</UploadId></InitiateMultipartUploadResult>",
+            )
             .expect(1)
             .create_async()
             .await;
@@ -790,7 +791,10 @@ mod tests {
             .match_query(mockito::Matcher::Regex("uploadId=upload-9".to_string()))
             .with_status(200)
             .with_header("x-oss-hash-crc64ecma", source_crc)
-            .with_body("<CompleteMultipartUploadResult><ETag>\"final\"</ETag></CompleteMultipartUploadResult>")
+            .with_body(
+                "<CompleteMultipartUploadResult><ETag>\"final\"</ETag></\
+                 CompleteMultipartUploadResult>",
+            )
             .expect(1)
             .create_async()
             .await;
@@ -834,7 +838,10 @@ mod tests {
             .mock("POST", mockito::Matcher::Any)
             .match_query(mockito::Matcher::Regex("uploads".to_string()))
             .with_status(200)
-            .with_body("<InitiateMultipartUploadResult><UploadId>upload-err</UploadId></InitiateMultipartUploadResult>")
+            .with_body(
+                "<InitiateMultipartUploadResult><UploadId>upload-err</UploadId></\
+                 InitiateMultipartUploadResult>",
+            )
             .create_async()
             .await;
         // Every part fails.
@@ -925,7 +932,10 @@ mod tests {
             .mock("POST", mockito::Matcher::Any)
             .match_query(mockito::Matcher::Regex("uploads".to_string()))
             .with_status(200)
-            .with_body("<InitiateMultipartUploadResult><UploadId>upload-crc</UploadId></InitiateMultipartUploadResult>")
+            .with_body(
+                "<InitiateMultipartUploadResult><UploadId>upload-crc</UploadId></\
+                 InitiateMultipartUploadResult>",
+            )
             .create_async()
             .await;
         let mut part_mocks = Vec::new();
@@ -946,7 +956,10 @@ mod tests {
             .match_query(mockito::Matcher::Regex("uploadId=upload-crc".to_string()))
             .with_status(200)
             .with_header("x-oss-hash-crc64ecma", "222")
-            .with_body("<CompleteMultipartUploadResult><ETag>\"final\"</ETag></CompleteMultipartUploadResult>")
+            .with_body(
+                "<CompleteMultipartUploadResult><ETag>\"final\"</ETag></\
+                 CompleteMultipartUploadResult>",
+            )
             .create_async()
             .await;
 

@@ -201,7 +201,8 @@ mod tests {
         .unwrap();
         assert_eq!(
             xml,
-            "<RestoreRequest><Days>2</Days><JobParameters><Tier>Expedited</Tier></JobParameters></RestoreRequest>"
+            "<RestoreRequest><Days>2</Days><JobParameters><Tier>Expedited</Tier></JobParameters></\
+             RestoreRequest>"
         );
 
         // JobParameters takes precedence over the deprecated top-level tier.
@@ -215,7 +216,8 @@ mod tests {
         .unwrap();
         assert_eq!(
             xml,
-            "<RestoreRequest><Days>2</Days><JobParameters><Tier>Standard</Tier></JobParameters></RestoreRequest>"
+            "<RestoreRequest><Days>2</Days><JobParameters><Tier>Standard</Tier></JobParameters></\
+             RestoreRequest>"
         );
     }
 

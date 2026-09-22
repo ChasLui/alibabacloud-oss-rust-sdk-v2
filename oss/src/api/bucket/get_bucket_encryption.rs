@@ -18,7 +18,10 @@ pub struct GetBucketEncryptionRequest {
 #[derive(Debug, Default, Deserialize, OssResultModel)]
 pub struct GetBucketEncryptionResult {
     /// The container that stores the default server-side encryption method.
-    #[serde(rename = "ApplyServerSideEncryptionByDefault", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "ApplyServerSideEncryptionByDefault",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub apply_server_side_encryption_by_default: Option<SSERule>,
 
     /// Common result fields
@@ -50,7 +53,10 @@ impl Client {
     ///
     /// match client.get_bucket_encryption(&request).await {
     ///     Ok(result) => {
-    ///         println!("Bucket encryption: {:?}", result.apply_server_side_encryption_by_default);
+    ///         println!(
+    ///             "Bucket encryption: {:?}",
+    ///             result.apply_server_side_encryption_by_default
+    ///         );
     ///     }
     ///     Err(error) => {
     ///         eprintln!("Failed to get bucket encryption: {}", error);
@@ -82,7 +88,12 @@ impl Client {
             std::rc::Rc::new(vec!["encryption".to_string()]),
         );
 
-        modify_request(&mut input, request.header_map(), request.query_map(), vec![])?;
+        modify_request(
+            &mut input,
+            request.header_map(),
+            request.query_map(),
+            vec![],
+        )?;
 
         let mut output = self.invoke_operation(input, vec![]).await?;
 
@@ -154,7 +165,10 @@ mod tests {
             "get_bucket_encryption failed: {:?}",
             result.err()
         );
-        let rule = result.unwrap().apply_server_side_encryption_by_default.unwrap();
+        let rule = result
+            .unwrap()
+            .apply_server_side_encryption_by_default
+            .unwrap();
         assert_eq!(rule.sse_algorithm.as_deref(), Some("AES256"));
 
         // Clean up

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-use crate::{OperationOutput, BodyContent, OperationInput, HTTP_HEADER_CONTENT_TYPE};
+use crate::{BodyContent, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 /// The container that stores the IDs of the data replication rules to delete.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -40,8 +40,8 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `request` - The `DeleteBucketReplicationRequest` containing the
-    ///   bucket name and the IDs of the replication rules to delete.
+    /// * `request` - The `DeleteBucketReplicationRequest` containing the bucket
+    ///   name and the IDs of the replication rules to delete.
     ///
     /// # Examples
     ///

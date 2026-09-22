@@ -1,14 +1,12 @@
-use crate::HTTP_HEADER_CONTENT_TYPE;
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::Deserialize;
 
 use super::create_access_point_for_object_process::AccessPointEndpoints;
 use crate::api::service::PublicAccessBlockConfiguration;
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_md5};
-use crate::{OperationInput, OperationOutput};
+use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct GetAccessPointForObjectProcessRequest {
@@ -29,22 +27,36 @@ pub struct GetAccessPointForObjectProcessRequest {
 #[serde(rename = "GetAccessPointForObjectProcessResult")]
 pub struct GetAccessPointForObjectProcessResult {
     /// Whether allow anonymous user to access this FC Access Point.
-    #[serde(rename = "AllowAnonymousAccessForObjectProcess", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "AllowAnonymousAccessForObjectProcess",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub allow_anonymous_access_for_object_process: Option<String>,
 
-    /// The container in which the Block Public Access configurations are stored.
-    #[serde(rename = "PublicAccessBlockConfiguration", skip_serializing_if = "Option::is_none")]
+    /// The container in which the Block Public Access configurations are
+    /// stored.
+    #[serde(
+        rename = "PublicAccessBlockConfiguration",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub public_access_block_configuration: Option<PublicAccessBlockConfiguration>,
 
     /// The name of the Object FC Access Point.
-    #[serde(rename = "AccessPointNameForObjectProcess", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "AccessPointNameForObjectProcess",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub access_point_name_for_object_process: Option<String>,
 
     /// The ARN of the Object FC Access Point.
-    #[serde(rename = "AccessPointForObjectProcessArn", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "AccessPointForObjectProcessArn",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub access_point_for_object_process_arn: Option<String>,
 
-    /// The time when the Object FC Access Point was created. The value is a timestamp.
+    /// The time when the Object FC Access Point was created. The value is a
+    /// timestamp.
     #[serde(rename = "CreationDate", skip_serializing_if = "Option::is_none")]
     pub creation_date: Option<String>,
 
@@ -58,7 +70,10 @@ pub struct GetAccessPointForObjectProcessResult {
     pub endpoints: Option<AccessPointEndpoints>,
 
     /// The alias of the Object FC Access Point.
-    #[serde(rename = "AccessPointForObjectProcessAlias", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "AccessPointForObjectProcessAlias",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub access_point_for_object_process_alias: Option<String>,
 
     /// The name of the access point.
@@ -99,7 +114,10 @@ impl Client {
     ///
     /// match client.get_access_point_for_object_process(&request).await {
     ///     Ok(result) => {
-    ///         println!("Access point status: {:?}", result.access_point_for_object_process_status);
+    ///         println!(
+    ///             "Access point status: {:?}",
+    ///             result.access_point_for_object_process_status
+    ///         );
     ///     }
     ///     Err(error) => {
     ///         eprintln!("Failed to get access point for object process: {}", error);
@@ -143,8 +161,7 @@ impl Client {
 
         let body_data = output.get_all_data().await?;
         let data_str = String::from_utf8_lossy(&body_data);
-        let mut result: GetAccessPointForObjectProcessResult =
-            quick_xml::de::from_str(&data_str)?;
+        let mut result: GetAccessPointForObjectProcessResult = quick_xml::de::from_str(&data_str)?;
         result.update_result(&output);
 
         Ok(result)

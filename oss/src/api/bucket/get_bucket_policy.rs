@@ -77,14 +77,21 @@ impl Client {
             std::rc::Rc::new(vec!["policy".to_string()]),
         );
 
-        modify_request(&mut input, request.header_map(), request.query_map(), vec![])?;
+        modify_request(
+            &mut input,
+            request.header_map(),
+            request.query_map(),
+            vec![],
+        )?;
 
         let mut output = self.invoke_operation(input, vec![]).await?;
 
         // The response body is a plain JSON policy text, not XML.
         let body_data = output.get_all_data().await?;
-        let mut result = GetBucketPolicyResult::default();
-        result.policy = Some(String::from_utf8_lossy(&body_data).into_owned());
+        let mut result = GetBucketPolicyResult {
+            policy: Some(String::from_utf8_lossy(&body_data).into_owned()),
+            ..Default::default()
+        };
         result.update_result(&output);
 
         Ok(result)
@@ -125,7 +132,8 @@ mod tests {
 
         // Prepare a bucket policy
         let policy = format!(
-            "{{\"Version\":\"1\",\"Statement\":[{{\"Action\":[\"oss:GetObject\"],\"Effect\":\"Deny\",\"Principal\":[\"1234567890\"],\"Resource\":[\"acs:oss:*:*:{}/*\"]}}]}}",
+            "{{\"Version\":\"1\",\"Statement\":[{{\"Action\":[\"oss:GetObject\"],\"Effect\":\"\
+             Deny\",\"Principal\":[\"1234567890\"],\"Resource\":[\"acs:oss:*:*:{}/*\"]}}]}}",
             config.bucket
         );
         client

@@ -1,15 +1,10 @@
-use std::sync::{Arc, Mutex};
-use crate::BodyContent;
-
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::{Deserialize, Serialize};
 
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_length, update_content_md5, xml_escape_str_ser};
-use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
-use crate::client::BodyDataReader;
-
+use crate::{BodyContent, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, Serialize, OssRequestModel)]
 pub struct DeleteMultipleObjectsRequest {
@@ -89,7 +84,10 @@ pub struct DeleteInfo {
     pub delete_marker: Option<bool>,
 
     /// The version ID of the delete marker.
-    #[serde(rename = "DeleteMarkerVersionId", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "DeleteMarkerVersionId",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub delete_marker_version_id: Option<String>,
 }
 
@@ -173,13 +171,12 @@ impl Client {
             request.query_map(),
             vec![update_content_md5, update_content_length],
         )?;
-        
+
         let mut output = self.invoke_operation(input, vec![]).await?;
 
         let body_data = output.get_all_data().await?;
         let data_str = String::from_utf8_lossy(&body_data);
-        let mut result: DeleteMultipleObjectsResult =
-            quick_xml::de::from_str(&data_str)?;
+        let mut result: DeleteMultipleObjectsResult = quick_xml::de::from_str(&data_str)?;
 
         result.update_result(&output);
 

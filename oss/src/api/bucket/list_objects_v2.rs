@@ -5,11 +5,9 @@ use urlencoding;
 use super::CommonPrefix;
 use crate::api::object::ObjectProperties;
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_md5};
 use crate::{OperationInput, OperationOutput, DEFAULT_CONTENT_TYPE, HTTP_HEADER_CONTENT_TYPE};
-use crate::client::BodyDataReader;
-
 
 #[derive(Debug, Default, Clone, OssRequestModel)]
 pub struct ListObjectsV2Request {
@@ -107,7 +105,10 @@ pub struct ListObjectsV2Result {
     /// The name of the object from which the next ListObjectsV2 (GetBucketV2)
     /// operation starts. The NextContinuationToken value is used as the
     /// ContinuationToken value to query subsequent results.
-    #[serde(rename = "NextContinuationToken", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "NextContinuationToken",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub next_continuation_token: Option<String>,
 
     /// The encoding type of the content in the response.
@@ -144,31 +145,32 @@ fn decode_result(result: &mut ListObjectsV2Result) {
         return;
     }
 
-    for field in [
+    for value in [
         &mut result.prefix,
         &mut result.start_after,
         &mut result.delimiter,
         &mut result.continuation_token,
         &mut result.next_continuation_token,
-    ] {
-        if let Some(value) = field {
-            *value = urlencoding::decode(value)
-                .unwrap_or_else(|_| std::borrow::Cow::Borrowed(value.as_str()))
-                .into_owned();
-        }
+    ]
+    .into_iter()
+    .flatten()
+    {
+        *value = urlencoding::decode(value)
+            .unwrap_or(std::borrow::Cow::Borrowed(value.as_str()))
+            .into_owned();
     }
 
     for obj in &mut result.contents {
         if let Some(key) = &mut obj.key {
             *key = urlencoding::decode(key)
-                .unwrap_or_else(|_| std::borrow::Cow::Borrowed(key.as_str()))
+                .unwrap_or(std::borrow::Cow::Borrowed(key.as_str()))
                 .into_owned();
         }
     }
 
     for prefix in &mut result.common_prefixes {
         prefix.prefix = urlencoding::decode(&prefix.prefix)
-            .unwrap_or_else(|_| std::borrow::Cow::Borrowed(prefix.prefix.as_str()))
+            .unwrap_or(std::borrow::Cow::Borrowed(prefix.prefix.as_str()))
             .into_owned();
     }
 }
@@ -239,13 +241,12 @@ impl Client {
 
         let body_data = output.get_all_data().await?;
         let data_str = String::from_utf8_lossy(&body_data);
-        let mut result: ListObjectsV2Result =
-            quick_xml::de::from_str(&data_str)?;
+        let mut result: ListObjectsV2Result = quick_xml::de::from_str(&data_str)?;
 
         result.update_result(&output);
-        
+
         decode_result(&mut result);
-        
+
         Ok(result)
     }
 }
@@ -253,15 +254,14 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use std::rc::Rc;
-    use std::sync::{Arc, Mutex};
 
     use super::*;
-    use crate::api::object::{PutObjectRequest, DeleteObjectRequest};
+    use crate::api::object::{DeleteObjectRequest, PutObjectRequest};
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
+    use crate::test_utils::{generate_unique_object_name, load_test_config};
     use crate::SignatureVersionType;
-    use crate::test_utils::{load_test_config, TestConfig, generate_unique_object_name};
 
     #[tokio::test]
     #[serial_test::serial]
@@ -306,7 +306,10 @@ mod tests {
             let put_request = PutObjectRequest {
                 bucket: config.bucket.to_string(),
                 key: object_key.to_string(),
-                body: Some(crate::BodyContent::from_bytes(content.as_bytes().to_vec(), None)),
+                body: Some(crate::BodyContent::from_bytes(
+                    content.as_bytes().to_vec(),
+                    None,
+                )),
                 ..Default::default()
             };
 
@@ -317,20 +320,25 @@ mod tests {
                 }
                 Err(err) => {
                     eprintln!("Failed to upload object {}: {:?}", object_key, err);
-                    
+
                     // Clean up any objects that were already uploaded
                     cleanup_test_objects(&client, &config.bucket, &uploaded_objects).await;
-                    
+
                     panic!("Failed to upload object {}: {:?}", object_key, err);
                 }
             }
         }
 
-        // Test 1: List all objects with prefix to ensure we find our test objects
+        // Test 1: List all objects with prefix to ensure we find our test
+        // objects
         println!("\nTesting list all objects...");
         let list_request = ListObjectsV2Request {
             bucket: config.bucket.to_string(),
-            prefix: Some(generate_unique_object_name("").trim_end_matches('_').to_string()), // Use a prefix that covers our test objects
+            prefix: Some(
+                generate_unique_object_name("")
+                    .trim_end_matches('_')
+                    .to_string(),
+            ), // Use a prefix that covers our test objects
             ..Default::default()
         };
 
@@ -339,39 +347,46 @@ mod tests {
                 println!("List all objects result:");
                 println!("  Objects found: {}", result.contents.len());
                 println!("  Is truncated: {}", result.is_truncated);
-                
+
                 // Verify that our test objects are in the list
-                let found_objects_raw: Vec<&str> = result.contents.iter()
-                    .map(|obj| obj.key.as_deref().unwrap_or("")) 
-                    .collect();
-                
-                // Since the result is already URL decoded in the main function, we just collect the strings
-                let found_objects: Vec<String> = found_objects_raw
+                let found_objects_raw: Vec<&str> = result
+                    .contents
                     .iter()
-                    .map(|s| s.to_string())
+                    .map(|obj| obj.key.as_deref().unwrap_or(""))
                     .collect();
-                    
+
+                // Since the result is already URL decoded in the main function,
+                // we just collect the strings
+                let found_objects: Vec<String> =
+                    found_objects_raw.iter().map(|s| s.to_string()).collect();
+
                 println!("  Found objects (decoded): {:?}", found_objects);
-                
+
                 // Check if our test objects are among the returned objects
-                let has_test_objects = found_objects.contains(&object_name_1) && 
-                                      found_objects.contains(&object_name_2) && 
-                                      found_objects.contains(&object_name_3);
-                
+                let has_test_objects = found_objects.contains(&object_name_1)
+                    && found_objects.contains(&object_name_2)
+                    && found_objects.contains(&object_name_3);
+
                 if !has_test_objects {
-                    println!("Warning: Expected test objects not found in results. Available objects: {:?}", found_objects);
+                    println!(
+                        "Warning: Expected test objects not found in results. Available objects: \
+                         {:?}",
+                        found_objects
+                    );
                 }
-                
-                // Instead of asserting that all test objects are found in the general list,
-                // we should focus on testing that our functions work correctly with specific prefixes
-                // Let's continue with the rest of the test since the main functionality is tested in other scenarios
+
+                // Instead of asserting that all test objects are found in the
+                // general list, we should focus on testing that
+                // our functions work correctly with specific prefixes
+                // Let's continue with the rest of the test since the main
+                // functionality is tested in other scenarios
             }
             Err(err) => {
                 eprintln!("List all objects failed: {:?}", err);
-                
+
                 // Clean up uploaded objects
                 cleanup_test_objects(&client, &config.bucket, &uploaded_objects).await;
-                
+
                 panic!("List all objects failed: {:?}", err);
             }
         }
@@ -390,34 +405,46 @@ mod tests {
                 println!("  Objects found: {}", result.contents.len());
                 println!("  Prefix: {:?}", result.prefix);
                 println!("  Is truncated: {}", result.is_truncated);
-                
+
                 // Should find the two objects in the directory
-                // Update assertion to match actual number of objects found in the directory
-                assert!(result.contents.len() >= 2, "Expected at least 2 objects in directory, got {}", result.contents.len());
-                
-                let found_objects_raw: Vec<&str> = result.contents.iter()
-                    .map(|obj| obj.key.as_deref().unwrap_or("")) 
-                    .collect();
-                
-                // Since the result is already URL decoded in the main function, we just collect the strings
-                let found_objects: Vec<String> = found_objects_raw
+                // Update assertion to match actual number of objects found in
+                // the directory
+                assert!(
+                    result.contents.len() >= 2,
+                    "Expected at least 2 objects in directory, got {}",
+                    result.contents.len()
+                );
+
+                let found_objects_raw: Vec<&str> = result
+                    .contents
                     .iter()
-                    .map(|s| s.to_string())
+                    .map(|obj| obj.key.as_deref().unwrap_or(""))
                     .collect();
-                    
-                println!("  Found objects in directory (decoded): {:?}", found_objects);
-                
+
+                // Since the result is already URL decoded in the main function,
+                // we just collect the strings
+                let found_objects: Vec<String> =
+                    found_objects_raw.iter().map(|s| s.to_string()).collect();
+
+                println!(
+                    "  Found objects in directory (decoded): {:?}",
+                    found_objects
+                );
+
                 // Ensure our expected objects are in the results
-                let has_expected_objects = found_objects.contains(&object_name_1) && 
-                                         found_objects.contains(&object_name_2);
-                assert!(has_expected_objects, "Expected test objects not found in directory listing");
+                let has_expected_objects = found_objects.contains(&object_name_1)
+                    && found_objects.contains(&object_name_2);
+                assert!(
+                    has_expected_objects,
+                    "Expected test objects not found in directory listing"
+                );
             }
             Err(err) => {
                 eprintln!("List with prefix failed: {:?}", err);
-                
+
                 // Clean up uploaded objects
                 cleanup_test_objects(&client, &config.bucket, &uploaded_objects).await;
-                
+
                 panic!("List with prefix failed: {:?}", err);
             }
         }
@@ -437,28 +464,36 @@ mod tests {
                 println!("  Common prefixes found: {}", result.common_prefixes.len());
                 println!("  Delimiter: {:?}", result.delimiter);
                 println!("  Is truncated: {}", result.is_truncated);
-                
+
                 // Check that we see the directory as a common prefix
-                let has_expected_prefix = result.common_prefixes.iter()
-                    .any(|prefix| &prefix.prefix == &format!("{}/", directory_name));
-                
+                let has_expected_prefix = result
+                    .common_prefixes
+                    .iter()
+                    .any(|prefix| prefix.prefix == format!("{}/", directory_name));
+
                 println!("  Has expected directory prefix: {}", has_expected_prefix);
-                
+
                 // At least the standalone object should be in contents
-                let has_standalone_obj = result.contents.iter()
+                let has_standalone_obj = result
+                    .contents
+                    .iter()
                     .any(|obj| obj.key.as_deref().unwrap_or("") == object_name_3.as_str());
-                
+
                 println!("  Has standalone object: {}", has_standalone_obj);
-                
-                // Either the directory should appear as a prefix or standalone object in contents
-                assert!(has_expected_prefix || has_standalone_obj, "Expected either directory prefix or standalone object");
+
+                // Either the directory should appear as a prefix or standalone
+                // object in contents
+                assert!(
+                    has_expected_prefix || has_standalone_obj,
+                    "Expected either directory prefix or standalone object"
+                );
             }
             Err(err) => {
                 eprintln!("List with delimiter failed: {:?}", err);
-                
+
                 // Clean up uploaded objects
                 cleanup_test_objects(&client, &config.bucket, &uploaded_objects).await;
-                
+
                 panic!("List with delimiter failed: {:?}", err);
             }
         }
@@ -466,7 +501,7 @@ mod tests {
         // Clean up: delete all uploaded test objects
         println!("\nCleaning up test objects...");
         cleanup_test_objects(&client, &config.bucket, &uploaded_objects).await;
-        
+
         println!("Test completed successfully with all resources cleaned up.");
     }
     #[test]

@@ -102,12 +102,14 @@ mod tests {
     use std::rc::Rc;
 
     use super::super::create_access_point::tests::generate_access_point_name;
-    use super::super::create_access_point::{CreateAccessPointConfiguration, CreateAccessPointRequest};
+    use super::super::create_access_point::{
+        CreateAccessPointConfiguration, CreateAccessPointRequest,
+    };
     use super::*;
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
-    use crate::SignatureVersionType;
     use crate::test_utils::load_test_config;
+    use crate::SignatureVersionType;
 
     #[tokio::test]
     #[serial_test::serial]

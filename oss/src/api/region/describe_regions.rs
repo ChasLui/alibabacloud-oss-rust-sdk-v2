@@ -185,8 +185,14 @@ mod tests {
                 .with_signature_version(SignatureVersionType::V4),
         );
 
-        let result = client.describe_regions(&DescribeRegionsRequest::default()).await;
-        assert!(result.is_ok(), "describe_regions failed: {:?}", result.err());
+        let result = client
+            .describe_regions(&DescribeRegionsRequest::default())
+            .await;
+        assert!(
+            result.is_ok(),
+            "describe_regions failed: {:?}",
+            result.err()
+        );
         let list = result.unwrap().region_info_list.unwrap();
         assert!(!list.region_infos.is_empty());
     }

@@ -47,7 +47,6 @@ fn test_result_macro() {
     let output = OperationOutput {
         status: http::StatusCode::OK,
         headers,
-        ..Default::default()
     };
 
     result.update_result(&output);

@@ -14,6 +14,10 @@ repos:
     rev: v1.0
     hooks:
       - id: cargo-check
+        # `--all-targets` matters: without it the check compiles only the lib and
+        # silently skips the test/example targets, which is how four broken test
+        # targets survived unnoticed for months.
+        args: ["--all-targets"]
       - id: clippy
         args: ["--all-targets", "--", "--deny", "warnings"]
 

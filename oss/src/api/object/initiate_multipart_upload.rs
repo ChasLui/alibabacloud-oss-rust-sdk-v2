@@ -1,13 +1,11 @@
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::{Deserialize, Serialize};
-
-use crate::api::{RequestCommon, ResultCommon};
-use crate::client::Client;
-use crate::utils::modify_request;
-use crate::{OperationInput, OperationOutput};
-use crate::client::BodyDataReader;
 use urlencoding;
 
+use crate::api::{RequestCommon, ResultCommon};
+use crate::client::{BodyDataReader, Client};
+use crate::utils::modify_request;
+use crate::{OperationInput, OperationOutput};
 
 #[derive(Debug, Default, Serialize, OssRequestModel)]
 pub struct InitiateMultipartUploadRequest {
@@ -24,13 +22,11 @@ pub struct InitiateMultipartUploadRequest {
     /// specified range is not within the valid range. For an object whose
     /// size is 1,000 bytes:
     /// 1) If you set Range: bytes to 500-2000, the value at the end of the
-    ///    range is invalid.
-    /// In this case, OSS returns HTTP status code 206 and the data that is
-    /// within the range of byte 500 to byte 999.
+    ///    range is invalid. In this case, OSS returns HTTP status code 206 and
+    ///    the data that is within the range of byte 500 to byte 999.
     /// 2) If you set Range: bytes to 1000-2000, the value at the start of the
-    ///    range is invalid.
-    /// In this case, OSS returns HTTP status code 416 and the InvalidRange
-    /// error code.
+    ///    range is invalid. In this case, OSS returns HTTP status code 416 and
+    ///    the InvalidRange error code.
     #[serde(skip)]
     #[field(type = "header", rename = "x-oss-range-behavior")]
     pub range_behavior: Option<String>,
@@ -55,9 +51,9 @@ pub struct InitiateMultipartUploadRequest {
     #[field(type = "header", rename = "Expires")]
     pub expires: Option<String>,
 
-    /// Specifies whether the object that is uploaded by calling the InitiateMultipartUpload
-    /// operation overwrites an existing object that has the same name.
-    /// Valid values: true and false
+    /// Specifies whether the object that is uploaded by calling the
+    /// InitiateMultipartUpload operation overwrites an existing object that
+    /// has the same name. Valid values: true and false
     #[serde(skip)]
     #[field(type = "header", rename = "x-oss-forbid-overwrite")]
     pub forbid_overwrite: Option<String>,
@@ -133,8 +129,12 @@ pub struct InitiateMultipartUploadRequest {
 #[derive(Debug, Default, Deserialize, OssResultModel)]
 #[serde(default)]
 pub struct InitiateMultipartUploadResult {
-    /// The container that stores the result of the Initiate Multipart Upload request.
-    #[serde(rename = "InitiateMultipartUploadResult", skip_serializing_if = "Option::is_none")]
+    /// The container that stores the result of the Initiate Multipart Upload
+    /// request.
+    #[serde(
+        rename = "InitiateMultipartUploadResult",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub initiate_multipart_upload_result: Option<InitiateMultipartUploadResultInner>,
 
     /// The bucket name of the multipart upload.
@@ -181,15 +181,16 @@ pub struct InitiateMultipartUploadResultInner {
 impl Client {
     /// Initiates a multipart upload to the OSS bucket.
     ///
-    /// This method sends a POST request with the `?uploads` parameter to notify OSS
-    /// to initialize a multipart upload event. It returns an UploadId that uniquely
-    /// identifies this multipart upload event, which is used in subsequent operations
-    /// such as uploading parts and completing the multipart upload.
+    /// This method sends a POST request with the `?uploads` parameter to notify
+    /// OSS to initialize a multipart upload event. It returns an UploadId
+    /// that uniquely identifies this multipart upload event, which is used
+    /// in subsequent operations such as uploading parts and completing the
+    /// multipart upload.
     ///
     /// # Arguments
     ///
-    /// * `request` - The `InitiateMultipartUploadRequest` containing the necessary
-    ///   information for the multipart upload initialization.
+    /// * `request` - The `InitiateMultipartUploadRequest` containing the
+    ///   necessary information for the multipart upload initialization.
     ///
     /// # Returns
     ///
@@ -213,7 +214,10 @@ impl Client {
     ///
     /// match client.initiate_multipart_upload(&request).await {
     ///     Ok(initiate_result) => {
-    ///         println!("Multipart upload initiated successfully: {:?}", initiate_result.upload_id);
+    ///         println!(
+    ///             "Multipart upload initiated successfully: {:?}",
+    ///             initiate_result.upload_id
+    ///         );
     ///     }
     ///     Err(error) => {
     ///         eprintln!("Failed to initiate multipart upload: {}", error);
@@ -234,9 +238,9 @@ impl Client {
                 ("uploads", ""), // This is required to indicate multipart upload initiation
                 ("encoding-type", "url"),
             ]
-                .iter()
-                .map(|(k, v)| (k.to_string(), v.to_string()))
-                .collect(),
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
             ..Default::default()
         };
 
@@ -267,7 +271,7 @@ impl Client {
         if is_url_encoding {
             if let Some(key) = &mut result.key {
                 *key = urlencoding::decode(key)
-                    .unwrap_or_else(|_| std::borrow::Cow::Borrowed(key.as_str()))
+                    .unwrap_or(std::borrow::Cow::Borrowed(key.as_str()))
                     .into_owned();
             }
         }
@@ -285,8 +289,8 @@ mod tests {
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
+    use crate::test_utils::{generate_unique_object_name, load_test_config};
     use crate::SignatureVersionType;
-    use crate::test_utils::{load_test_config, TestConfig, generate_unique_object_name};
 
     #[tokio::test]
     #[serial_test::serial]
@@ -325,41 +329,70 @@ mod tests {
         match client.initiate_multipart_upload(&request).await {
             Ok(result) => {
                 println!("Multipart upload initiated successfully: {:?}", result);
-                assert!(result.upload_id.is_some(), "UploadId should be present in the response");
-                assert!(result.bucket.is_some(), "Bucket should be present in the response");
-                assert!(result.key.is_some(), "Key should be present in the response");
+                assert!(
+                    result.upload_id.is_some(),
+                    "UploadId should be present in the response"
+                );
+                assert!(
+                    result.bucket.is_some(),
+                    "Bucket should be present in the response"
+                );
+                assert!(
+                    result.key.is_some(),
+                    "Key should be present in the response"
+                );
 
                 let upload_id = result.upload_id.unwrap();
                 println!("Got UploadId: {}", upload_id);
-                
-                // Verify the multipart upload was created by listing multipart uploads
-                match client.list_multipart_uploads(&ListMultipartUploadsRequest {
-                    bucket: config.bucket.to_string(),
-                    ..Default::default()
-                }).await {
+
+                // Verify the multipart upload was created by listing multipart
+                // uploads
+                match client
+                    .list_multipart_uploads(&ListMultipartUploadsRequest {
+                        bucket: config.bucket.to_string(),
+                        ..Default::default()
+                    })
+                    .await
+                {
                     Ok(list_result) => {
                         // Check if our upload_id is in the list of uploads
-                        let found = list_result.uploads.iter().any(|upload| {
-                            upload.upload_id == upload_id
-                        });
-                        assert!(found, "The initiated multipart upload should be in the list");
-                        println!("Verified that upload_id {} exists in multipart uploads", upload_id);
-                    },
+                        let found = list_result
+                            .uploads
+                            .iter()
+                            .any(|upload| upload.upload_id == upload_id);
+                        assert!(
+                            found,
+                            "The initiated multipart upload should be in the list"
+                        );
+                        println!(
+                            "Verified that upload_id {} exists in multipart uploads",
+                            upload_id
+                        );
+                    }
                     Err(err) => {
-                        eprintln!("Failed to list multipart uploads for verification: {:?}", err);
-                        // Don't fail the test if listing uploads fails, since it's just for verification
+                        eprintln!(
+                            "Failed to list multipart uploads for verification: {:?}",
+                            err
+                        );
+                        // Don't fail the test if listing uploads fails, since
+                        // it's just for verification
                     }
                 }
-                
+
                 // Clean up: abort the multipart upload to release resources
-                match client.abort_multipart_upload(&AbortMultipartUploadRequest {
-                    bucket: config.bucket.to_string(),
-                    key: object_name,
-                    upload_id: upload_id.clone(),
-                    ..Default::default()  // 使用默认值填充其他字段
-                }).await {
+                match client
+                    .abort_multipart_upload(&AbortMultipartUploadRequest {
+                        bucket: config.bucket.to_string(),
+                        key: object_name,
+                        upload_id: upload_id.clone(),
+                        ..Default::default() // 使用默认值填充其他字段
+                    })
+                    .await
+                {
                     Ok(_) => println!("Successfully aborted multipart upload for cleanup"),
-                    Err(err) => eprintln!("Failed to abort multipart upload during cleanup: {:?}", err),
+                    Err(err) => {
+                        eprintln!("Failed to abort multipart upload during cleanup: {:?}", err)
+                    }
                 }
             }
             Err(err) => panic!("Initiate multipart upload failed: {:?}", err),
@@ -403,43 +436,72 @@ mod tests {
 
         match client.initiate_multipart_upload(&request).await {
             Ok(result) => {
-                println!("Multipart upload initiated with storage class: {:?}", result);
-                assert!(result.upload_id.is_some(), "UploadId should be present in the response");
+                println!(
+                    "Multipart upload initiated with storage class: {:?}",
+                    result
+                );
+                assert!(
+                    result.upload_id.is_some(),
+                    "UploadId should be present in the response"
+                );
 
                 let upload_id = result.upload_id.unwrap();
                 println!("Got UploadId with storage class: {}", upload_id);
-                
-                // Verify the multipart upload was created by listing multipart uploads
-                match client.list_multipart_uploads(&ListMultipartUploadsRequest {
-                    bucket: config.bucket.to_string(),
-                    ..Default::default()
-                }).await {
+
+                // Verify the multipart upload was created by listing multipart
+                // uploads
+                match client
+                    .list_multipart_uploads(&ListMultipartUploadsRequest {
+                        bucket: config.bucket.to_string(),
+                        ..Default::default()
+                    })
+                    .await
+                {
                     Ok(list_result) => {
                         // Check if our upload_id is in the list of uploads
-                        let found = list_result.uploads.iter().any(|upload| {
-                            upload.upload_id == upload_id
-                        });
-                        assert!(found, "The initiated multipart upload should be in the list");
-                        println!("Verified that upload_id {} exists in multipart uploads", upload_id);
-                    },
+                        let found = list_result
+                            .uploads
+                            .iter()
+                            .any(|upload| upload.upload_id == upload_id);
+                        assert!(
+                            found,
+                            "The initiated multipart upload should be in the list"
+                        );
+                        println!(
+                            "Verified that upload_id {} exists in multipart uploads",
+                            upload_id
+                        );
+                    }
                     Err(err) => {
-                        eprintln!("Failed to list multipart uploads for verification: {:?}", err);
-                        // Don't fail the test if listing uploads fails, since it's just for verification
+                        eprintln!(
+                            "Failed to list multipart uploads for verification: {:?}",
+                            err
+                        );
+                        // Don't fail the test if listing uploads fails, since
+                        // it's just for verification
                     }
                 }
-                
+
                 // Clean up: abort the multipart upload to release resources
-                match client.abort_multipart_upload(&AbortMultipartUploadRequest {
-                    bucket: config.bucket.to_string(),
-                    key: object_name,
-                    upload_id: upload_id.clone(),
-                    ..Default::default()  // 使用默认值填充其他字段
-                }).await {
+                match client
+                    .abort_multipart_upload(&AbortMultipartUploadRequest {
+                        bucket: config.bucket.to_string(),
+                        key: object_name,
+                        upload_id: upload_id.clone(),
+                        ..Default::default() // 使用默认值填充其他字段
+                    })
+                    .await
+                {
                     Ok(_) => println!("Successfully aborted multipart upload for cleanup"),
-                    Err(err) => eprintln!("Failed to abort multipart upload during cleanup: {:?}", err),
+                    Err(err) => {
+                        eprintln!("Failed to abort multipart upload during cleanup: {:?}", err)
+                    }
                 }
             }
-            Err(err) => panic!("Initiate multipart upload with storage class failed: {:?}", err),
+            Err(err) => panic!(
+                "Initiate multipart upload with storage class failed: {:?}",
+                err
+            ),
         }
     }
 }

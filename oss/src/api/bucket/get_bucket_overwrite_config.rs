@@ -1,13 +1,11 @@
-use crate::HTTP_HEADER_CONTENT_TYPE;
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::Deserialize;
 
 use super::put_bucket_overwrite_config::OverwriteRule;
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-use crate::{OperationInput, OperationOutput};
+use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct GetBucketOverwriteConfigRequest {
@@ -187,7 +185,11 @@ mod tests {
                 ..Default::default()
             })
             .await;
-        assert!(result.is_ok(), "get_bucket_overwrite_config failed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "get_bucket_overwrite_config failed: {:?}",
+            result.err()
+        );
         let result = result.unwrap();
         assert_eq!(result.rules.len(), 1);
         assert_eq!(result.rules[0].action, Some("forbid".to_string()));

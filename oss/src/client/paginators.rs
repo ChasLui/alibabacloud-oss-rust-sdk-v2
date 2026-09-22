@@ -85,7 +85,10 @@ macro_rules! impl_paginator {
 }
 
 impl_paginator!(
-    ListObjectsPaginator, ListObjectsRequest, ListObjectsResult, list_objects,
+    ListObjectsPaginator,
+    ListObjectsRequest,
+    ListObjectsResult,
+    list_objects,
     max_field = max_keys,
     encoding = url,
     by_ref = own,
@@ -96,7 +99,10 @@ impl_paginator!(
 );
 
 impl_paginator!(
-    ListObjectsV2Paginator, ListObjectsV2Request, ListObjectsV2Result, list_objects_v2,
+    ListObjectsV2Paginator,
+    ListObjectsV2Request,
+    ListObjectsV2Result,
+    list_objects_v2,
     max_field = max_keys,
     encoding = url,
     by_ref = own,
@@ -107,7 +113,10 @@ impl_paginator!(
 );
 
 impl_paginator!(
-    ListObjectVersionsPaginator, ListObjectVersionsRequest, ListObjectVersionsResult, list_object_versions,
+    ListObjectVersionsPaginator,
+    ListObjectVersionsRequest,
+    ListObjectVersionsResult,
+    list_object_versions,
     max_field = max_keys,
     encoding = url,
     by_ref = own,
@@ -119,7 +128,10 @@ impl_paginator!(
 );
 
 impl_paginator!(
-    ListBucketsPaginator, ListBucketsRequest, ListBucketsResult, list_buckets,
+    ListBucketsPaginator,
+    ListBucketsRequest,
+    ListBucketsResult,
+    list_buckets,
     max_field = max_keys,
     encoding = none,
     by_ref = ref_,
@@ -130,7 +142,10 @@ impl_paginator!(
 );
 
 impl_paginator!(
-    ListPartsPaginator, ListPartsRequest, ListPartsResult, list_parts,
+    ListPartsPaginator,
+    ListPartsRequest,
+    ListPartsResult,
+    list_parts,
     max_field = max_parts,
     encoding = url,
     by_ref = ref_,
@@ -141,7 +156,10 @@ impl_paginator!(
 );
 
 impl_paginator!(
-    ListMultipartUploadsPaginator, ListMultipartUploadsRequest, ListMultipartUploadsResult, list_multipart_uploads,
+    ListMultipartUploadsPaginator,
+    ListMultipartUploadsRequest,
+    ListMultipartUploadsResult,
+    list_multipart_uploads,
     max_field = max_uploads,
     encoding = url,
     by_ref = ref_,

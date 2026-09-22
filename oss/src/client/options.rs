@@ -6,12 +6,12 @@ use std::time::Duration;
 use chrono::TimeDelta;
 use url::Url;
 
+use crate::client::OssResponse;
 use crate::credential::CredentialsProvider;
 use crate::log::Logger;
 use crate::retry::Retryer;
 use crate::signer::Signer;
 use crate::{AuthMethodType, FeatureFlagsType, UrlStyleType};
-use crate::client::OssResponse;
 
 /// A callback invoked on the response before it is returned to the caller.
 ///
@@ -25,7 +25,6 @@ pub type ResponseHandler =
 /// A batch of [`ResponseHandler`]s, as stored in `OperationMetadata` under
 /// `OP_META_KEY_RESPONSE_HANDLER`.
 pub type ResponseHandlers = Vec<ResponseHandler>;
-
 
 #[derive(Clone, Default)]
 pub struct ClientOptions {

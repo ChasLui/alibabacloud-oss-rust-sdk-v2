@@ -9,7 +9,8 @@ use crate::signer::SUB_RESOURCE;
 use crate::utils::{modify_request, update_content_length};
 use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
-/// The container that stores the information about a single aggregate operation.
+/// The container that stores the information about a single aggregate
+/// operation.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct MetaQueryAggregation {
     /// The field name.
@@ -317,7 +318,8 @@ pub struct MetaQueryFile {
     #[serde(rename = "FileModifiedTime", skip_serializing_if = "Option::is_none")]
     pub file_modified_time: Option<String>,
 
-    /// The type of the object. Valid values: Multipart, Symlink, Appendable, Normal.
+    /// The type of the object. Valid values: Multipart, Symlink, Appendable,
+    /// Normal.
     #[serde(rename = "OSSObjectType", skip_serializing_if = "Option::is_none")]
     pub oss_object_type: Option<String>,
 
@@ -326,7 +328,10 @@ pub struct MetaQueryFile {
     pub etag: Option<String>,
 
     /// The server-side encryption algorithm used when the object was created.
-    #[serde(rename = "ServerSideEncryptionCustomerAlgorithm", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "ServerSideEncryptionCustomerAlgorithm",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub server_side_encryption_customer_algorithm: Option<String>,
 
     /// The number of the tags of the object.
@@ -345,7 +350,8 @@ pub struct MetaQueryFile {
     #[serde(rename = "Filename", skip_serializing_if = "Option::is_none")]
     pub filename: Option<String>,
 
-    /// The storage class of the object. Valid values: Archive, ColdArchive, IA, Standard.
+    /// The storage class of the object. Valid values: Archive, ColdArchive, IA,
+    /// Standard.
     #[serde(rename = "OSSStorageClass", skip_serializing_if = "Option::is_none")]
     pub oss_storage_class: Option<String>,
 
@@ -359,7 +365,10 @@ pub struct MetaQueryFile {
     pub osscrc64: Option<String>,
 
     /// The server-side encryption of the object.
-    #[serde(rename = "ServerSideEncryption", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "ServerSideEncryption",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub server_side_encryption: Option<String>,
 
     /// The object size.
@@ -371,11 +380,17 @@ pub struct MetaQueryFile {
     pub audio_streams: Option<MetaQueryAudioStreams>,
 
     /// The algorithm used to encrypt objects.
-    #[serde(rename = "ServerSideDataEncryption", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "ServerSideDataEncryption",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub server_side_data_encryption: Option<String>,
 
     /// The cross-origin request methods that are allowed.
-    #[serde(rename = "AccessControlRequestMethod", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "AccessControlRequestMethod",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub access_control_request_method: Option<String>,
 
     /// The artist.
@@ -399,7 +414,10 @@ pub struct MetaQueryFile {
     pub produce_time: Option<String>,
 
     /// The origins allowed in cross-origin requests.
-    #[serde(rename = "AccessControlAllowOrigin", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "AccessControlAllowOrigin",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub access_control_allow_origin: Option<String>,
 
     /// The name of the object when it is downloaded.
@@ -466,7 +484,8 @@ pub struct MetaQueryFile {
     #[serde(rename = "VideoStreams", skip_serializing_if = "Option::is_none")]
     pub video_streams: Option<MetaQueryVideoStreams>,
 
-    /// The web page caching behavior that is performed when the object is downloaded.
+    /// The web page caching behavior that is performed when the object is
+    /// downloaded.
     #[serde(rename = "CacheControl", skip_serializing_if = "Option::is_none")]
     pub cache_control: Option<String>,
 
@@ -483,7 +502,10 @@ pub struct MetaQueryFile {
     pub title: Option<String>,
 
     /// The ID of the customer master key (CMK) that is managed by KMS.
-    #[serde(rename = "ServerSideEncryptionKeyId", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "ServerSideEncryptionKeyId",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub server_side_encryption_key_id: Option<String>,
 
     /// The description of the file.
@@ -541,11 +563,13 @@ pub struct MetaQuery {
 /// The container that stores the metadata information.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct MetaQueryStatus {
-    /// The time when the metadata index library was created, in RFC 3339 format.
+    /// The time when the metadata index library was created, in RFC 3339
+    /// format.
     #[serde(rename = "CreateTime", skip_serializing_if = "Option::is_none")]
     pub create_time: Option<String>,
 
-    /// The time when the metadata index library was updated, in RFC 3339 format.
+    /// The time when the metadata index library was updated, in RFC 3339
+    /// format.
     #[serde(rename = "UpdateTime", skip_serializing_if = "Option::is_none")]
     pub update_time: Option<String>,
 
@@ -583,9 +607,10 @@ pub struct CloseMetaQueryResult {
 }
 
 impl Client {
-    /// Disables the metadata management feature for a bucket. After the metadata
-    /// management feature is disabled for a bucket, OSS automatically deletes the
-    /// metadata index library of the bucket and you cannot perform metadata indexing.
+    /// Disables the metadata management feature for a bucket. After the
+    /// metadata management feature is disabled for a bucket, OSS
+    /// automatically deletes the metadata index library of the bucket and
+    /// you cannot perform metadata indexing.
     ///
     /// # Arguments
     ///
@@ -687,7 +712,10 @@ mod tests {
             .close_meta_query(&CloseMetaQueryRequest::new(&config.bucket))
             .await;
         if let Err(error) = &result {
-            eprintln!("close_meta_query rejected (meta query may not be open): {}", error);
+            eprintln!(
+                "close_meta_query rejected (meta query may not be open): {}",
+                error
+            );
         }
     }
 }

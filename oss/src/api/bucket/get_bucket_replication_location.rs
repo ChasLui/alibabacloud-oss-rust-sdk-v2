@@ -1,13 +1,10 @@
-use crate::HTTP_HEADER_CONTENT_TYPE;
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::Deserialize;
 
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-use crate::OperationInput;
-use crate::OperationOutput;
+use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 /// The container that stores regions in which the destination bucket can be
 /// located with the TransferType information.
@@ -65,11 +62,17 @@ pub struct GetBucketReplicationLocationResult {
 
     /// The container that stores regions in which the destination bucket can
     /// be located with TransferType specified.
-    #[serde(rename = "LocationTransferTypeConstraint", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "LocationTransferTypeConstraint",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub location_transfer_type_constraint: Option<LocationTransferTypeConstraint>,
 
     /// The container that stores regions in which the RTC can be enabled.
-    #[serde(rename = "LocationRTCConstraint", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "LocationRTCConstraint",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub location_rtc_constraint: Option<LocationRTCConstraint>,
 
     /// Common result fields

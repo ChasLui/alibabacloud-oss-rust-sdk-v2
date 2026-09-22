@@ -5,11 +5,10 @@ use serde::Deserialize;
 
 use super::delete_bucket_inventory::InventoryConfiguration;
 use crate::api::{RequestCommon, ResultCommon};
-use crate::client::BodyDataReader;
-use crate::client::Client;
+use crate::client::{BodyDataReader, Client};
 use crate::signer::SUB_RESOURCE;
 use crate::utils::{modify_request, update_content_length};
-use crate::{OperationOutput, OperationInput, HTTP_HEADER_CONTENT_TYPE};
+use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct ListBucketInventoryRequest {
@@ -48,8 +47,12 @@ pub struct ListBucketInventoryResult {
     pub is_truncated: Option<bool>,
 
     /// If `is_truncated` is true and this field is not empty, set the
-    /// continuation-token parameter in the next request to the value of this field.
-    #[serde(rename = "NextContinuationToken", skip_serializing_if = "Option::is_none")]
+    /// continuation-token parameter in the next request to the value of this
+    /// field.
+    #[serde(
+        rename = "NextContinuationToken",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub next_continuation_token: Option<String>,
 
     #[serde(skip)]
@@ -61,8 +64,8 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `request` - The `ListBucketInventoryRequest` containing the bucket name
-    ///   and an optional continuation token.
+    /// * `request` - The `ListBucketInventoryRequest` containing the bucket
+    ///   name and an optional continuation token.
     ///
     /// # Examples
     ///
@@ -153,7 +156,10 @@ mod tests {
 </ListInventoryConfigurationsResult>"#;
         let result: ListBucketInventoryResult = quick_xml::de::from_str(xml).unwrap();
         assert_eq!(result.inventory_configurations.len(), 2);
-        assert_eq!(result.inventory_configurations[0].id.as_deref(), Some("report1"));
+        assert_eq!(
+            result.inventory_configurations[0].id.as_deref(),
+            Some("report1")
+        );
         assert_eq!(result.inventory_configurations[1].is_enabled, Some(false));
         assert_eq!(result.is_truncated, Some(true));
         assert_eq!(result.next_continuation_token.as_deref(), Some("token-xxx"));

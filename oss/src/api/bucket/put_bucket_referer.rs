@@ -31,7 +31,10 @@ pub struct RefererConfiguration {
 
     /// Specifies whether to truncate the query string in the URL when the
     /// Referer is matched.
-    #[serde(rename = "AllowTruncateQueryString", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "AllowTruncateQueryString",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub allow_truncate_query_string: Option<bool>,
 
     /// Specifies whether to truncate the path and parts that follow the path in
@@ -134,8 +137,10 @@ impl Client {
             std::rc::Rc::new(vec!["referer".to_string()]),
         );
 
-        let xml_body =
-            quick_xml::se::to_string_with_root("RefererConfiguration", &request.referer_configuration)?;
+        let xml_body = quick_xml::se::to_string_with_root(
+            "RefererConfiguration",
+            &request.referer_configuration,
+        )?;
         input.body = Some(BodyContent::from_text(xml_body, None));
 
         modify_request(
@@ -252,7 +257,11 @@ mod tests {
                 ..Default::default()
             })
             .await;
-        assert!(result.is_ok(), "put_bucket_referer failed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "put_bucket_referer failed: {:?}",
+            result.err()
+        );
 
         // Clean up
         let _ = client

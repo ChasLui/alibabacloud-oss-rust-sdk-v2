@@ -1,13 +1,12 @@
+use std::collections::HashMap;
+
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
+use futures_util::StreamExt;
 
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
 use crate::utils::{modify_request, update_content_md5};
 use crate::{BodyStream, OperationInput, OperationOutput};
-use bytes::Bytes;
-use futures_util::StreamExt;
-use std::collections::HashMap;
-use std::sync::Arc;
 
 #[derive(Default, OssRequestModel)]
 pub struct GetObjectRequest {
@@ -58,13 +57,11 @@ pub struct GetObjectRequest {
     /// specified range is not within the valid range. For an object whose
     /// size is 1,000 bytes:
     /// 1) If you set Range: bytes to 500-2000, the value at the end of the
-    ///    range is invalid.
-    /// In this case, OSS returns HTTP status code 206 and the data that is
-    /// within the range of byte 500 to byte 999.
+    ///    range is invalid. In this case, OSS returns HTTP status code 206 and
+    ///    the data that is within the range of byte 500 to byte 999.
     /// 2) If you set Range: bytes to 1000-2000, the value at the start of the
-    ///    range is invalid.
-    /// In this case, OSS returns HTTP status code 416 and the InvalidRange
-    /// error code.
+    ///    range is invalid. In this case, OSS returns HTTP status code 416 and
+    ///    the InvalidRange error code.
     #[field(type = "header", rename = "x-oss-range-behavior")]
     pub range_behavior: Option<String>,
 
@@ -588,16 +585,13 @@ impl Client {
             // Where the response actually starts, and how large the object is.
             let (response_start, response_total) = match result.content_range.as_deref() {
                 Some(content_range) => {
-                    let (from, _, total) =
-                        crate::utils::parse_content_range(content_range).map_err(
-                            |e| -> Box<dyn std::error::Error + Send + Sync> { e.to_string().into() },
-                        )?;
+                    let (from, _, total) = crate::utils::parse_content_range(content_range)
+                        .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
+                            e.to_string().into()
+                        })?;
                     (from, total)
                 }
-                None => (
-                    0,
-                    result.content_length.map(|len| len as i64).unwrap_or(-1),
-                ),
+                None => (0, result.content_length.map(|len| len as i64).unwrap_or(-1)),
             };
             if response_start != offset {
                 return Err(format!(
@@ -619,7 +613,8 @@ impl Client {
                     // a file made of two of them.
                     if result.etag != etag {
                         return Err(format!(
-                            "source object changed during the download: expected etag {:?}, got {:?}",
+                            "source object changed during the download: expected etag {:?}, got \
+                             {:?}",
                             etag, result.etag
                         )
                         .into());
@@ -715,7 +710,7 @@ mod tests {
     use crate::config::Config;
     use crate::credential::StaticCredentialsProvider;
     use crate::log::LogLevel;
-    use crate::test_utils::{load_test_config, TestConfig};
+    use crate::test_utils::load_test_config;
     use crate::{SignatureVersionType, HTTP_HEADER_CONTENT_RANGE};
 
     pub(super) async fn get_by_range(
@@ -992,7 +987,8 @@ mod tests {
             Err(err) => panic!("Invoke operation failed: {:?}", err),
         }
 
-        // test get object by invalid range (maximum valid range: "bytes=0-{len-1}")
+        // test get object by invalid range (maximum valid range:
+        // "bytes=0-{len-1}")
         let range = format!("bytes={}-{}", 0, TEST_OBJECT_CONTENT.len());
 
         match get_by_range(&client, &config.bucket, &range).await {
@@ -1046,13 +1042,15 @@ mod tests {
         );
 
         // Attempt to get an object with a fake/nonexistent version ID
-        // This should return a 404 error since the specific version doesn't exist
+        // This should return a 404 error since the specific version doesn't
+        // exist
         let request = GetObjectRequest {
             bucket: config.bucket.to_string(),
             key: "nonexistent-object-key".to_string(), // Use a key that doesn't exist
             version_id: Some(
                 "CAEQUhiBgMDwk5fQ3hkiIDQ1NmExZTM4YzcyYTRlZmU5NjViNjE2YmQwZDU0MTc0".to_string(),
-            ), // Specify a version that definitely doesn't exist
+            ), /* Specify a version that definitely
+                                                        * doesn't exist */
             ..Default::default()
         };
 
@@ -1071,7 +1069,8 @@ mod tests {
                     "Got error as expected when requesting nonexistent object version: {:?}",
                     err
                 );
-                // We could potentially check the error details to confirm it's a 404
+                // We could potentially check the error details to confirm it's
+                // a 404
             }
         }
     }

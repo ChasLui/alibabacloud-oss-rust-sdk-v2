@@ -61,9 +61,12 @@ pub fn update_content_md5(
 
         // 4. 设置 Content-MD5 头（如果存在）
         if let Some(md5) = md5_bytes {
-            let md5_b64 =general_purpose::STANDARD.encode(md5);
+            let md5_b64 = general_purpose::STANDARD.encode(md5);
             // let md5_b64 = BASE64_STANDARD.encode(md5);
-            input.headers.insert(HTTP_HEADER_CONTENT_MD5.to_string(), md5_b64.parse().unwrap());
+            input.headers.insert(
+                HTTP_HEADER_CONTENT_MD5.to_string(),
+                md5_b64.parse().unwrap(),
+            );
         }
     }
 
@@ -72,8 +75,6 @@ pub fn update_content_md5(
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
-    use std::sync::{Arc, Mutex};
 
     use super::*;
 

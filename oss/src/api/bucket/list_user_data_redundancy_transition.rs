@@ -1,4 +1,3 @@
-use crate::HTTP_HEADER_CONTENT_TYPE;
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::Deserialize;
 
@@ -6,8 +5,7 @@ use super::create_bucket_data_redundancy_transition::BucketDataRedundancyTransit
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-use crate::OperationInput;
-use crate::OperationOutput;
+use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct ListUserDataRedundancyTransitionRequest {
@@ -28,7 +26,10 @@ pub struct ListUserDataRedundancyTransitionResult {
     /// Indicates that this ListUserDataRedundancyTransition request contains
     /// subsequent results. You must set continuation-token to
     /// NextContinuationToken to continue obtaining the results.
-    #[serde(rename = "NextContinuationToken", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "NextContinuationToken",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub next_continuation_token: Option<String>,
 
     /// The container in which the redundancy type conversion task is stored.
@@ -71,7 +72,10 @@ impl Client {
     ///
     /// match client.list_user_data_redundancy_transition(&request).await {
     ///     Ok(result) => {
-    ///         println!("Transitions: {:?}", result.bucket_data_redundancy_transitions.len());
+    ///         println!(
+    ///             "Transitions: {:?}",
+    ///             result.bucket_data_redundancy_transitions.len()
+    ///         );
     ///     }
     ///     Err(error) => {
     ///         eprintln!("Failed to list user redundancy transitions: {}", error);
@@ -146,13 +150,14 @@ mod tests {
     <CreateTime>2024-01-01T00:00:00.000Z</CreateTime>
   </BucketDataRedundancyTransition>
 </ListBucketDataRedundancyTransition>"#;
-        let result: ListUserDataRedundancyTransitionResult =
-            quick_xml::de::from_str(xml).unwrap();
+        let result: ListUserDataRedundancyTransitionResult = quick_xml::de::from_str(xml).unwrap();
         assert_eq!(result.is_truncated, Some(false));
         assert_eq!(result.next_continuation_token, None);
         assert_eq!(result.bucket_data_redundancy_transitions.len(), 1);
         assert_eq!(
-            result.bucket_data_redundancy_transitions[0].status.as_deref(),
+            result.bucket_data_redundancy_transitions[0]
+                .status
+                .as_deref(),
             Some("Queueing")
         );
     }

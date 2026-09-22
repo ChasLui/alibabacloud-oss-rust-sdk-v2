@@ -1,4 +1,3 @@
-use crate::HTTP_HEADER_CONTENT_TYPE;
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 use serde::Deserialize;
 
@@ -6,8 +5,7 @@ use super::create_bucket_data_redundancy_transition::BucketDataRedundancyTransit
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::{BodyDataReader, Client};
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-use crate::OperationInput;
-use crate::OperationOutput;
+use crate::{OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct ListBucketDataRedundancyTransitionRequest {
@@ -31,7 +29,10 @@ pub struct ListBucketDataRedundancyTransitionResult {
     /// Indicates that this ListBucketDataRedundancyTransition request contains
     /// subsequent results. You must set continuation-token to
     /// NextContinuationToken to continue obtaining the results.
-    #[serde(rename = "NextContinuationToken", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "NextContinuationToken",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub next_continuation_token: Option<String>,
 
     /// The container in which the redundancy type conversion task is stored.
@@ -163,7 +164,9 @@ mod tests {
         assert_eq!(result.is_truncated, Some(true));
         assert_eq!(result.bucket_data_redundancy_transitions.len(), 2);
         assert_eq!(
-            result.bucket_data_redundancy_transitions[0].task_id.as_deref(),
+            result.bucket_data_redundancy_transitions[0]
+                .task_id
+                .as_deref(),
             Some("task-1")
         );
         assert_eq!(
@@ -171,12 +174,13 @@ mod tests {
             Some(40)
         );
         assert_eq!(
-            result.bucket_data_redundancy_transitions[1].end_time.as_deref(),
+            result.bucket_data_redundancy_transitions[1]
+                .end_time
+                .as_deref(),
             Some("2024-01-02T02:00:00.000Z")
         );
         assert_eq!(
-            result.bucket_data_redundancy_transitions[1]
-                .process_percentage,
+            result.bucket_data_redundancy_transitions[1].process_percentage,
             None
         );
 

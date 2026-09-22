@@ -266,21 +266,17 @@ impl SignerV4 {
         let request = &mut signing_ctx.request.as_mut().unwrap();
         let cred = &signing_ctx.credentials.as_ref().unwrap();
 
-        let datetime_now = if signing_ctx.sign_time.is_none() {
-            Utc::now()
-        } else {
-            signing_ctx.sign_time.unwrap().into()
+        let datetime_now = match signing_ctx.sign_time {
+            Some(sign_time) => sign_time.into(),
+            None => Utc::now(),
         };
         let datetime = datetime_now.format(ISO8601_DATETIME_FORMAT).to_string();
         let date = datetime_now.format(ISO8601_DATE_FORMAT).to_string();
-        let expires = if signing_ctx.time.is_none() {
-            DEFAULT_EXPIRES_DURATION
-        } else {
-            signing_ctx
-                .time
-                .unwrap()
+        let expires = match signing_ctx.time {
+            Some(time) => time
                 .duration_since(datetime_now.into())
-                .unwrap_or(Duration::ZERO)
+                .unwrap_or(Duration::ZERO),
+            None => DEFAULT_EXPIRES_DURATION,
         }
         .as_secs();
 
@@ -862,8 +858,6 @@ mod tests {
         let _ = SignerV4 {}.sign(&mut sign_ctx);
 
         let sign_url = sign_ctx.request.as_ref().unwrap().url();
-
-        print!("{:?}", sign_url.query_pairs().collect::<Vec<_>>());
 
         assert_eq!(
             sign_url

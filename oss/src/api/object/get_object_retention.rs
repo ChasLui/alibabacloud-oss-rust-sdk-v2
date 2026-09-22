@@ -158,7 +158,10 @@ mod tests {
             .put_object(crate::api::object::PutObjectRequest {
                 bucket: config.bucket.clone(),
                 key: object_name.clone(),
-                body: Some(crate::BodyContent::from_text("retention-test".to_string(), None)),
+                body: Some(crate::BodyContent::from_text(
+                    "retention-test".to_string(),
+                    None,
+                )),
                 ..Default::default()
             })
             .await
@@ -173,7 +176,10 @@ mod tests {
             })
             .await;
         if let Err(error) = &result {
-            eprintln!("get_object_retention rejected (no retention policy set): {}", error);
+            eprintln!(
+                "get_object_retention rejected (no retention policy set): {}",
+                error
+            );
         }
 
         // Clean up

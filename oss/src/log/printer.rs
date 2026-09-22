@@ -58,7 +58,8 @@ impl LogPrinter for StandardLogPrinter {
         match output_lock.deref_mut() {
             LogOutput::Stdout => {
                 // let mut handle = std::io::stdout().lock();
-                // writeln!(handle, "{}", message).expect("Failed to write to stdout");
+                // writeln!(handle, "{}", message).expect("Failed to write to
+                // stdout");
                 println!("{}", message);
             }
             LogOutput::File(ref path) => {

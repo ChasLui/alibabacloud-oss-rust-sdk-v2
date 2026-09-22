@@ -132,11 +132,16 @@ pub(crate) fn update_response_progress(inner: &ProgressInner, chunk: &[u8]) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::sync::Mutex;
 
+    use super::*;
+
     /// Records every callback invocation as `(transferred, total)`.
-    fn recorder() -> (Box<dyn Fn(i64, i64) + Send + Sync>, Arc<Mutex<Vec<(i64, i64)>>>) {
+    #[allow(clippy::type_complexity)]
+    fn recorder() -> (
+        Box<dyn Fn(i64, i64) + Send + Sync>,
+        Arc<Mutex<Vec<(i64, i64)>>>,
+    ) {
         let seen = Arc::new(Mutex::new(Vec::new()));
         let sink = seen.clone();
         let callback = Box::new(move |transferred: i64, total: i64| {

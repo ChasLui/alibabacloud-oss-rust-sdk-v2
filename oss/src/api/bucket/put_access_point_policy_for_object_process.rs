@@ -1,10 +1,9 @@
-use crate::HTTP_HEADER_CONTENT_TYPE;
 use alibabacloud_oss_sdk_rust_v2_api_model::{OssRequestModel, OssResultModel};
 
 use crate::api::{RequestCommon, ResultCommon};
 use crate::client::Client;
 use crate::utils::{modify_request, update_content_length, update_content_md5};
-use crate::{BodyContent, OperationInput, OperationOutput};
+use crate::{BodyContent, OperationInput, OperationOutput, HTTP_HEADER_CONTENT_TYPE};
 
 #[derive(Debug, Default, OssRequestModel)]
 pub struct PutAccessPointPolicyForObjectProcessRequest {
@@ -32,9 +31,9 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `request` - The `PutAccessPointPolicyForObjectProcessRequest` containing
-    ///   the bucket name, the Object FC Access Point name and the json format
-    ///   permission policies.
+    /// * `request` - The `PutAccessPointPolicyForObjectProcessRequest`
+    ///   containing the bucket name, the Object FC Access Point name and the
+    ///   json format permission policies.
     ///
     /// # Examples
     ///
@@ -142,7 +141,8 @@ mod tests {
         );
 
         // Configuring a policy on a non-existent Object FC Access Point is
-        // expected to be rejected by the server; the call exercises the request path.
+        // expected to be rejected by the server; the call exercises the request
+        // path.
         let result = client
             .put_access_point_policy_for_object_process(
                 PutAccessPointPolicyForObjectProcessRequest {
@@ -158,7 +158,8 @@ mod tests {
             .await;
         if let Err(error) = &result {
             eprintln!(
-                "put_access_point_policy_for_object_process rejected (access point may not exist): {}",
+                "put_access_point_policy_for_object_process rejected (access point may not \
+                 exist): {}",
                 error
             );
         }
